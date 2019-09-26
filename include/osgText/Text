@@ -161,7 +161,8 @@ public:
     const osg::Vec4& getColorGradientBottomRight() const { return _colorGradientBottomRight; }
     const osg::Vec4& getColorGradientTopRight() const { return _colorGradientTopRight; }
 
-
+    // GL3 Change
+    virtual void setStateSet(osg::StateSet* stateSet);
 
     /** Draw the text.*/
     virtual void drawImplementation(osg::RenderInfo& renderInfo) const;
@@ -308,6 +309,9 @@ protected:
 
     // Helper function for color interpolation
     float bilinearInterpolate(float x1, float x2, float y1, float y2, float x, float y, float q11, float q12, float q21, float q22) const;
+
+    static osg::ref_ptr<osg::Program> getOrCreateFixedFunctionProgram();
+    static osg::ref_ptr<osg::Program> _program;
 };
 
 }

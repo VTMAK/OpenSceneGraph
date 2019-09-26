@@ -721,5 +721,4 @@ trpgrAppFileCache::OpenFile::OpenFile()
     id = -1;
     row = 0;
     col = 0;
-
 }

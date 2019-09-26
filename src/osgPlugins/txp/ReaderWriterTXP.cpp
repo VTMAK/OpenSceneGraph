@@ -51,7 +51,7 @@ osgDB::ReaderWriter::ReadResult ReaderWriterTXP::local_readNode(const std::strin
         //we will set our osgdb loader options on the archive and set the appropriate archive on
         //the txpNode.
         int id = ++_archiveId;
-        osg::ref_ptr< TXPArchive > archive = createArchive(id,osgDB::getFilePath(fileName));
+        osg::ref_ptr< TXPArchive > archive = createArchive(id,osgDB::getFilePath(fileName), options);
 
         if (archive != NULL)
         {
@@ -166,6 +166,12 @@ osgDB::ReaderWriter::ReadResult ReaderWriterTXP::local_readNode(const std::strin
             pagedLOD->setPriorityScale(0,1.0f);
             pagedLOD->setNumChildrenThatCannotBeExpired(1);
             pagedLOD->setTileId(x,y,lod);
+
+            if (options)
+            {
+               osgDB::Options* optionsCopy = reinterpret_cast<osgDB::Options*>(options->clone(osg::CopyOp()));
+               pagedLOD->setDatabaseOptions(optionsCopy);
+            }
 
             const trpgHeader* header = archive->GetHeader();
             trpgHeader::trpgTileType tileType;
@@ -324,9 +330,10 @@ osgDB::ReaderWriter::ReadResult ReaderWriterTXP::local_readNode(const std::strin
                         subtiles->addChild(tform);
                     }
                     else
-                    {
-                        subtiles->addChild(pagedLOD.get());
-                    }
+                    {  // VRV_PATCH for {
+                       subtiles->addChild(pagedLOD.get());
+                       subtiles->setUserData(new TileIdentifier(loc.x, loc.y, loc.lod)); // is this really needed?
+                    }  // VRV_PATCH for }
                 }
                 else
                 {
@@ -609,7 +616,7 @@ osg::ref_ptr< TXPArchive > ReaderWriterTXP::getArchive(int id, const std::string
     return archive;
 }
 
-osg::ref_ptr< TXPArchive > ReaderWriterTXP::createArchive(int id, const std::string& dir)
+osg::ref_ptr< TXPArchive > ReaderWriterTXP::createArchive(int id, const std::string& dir, const osgDB::ReaderWriter::Options* options)
 {
     std::string archiveName = getArchiveName(dir);
 
@@ -621,6 +628,14 @@ osg::ref_ptr< TXPArchive > ReaderWriterTXP::createArchive(int id, const std::str
     }
 
     archive = new TXPArchive;
+    std::string path = osgDB::getFilePath(archiveName);
+
+    if (options)
+    {
+        osgDB::Options* optionsCopy = reinterpret_cast<osgDB::Options*>(options->clone(osg::CopyOp()));
+        optionsCopy->getDatabasePathList().push_back(path); 
+        archive->setOptions(optionsCopy);
+    }
     if (archive->openFile(archiveName) == false)
     {
         ReaderWriterTXPERROR("createArchive()") << "failed to load archive: \"" << archiveName << "\"" << std::endl;

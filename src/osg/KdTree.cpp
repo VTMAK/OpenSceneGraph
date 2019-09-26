@@ -507,6 +507,9 @@ bool KdTree::build(BuildOptions& options, osg::Geometry* geometry)
 ////////////////////////////////////////////////////////////////////////////////
 //
 // KdTreeBuilder
+
+
+
 KdTreeBuilder::KdTreeBuilder():
     osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN)
 {
@@ -530,6 +533,12 @@ void KdTreeBuilder::apply(osg::Geometry& geometry)
 
     if (kdTree->build(_buildOptions, &geometry))
     {
+        //VRV_PATCH mutex around the setShape to avoid stomping on previously generated kdtree that may already be in the rendered scenegraph
+        static OpenThreads::Mutex  _mutex;
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
+        previous = dynamic_cast<osg::KdTree*>(geometry.getShape());
+        if (previous) return;
+        //END VRV_PATCH
         geometry.setShape(kdTree.get());
     }
 }

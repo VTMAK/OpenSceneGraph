@@ -449,6 +449,9 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     glVersion = validContext ? findAsciiToFloat( versionString ) : 0.0f;
     glslLanguageVersion = 0.0f;
 
+    // vantage change
+    isNsightCompatable = 1;
+
     bool shadersBuiltIn = OSG_GLES2_FEATURES || OSG_GLES3_FEATURES || OSG_GL3_FEATURES;
 
     isShaderObjectsSupported = validContext && (shadersBuiltIn || osg::isGLExtensionSupported(contextID,"GL_ARB_shader_objects"));
@@ -462,6 +465,10 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     isGetProgramBinarySupported = validContext && osg::isGLExtensionOrVersionSupported(contextID,"GL_ARB_get_program_binary", 4.1f);
     isGpuShaderFp64Supported = validContext && osg::isGLExtensionOrVersionSupported(contextID,"GL_ARB_gpu_shader_fp64", 4.0f);
     isShaderAtomicCountersSupported = validContext && osg::isGLExtensionOrVersionSupported(contextID,"GL_ARB_shader_atomic_counters", 4.2f);
+
+    if (isNsightCompatable){
+        isGeometryShader4Supported = 0;
+    }
 
     isRectangleSupported = validContext &&
                            (OSG_GL3_FEATURES ||
@@ -1107,6 +1114,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     setGLExtensionFuncPtr(glBlitFramebuffer, "glBlitFramebuffer", "glBlitFramebufferEXT", "glBlitFramebufferOES", validContext);
     setGLExtensionFuncPtr(glGetRenderbufferParameteriv, "glGetRenderbufferParameteriv", "glGetRenderbufferParameterivEXT", "glGetRenderbufferParameterivOES", validContext);
 
+	if (isNsightCompatable){
+		glRenderbufferStorageMultisampleCoverageNV = NULL;
+	}
+	else{
+		setGLExtensionFuncPtr(glRenderbufferStorageMultisampleCoverageNV, "glRenderbufferStorageMultisampleCoverageNV");
+	}
+
 
     isFrameBufferObjectSupported =
         glBindRenderbuffer != 0 &&
@@ -1184,6 +1198,15 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     osg::setGLExtensionFuncPtr(glBindVertexArray, "glBindVertexArray", "glBindVertexArrayOES", validContext);
     osg::setGLExtensionFuncPtr(glDeleteVertexArrays, "glDeleteVertexArrays", "glDeleteVertexArraysOES", validContext);
     osg::setGLExtensionFuncPtr(glIsVertexArray, "glIsVertexArray", "glIsVertexArrayOES", validContext);
+
+    osg::setGLExtensionFuncPtr(glObjectLabel, "glObjectLabel");
+    osg::setGLExtensionFuncPtr(glGetObjectLabel, "glGetObjectLabel");
+    
+    osg::setGLExtensionFuncPtr(glPushDebugGroup, "glPushDebugGroup");
+    osg::setGLExtensionFuncPtr(glPopDebugGroup, "glPopDebugGroup");
+
+    osg::setGLExtensionFuncPtr(glViewportIndexedf, "glViewportIndexedf");
+    osg::setGLExtensionFuncPtr(glViewportIndexedfv, "glViewportIndexedfv");
 
     // OpenGL 4.3 / ARB_vertex_attrib_binding
     isVertexAttribBindingSupported = validContext && (isGLExtensionOrVersionSupported(contextID, "GL_ARB_vertex_attrib_binding", 4.3f));

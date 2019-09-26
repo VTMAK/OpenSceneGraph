@@ -299,7 +299,7 @@ public:
 TX_EXDECL class TX_CLDECL trpgColor {
 public:
     trpgColor(float64 r,float64 g,float64 b) {red = r; green = g; blue = b;}
-    trpgColor(void) : red(1.0), green(1.0), blue(1.0) { };
+    trpgColor(void) : red(0.0), green(0.0), blue(0.0) { }; // VRV_PATCH
     bool operator==(const trpgColor& color) {
         if ( color.red != red )        return false;
         if ( color.green != green ) return false;
@@ -696,7 +696,7 @@ protected:
  */
 TX_EXDECL class TX_CLDECL trpgrAppFileCache {
 public:
-    trpgrAppFileCache(){;};
+    trpgrAppFileCache() : timeCount(0) {}; // VRV_PATCH
     trpgrAppFileCache(const char *prefix,const char *ext,int noFiles=32);
     // real construction is here
     virtual void Init(const char *prefix,const char *ext,int noFiles);

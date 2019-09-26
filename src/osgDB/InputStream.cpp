@@ -910,7 +910,7 @@ osg::ref_ptr<osg::Object> InputStream::readObjectFields( const std::string& clas
     ObjectWrapper* wrapper = Registry::instance()->getObjectWrapperManager()->findWrapper( className );
     if ( !wrapper )
     {
-        OSG_WARN << "InputStream::readObject(): Unsupported wrapper class "
+        OSG_INFO << "InputStream::readObject(): Unsupported wrapper class "
                                << className << std::endl;
         return NULL;
     }

@@ -18,6 +18,10 @@
 #include <osgDB/FileNameUtils>
 #include <osgDB/FileUtils>
 
+// BEGIN VRV_PATCH - faster loading
+#include <OpenThreads/Mutex>
+// END VRV_PATCH
+
 #ifdef WIN32
     #include <windows.h>
 #endif
@@ -289,8 +293,10 @@ std::string osgDB::concatPaths(const std::string& left, const std::string& right
     }
 }
 
-std::string osgDB::getRealPath(const std::string& path)
+// BEGIN VRV_PATCH - faster loading
+std::string getRealPath_internal(const std::string& path)
 {
+   
 #if defined(WIN32)  && !defined(__CYGWIN__)
 
 #ifdef OSG_USE_UTF8_FILENAME
@@ -336,7 +342,7 @@ std::string osgDB::getRealPath(const std::string& path)
     // Force drive letter to upper case
     if ((retbuf[1] == ':') && islower(retbuf[0]))
         retbuf[0] = _toupper(retbuf[0]);
-    if (fileExists(std::string(retbuf)))
+    if (osgDB::fileExists(std::string(retbuf)))
     {
         // Canonicalise the full path
         GetShortPathName(retbuf, tempbuf1, sizeof(tempbuf1));
@@ -346,15 +352,15 @@ std::string osgDB::getRealPath(const std::string& path)
     else
     {
         // Canonicalise the directories
-        std::string FilePath = getFilePath(retbuf);
+        std::string FilePath = osgDB::getFilePath(retbuf);
         char tempbuf2[MAX_PATH + 1];
         if (0 == GetShortPathName(FilePath.c_str(), tempbuf1, sizeof(tempbuf1)))
             return std::string(retbuf);
         if (0 == GetLongPathName(tempbuf1, tempbuf2, sizeof(tempbuf2)))
             return std::string(retbuf);
         FilePath = std::string(tempbuf2);
-        FilePath += WINDOWS_PATH_SEPARATOR;
-        FilePath.append(getSimpleFileName(std::string(retbuf)));
+        FilePath += osgDB::WINDOWS_PATH_SEPARATOR;
+        FilePath.append(osgDB::getSimpleFileName(std::string(retbuf)));
         return FilePath;
     }
 #endif
@@ -367,6 +373,36 @@ std::string osgDB::getRealPath(const std::string& path)
     else return path;
 #endif
 }
+
+
+std::string osgDB::getRealPath(const std::string& path)
+{
+   if (isAbsolutePath(path))
+   {
+      return path;
+   }
+
+   // on windows getRealPath was super slow (possibly only on machines in workgroups 
+   // where path permissions needed to get resolved in the kernel.)
+   
+   // this should probably be a read write mutex, but pelican says it's buggy.
+   static OpenThreads::Mutex s_Mutex;
+   static std::map<std::string, std::string> s_real_path_lookup;
+   {
+      OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_Mutex);
+      std::map<std::string, std::string>::const_iterator res = s_real_path_lookup.find(path);
+      if (res != s_real_path_lookup.end())
+      {
+         return res->second;
+      }
+   }
+   
+   std::string retval = getRealPath_internal(path);
+   OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_Mutex);
+   s_real_path_lookup[path] = retval;
+   return retval;
+}
+// END VRV_PATCH 
 
 namespace osgDB
 {

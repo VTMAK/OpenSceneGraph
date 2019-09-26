@@ -30,8 +30,95 @@
 #include <osg/io_utils>
 
 #include <sstream>
+#include <osg/Material>
+
+// VRV patch
+#include <osg/ConcurrencyViewerMacros>
 
 using namespace osgViewer;
+
+
+osgViewer::CullThread * osgViewer::Renderer::_s_cullThread = NULL;
+namespace osgViewer
+{
+   // VRV patch
+   class CullThread : public OpenThreads::Thread
+   {
+   public:
+      CullThread() : OpenThreads::Thread(), _sceneView(NULL), _ico(NULL), _running(1), _initialized(0), _refCount(0)
+      {
+
+      }
+      virtual void run()
+      {
+         osg::CVMarkerSeries series("Cull Thread");
+         while (1)
+         {
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
+            {
+               osg::CVSpan icoTick(series, 4, "Cull");
+
+               if (_sceneView) {
+                  _sceneView->cull();
+               }
+
+               if (_ico) {
+                  _ico->stopCompiling();
+               }
+
+               // stop any additional operations
+               // VRV_PATCH
+               osgViewer::View* view = dynamic_cast<osgViewer::View*>(_sceneView->getCamera()->getView());
+
+               if (view->getViewerBase()) {
+                  osg::Operation* mto = view->getViewerBase()->getMainThreadOperation();
+                  if (mto)
+                  {
+                      mto->release();
+                  }
+               }
+               _running = 0;
+            }
+
+            // Wait for startUp call from cull_draw
+            // Linux requires that the mutex be locked by the calling thread
+            // when a condition::wait is called using it
+            _runThreadWaitCond.wait(&_mutex);
+         }
+      }
+
+      void ref(){ _refCount++; }
+      void unref(){ _refCount--; }
+      int getRefs(){ return _refCount; };
+
+      void startUp()
+      {
+         // VRV_PATCH BEGIN
+         OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
+         // VRV_PATCH END
+         _running = 1;
+         if (_ico){
+            _ico->setStartCompilingFlag();
+         }
+         if (!_initialized){
+            _initialized = 1;
+            startThread();
+            // make sure the thread starts up and starts to wait
+            OpenThreads::Thread::microSleep(1);
+         }
+
+         _runThreadWaitCond.signal();
+      }
+      osgUtil::SceneView* _sceneView;
+
+      OpenThreads::Mutex _mutex;
+      OpenThreads::Condition _runThreadWaitCond;
+      volatile int _running;
+      osgUtil::IncrementalCompileOperation* _ico;
+      int _initialized;
+      int _refCount;
+   };
+}
 
 //#define DEBUG_MESSAGE OSG_NOTICE
 #define DEBUG_MESSAGE OSG_DEBUG
@@ -459,11 +546,28 @@ Renderer::Renderer(osg::Camera* camera):
     _availableQueue.add(_sceneView[1].get());
 
     DEBUG_MESSAGE<<"_availableQueue.size()="<<_availableQueue._queue.size()<<std::endl;
+
+    if (!_s_cullThread){
+       _s_cullThread = new CullThread();
+    }
+    _s_cullThread->ref();
+
 }
 
 Renderer::~Renderer()
 {
     DEBUG_MESSAGE<<"Render::~Render() "<<this<<std::endl;
+
+    _s_cullThread->unref();
+    if (_s_cullThread->getRefs() == 0){
+       _s_cullThread->cancel();
+       if (_s_cullThread->isRunning())
+       {
+          _s_cullThread->join();
+       }
+       delete _s_cullThread;
+       _s_cullThread = NULL;
+    }
 }
 
 void Renderer::initialize(osg::State* state)
@@ -619,8 +723,13 @@ void Renderer::compile()
 
 static void collectSceneViewStats(unsigned int frameNumber, osgUtil::SceneView* sceneView, osg::Stats* stats)
 {
+
     osgUtil::Statistics sceneStats;
-    sceneView->getStats(sceneStats);
+    //if the scene view was not rendered then there are no stats to get...
+    if (sceneView->getCamera() && sceneView->getCamera()->getNodeMask() > 0)
+    {
+       sceneView->getStats(sceneStats);
+    }
 
     stats->setAttribute(frameNumber, "Visible vertex count", static_cast<double>(sceneStats._vertexCount));
     stats->setAttribute(frameNumber, "Visible number of drawables", static_cast<double>(sceneStats.numDrawables));
@@ -666,6 +775,9 @@ void Renderer::cull()
 
     DEBUG_MESSAGE<<"cull() got SceneView "<<sceneView<<std::endl;
 
+    osg::CVMarkerSeries series("Cull Thread");
+    osg::CVSpan cullSpan(series, 4, "Cull");
+    
     if (sceneView)
     {
         updateSceneView(sceneView);
@@ -703,7 +815,7 @@ void Renderer::cull()
 
         if (stats && stats->collectStats("scene"))
         {
-            collectSceneViewStats(frameNumber, sceneView, stats);
+           collectSceneViewStats(frameNumber, sceneView, stats);
         }
 
         _drawQueue.add(sceneView);
@@ -722,6 +834,10 @@ void Renderer::draw()
     osgUtil::SceneView* sceneView = _drawQueue.takeFront();
 
     DEBUG_MESSAGE<<"draw() got SceneView "<<sceneView<<std::endl;
+
+    osg::CVMarkerSeries series("Main High");
+
+    osg::CVSpan drawTick(series, 4, "Draw");
 
     if (sceneView && !_done)
     {
@@ -825,7 +941,8 @@ void Renderer::draw()
     DEBUG_MESSAGE<<"end draw() "<<this<<std::endl;
 }
 
-void Renderer::cull_draw()
+
+void Renderer::cull_draw(osg::GraphicsContext * context)
 {
     DEBUG_MESSAGE<<"cull_draw() "<<this<<std::endl;
 
@@ -849,86 +966,198 @@ void Renderer::cull_draw()
 
     osg::Stats* stats = sceneView->getCamera()->getStats();
     osg::State* state = sceneView->getState();
+    
+	osgViewer::View* view = dynamic_cast<osgViewer::View*>(_camera->getView());
+    bool acquireGPUStats = false;
+
     const osg::FrameStamp* fs = sceneView->getFrameStamp();
     unsigned int frameNumber = fs ? fs->getFrameNumber() : 0;
+    osg::Timer_t beforeCullTick ;
+    osg::Timer_t afterCullTick;
 
-    if (!_initialized)
+    //marker_series series;
+
+    osg::CVMarkerSeries series("Main High");
+    osgViewer::ViewerBase* viewer = view ? view->getViewerBase() : 0;
     {
-        initialize(state);
-    }
+     
 
-    bool acquireGPUStats = stats && _querySupport && stats->collectStats("gpu");
+       updateSceneView(sceneView);
 
-    if (acquireGPUStats)
-    {
-        _querySupport->checkQuery(stats, state, _startTick);
-    }
+       if (_compileOnNextDraw && viewer)
+       {
+           // VRV_PATCH
+           viewer->makeCurrent(context);
 
-    // do cull traversal
-    osg::Timer_t beforeCullTick = osg::Timer::instance()->tick();
+          compile();
+       }
 
-    sceneView->inheritCullSettings(*(sceneView->getCamera()));
-    sceneView->cull();
 
-    osg::Timer_t afterCullTick = osg::Timer::instance()->tick();
+       // OSG_NOTICE<<"RenderingOperation"<<std::endl;
 
-    if (stats && stats->collectStats("scene"))
-    {
-        collectSceneViewStats(frameNumber, sceneView, stats);
-    }
+       // pass on the fusion distance settings from the View to the SceneView
+       if (view) {
+          sceneView->setFusionDistance(view->getFusionDistanceMode(), view->getFusionDistanceValue());
+       }
+
+       stats = sceneView->getCamera()->getStats();
+       state = sceneView->getState();
+      
+       if (!_initialized)
+       {
+          initialize(state);
+       }
+
+       acquireGPUStats = stats && _querySupport && stats->collectStats("gpu");
+
+       if (acquireGPUStats)
+       {
+          _querySupport->checkQuery(stats, state, _startTick);
+       }
+
+       // do cull traversal
+       beforeCullTick = osg::Timer::instance()->tick();
+ 
+       sceneView->inheritCullSettings(*(sceneView->getCamera()));
+
+       //VRV PATCH - Added multithreaded update
+       int use_bg_thread = 0;
+       // only do this if we really are going to draw something
+       if (viewer && sceneView->getCamera()->getNodeMask() > 0)
+       {
+          if (viewer->getIncrementalCompileOperation() || viewer->getMainThreadOperation()){
+             use_bg_thread = 1;
+          }
+       }
+
+       if (use_bg_thread)
+       {
+          {
+             osgUtil::IncrementalCompileOperation* ico = viewer ? viewer->getIncrementalCompileOperation() : 0;
+             _s_cullThread->_sceneView = sceneView;
+             _s_cullThread->_ico = ico;
+
+             // VRV PATCH
+             // Reset the cull visitor in this thread so that we don't destroy stuff in a background thread
+             // that has graphics resources allocated.
+             if (sceneView && sceneView->getCullVisitor())
+             {
+                sceneView->getCullVisitor()->reset();
+             }
+
+             // Main thread jobs must be called *before* the cullthread startUp
+             // so they can signal the DtMainThreadJobsManager to keep going
+             osg::Operation* mto = 0;
+             if (viewer)
+             {
+                 mto = viewer->getMainThreadOperation();
+                 if (mto)
+                 {
+                     mto->startUp();
+                 }
+             }
+
+             //signals the cull thread to start up 
+             _s_cullThread->startUp();
+             
+             // VRV_PATCH
+             // update the current context
+             viewer->makeCurrent(context);
+             
+             // Run any additional operations
+             // There is only one main thread operation allowed
+             if (mto)
+             {
+                 (*mto)(sceneView);
+             }
+
+             //FIXME this is removable when the main thread jobs system code comes in
+             while (_s_cullThread->_running == 1){
+                OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_s_cullThread->_mutex);
+                ;
+             }
+          }
+       }
+       else{
+          osg::CVSpan cullTick(series, 4, "Cull");
+          sceneView->cull();
+       }
+
+       osg::MaterialManager::theMaterialManager.cleanupMaterialBuffers(state->get<osg::GLExtensions>());
+
+       afterCullTick = osg::Timer::instance()->tick();
+
+       if (stats && stats->collectStats("scene"))
+       {
+          collectSceneViewStats(frameNumber, sceneView, stats);
+       }
 
 #if 0
-    if (state->getDynamicObjectCount()==0 && state->getDynamicObjectRenderingCompletedCallback())
-    {
-        state->getDynamicObjectRenderingCompletedCallback()->completed(state);
-    }
+       if (state->getDynamicObjectCount()==0 && state->getDynamicObjectRenderingCompletedCallback())
+       {
+          state->getDynamicObjectRenderingCompletedCallback()->completed(state);
+       }
 #endif
 
 
-    // do draw traversal
-    if (acquireGPUStats)
-    {
-        _querySupport->checkQuery(stats, state, _startTick);
-        _querySupport->beginQuery(frameNumber, state);
+       // do draw traversal
+       if (acquireGPUStats)
+       {
+          _querySupport->checkQuery(stats, state, _startTick);
+          _querySupport->beginQuery(frameNumber, state);
+       }
     }
 
-    osg::Timer_t beforeDrawTick;
-
-    if (_serializeDraw)
     {
-        OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(s_drawSerializerMutex);
+      osg::CVSpan drawTick(series, 4, "Draw");
 
-        beforeDrawTick = osg::Timer::instance()->tick();
-        sceneView->draw();
+       osg::Timer_t beforeDrawTick;
+    
+       //VRV PATCH - Added a pre draw system
+       if (viewer){
+          const std::vector<osg::Operation *> & mtpdo = viewer->getMainThreadPreDrawOperations();
+          for (int i = 0; i < mtpdo.size(); i++){
+             (*mtpdo[i])(sceneView);
+          }
+       }
+       //END  VRV PATCH 
+
+       if (_serializeDraw)
+       {
+          OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(s_drawSerializerMutex);
+
+          beforeDrawTick = osg::Timer::instance()->tick();
+          sceneView->draw();
+       }
+       else
+       {
+          beforeDrawTick = osg::Timer::instance()->tick();
+          sceneView->draw();
+       }
+
+       if (acquireGPUStats)
+       {
+          _querySupport->endQuery(state);
+          _querySupport->checkQuery(stats, state, _startTick);
+       }
+
+       osg::Timer_t afterDrawTick = osg::Timer::instance()->tick();
+
+       if (stats && stats->collectStats("rendering"))
+       {
+          DEBUG_MESSAGE << "Collecting rendering stats" << std::endl;
+
+          stats->setAttribute(frameNumber, "Cull traversal begin time", osg::Timer::instance()->delta_s(_startTick, beforeCullTick));
+          stats->setAttribute(frameNumber, "Cull traversal end time", osg::Timer::instance()->delta_s(_startTick, afterCullTick));
+          stats->setAttribute(frameNumber, "Cull traversal time taken", osg::Timer::instance()->delta_s(beforeCullTick, afterCullTick));
+
+          stats->setAttribute(frameNumber, "Draw traversal begin time", osg::Timer::instance()->delta_s(_startTick, beforeDrawTick));
+          stats->setAttribute(frameNumber, "Draw traversal end time", osg::Timer::instance()->delta_s(_startTick, afterDrawTick));
+          stats->setAttribute(frameNumber, "Draw traversal time taken", osg::Timer::instance()->delta_s(beforeDrawTick, afterDrawTick));
+       }
+
     }
-    else
-    {
-        beforeDrawTick = osg::Timer::instance()->tick();
-        sceneView->draw();
-    }
-
-    if (acquireGPUStats)
-    {
-        _querySupport->endQuery(state);
-        _querySupport->checkQuery(stats, state, _startTick);
-    }
-
-    osg::Timer_t afterDrawTick = osg::Timer::instance()->tick();
-
-    if (stats && stats->collectStats("rendering"))
-    {
-        DEBUG_MESSAGE<<"Collecting rendering stats"<<std::endl;
-
-        stats->setAttribute(frameNumber, "Cull traversal begin time", osg::Timer::instance()->delta_s(_startTick, beforeCullTick));
-        stats->setAttribute(frameNumber, "Cull traversal end time", osg::Timer::instance()->delta_s(_startTick, afterCullTick));
-        stats->setAttribute(frameNumber, "Cull traversal time taken", osg::Timer::instance()->delta_s(beforeCullTick, afterCullTick));
-
-        stats->setAttribute(frameNumber, "Draw traversal begin time", osg::Timer::instance()->delta_s(_startTick, beforeDrawTick));
-        stats->setAttribute(frameNumber, "Draw traversal end time", osg::Timer::instance()->delta_s(_startTick, afterDrawTick));
-        stats->setAttribute(frameNumber, "Draw traversal time taken", osg::Timer::instance()->delta_s(beforeDrawTick, afterDrawTick));
-    }
-
-    DEBUG_MESSAGE<<"end cull_draw() "<<this<<std::endl;
+    DEBUG_MESSAGE << "end cull_draw() " << this << std::endl;
 
 }
 
@@ -941,11 +1170,11 @@ void Renderer::operator () (osg::Object* object)
     if (camera) cull();
 }
 
-void Renderer::operator () (osg::GraphicsContext* /*context*/)
+void Renderer::operator () (osg::GraphicsContext* context)
 {
     if (_graphicsThreadDoesCull)
     {
-        cull_draw();
+        cull_draw(context);
     }
     else
     {

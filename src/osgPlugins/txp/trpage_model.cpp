@@ -121,18 +121,22 @@ bool trpgModel::isValid() const
 // Copy from one to another
 trpgModel& trpgModel::operator = (const trpgModel &in)
 {
-    if (name) {
-        delete [] name;
-        name = NULL;
-    }
+    if (this != &in) // VRV_PATCH
+    {
+       if (name) {
+          delete[] name;
+          name = NULL;
+       }
 
-    type = in.type;
-    if (in.name)
-        SetName(in.name);
-    diskRef = in.diskRef;
-    useCount = in.useCount;
-    writeHandle = in.writeHandle;
-    handle = in.handle;
+       type = in.type;
+       if (in.name)
+          SetName(in.name);
+       diskRef = in.diskRef;
+       useCount = in.useCount;
+       writeHandle = in.writeHandle;
+       handle = in.handle;
+    }
+    
     return *this;
 }
 

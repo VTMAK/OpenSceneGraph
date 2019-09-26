@@ -20,10 +20,11 @@
 using namespace osg;
 
 StateAttribute::StateAttribute()
-    :Object(true)
+   :Object(true)
 {
 }
 
+StateAttribute::~StateAttribute() {}
 
 void StateAttribute::addParent(osg::StateSet* object)
 {

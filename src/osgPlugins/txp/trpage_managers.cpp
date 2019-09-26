@@ -251,9 +251,11 @@ trpgPageManager::LodPageInfo::LodPageInfo()
     valid = false;
     pageDist = 0.0;
     cell.x = cell.y = -100;
-
     lod = 0;
     maxNumTiles = 0;
+    cellSize.x = 0; cellSize.y = 0;
+    lodSize.x = 0; lodSize.y = 0;
+    aoiSize.x = 0; aoiSize.y = 0;
     activeLoad = false;
     activeUnload = false;
     majorVersion = 0;
@@ -756,7 +758,6 @@ trpgPageManager::trpgPageManager()
     lastLoad = None;
     lastLod = 0;
     lastTile = 0;
-    scale = 1.0;
     majorVersion = minorVersion = 0;
 }
 

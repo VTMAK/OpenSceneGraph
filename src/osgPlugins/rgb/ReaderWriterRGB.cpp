@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #ifndef SEEK_SET
 #  define SEEK_SET 0
 #endif
@@ -270,211 +269,273 @@ static osg::ref_ptr<refImageRec> RawImageOpen(std::istream& fin)
         }
         x = ybyz * sizeof(GLuint);
         raw->rleEnd = 512 + (2 * x);
-                fin.seekg(512,std::ios::beg);
+        fin.seekg(512,std::ios::beg);
         fin.read((char*)raw->rowStart,x);
         fin.read((char*)raw->rowSize,x);
         if (raw->swapFlag)
         {
-            ConvertLong(raw->rowStart, (long) (x/sizeof(GLuint)));
-            ConvertLong((GLuint *)raw->rowSize, (long) (x/sizeof(GLint)));
+           ConvertLong(raw->rowStart, (long) (x/sizeof(GLuint)));
+           ConvertLong((GLuint *)raw->rowSize, (long) (x/sizeof(GLint)));
         }
     }
     return raw;
 }
 
-
-static void RawImageGetRow(rawImageRec& raw, unsigned char *buf, int y, int z)
+static bool RawImageGetRow(rawImageRec *raw, const unsigned char *sourceBuf, unsigned int sourceBufSize, unsigned char *buf, int y, int z)
 {
-    unsigned char *iPtr, *oPtr;
-    unsigned short pixel;
-    int count, done = 0;
-    unsigned short *tempShort;
+   unsigned char *iPtr, *oPtr;
+   unsigned short pixel;
+   int count, done = 0;
+   unsigned short *tempShort;
 
-    if ((raw.type & 0xFF00) == 0x0100)
-    {
-        size_pos pos = raw.rowStart[static_cast<size_pos>(y)+static_cast<size_pos>(z)*static_cast<size_pos>(raw.sizeY)];
+   if ((raw->type & 0xFF00) == 0x0100)
+   {
+      unsigned int row_start = raw->rowStart[y + z*raw->sizeY];
+      unsigned int row_size = raw->rowSize[y + z*raw->sizeY];      
+      if ((row_start+row_size) <= sourceBufSize)
+      {
+         memcpy((char*)raw->tmp, (unsigned char *)sourceBuf + row_start, row_size);
+      }
+      else
+      {
+         OSG_WARN << "Trying to copy data outside memory bound" << std::endl;
+         return false;
+      }
 
-        size_pos amount = raw.rowSize[static_cast<size_pos>(y)+static_cast<size_pos>(z)*static_cast<size_pos>(raw.sizeY)];
+      iPtr = raw->tmp;
+      oPtr = buf;
 
-        raw.file->seekg(pos, std::ios::beg);
-        raw.file->read((char*)raw.tmp, amount);
-
-        iPtr = raw.tmp;
-        oPtr = buf;
-        while (!done)
-        {
-            if (raw.bpc == 1)
-                pixel = *iPtr++;
-            else
-            {
-                tempShort = reinterpret_cast<unsigned short*>(iPtr);
-                pixel = *tempShort;
-                tempShort++;
-                iPtr = reinterpret_cast<unsigned char *>(tempShort);
-            }
-
-            if(raw.bpc != 1)
-                ConvertShort(&pixel, 1);
-
+      if (raw->bpc == 1)
+      {
+         while (!done)
+         {
+            pixel = *iPtr++;
             count = (int)(pixel & 0x7F);
-
-            // limit the count value to the remiaing row size
-            if ((static_cast<size_pos>(raw.sizeX)*static_cast<size_pos>(raw.bpc)) <= (oPtr - buf))
+            // limit the count value to the remaining row size
+            if (raw->sizeX*raw->bpc <= (oPtr - buf))
             {
-                count = static_cast<size_pos>(raw.sizeX) - (oPtr - buf) / static_cast<size_pos>(raw.bpc);
+               count = raw->sizeX - (oPtr - buf) / raw->bpc;
             }
-
-            if (count<=0)
+            if (count <= 0)
             {
-                done = 1;
-                return;
+               done = 1;
+               return true;
             }
-
             if (pixel & 0x80)
             {
-                while (count--)
-                {
-                    if(raw.bpc == 1)
-                        *oPtr++ = *iPtr++;
-                    else{
-                        tempShort = reinterpret_cast<unsigned short*>(iPtr);
-                        pixel = *tempShort;
-                        tempShort++;
-                        iPtr = reinterpret_cast<unsigned char *>(tempShort);
-
-                        ConvertShort(&pixel, 1);
-
-                        tempShort = reinterpret_cast<unsigned short*>(oPtr);
-                        *tempShort = pixel;
-                        tempShort++;
-                        oPtr = reinterpret_cast<unsigned char *>(tempShort);
-                    }
-                }
+               while (count--)
+               {
+                 *oPtr++ = *iPtr++;
+               }
             }
             else
             {
-                if (raw.bpc == 1)
-                {
-                    pixel = *iPtr++;
-                }
-                else
-                {
-                    tempShort = reinterpret_cast<unsigned short*>(iPtr);
-                    pixel = *tempShort;
-                    tempShort++;
-                    iPtr = reinterpret_cast<unsigned char *>(tempShort);
-                }
-                if(raw.bpc != 1)
-                    ConvertShort(&pixel, 1);
-                while (count--)
-                {
-                    if(raw.bpc == 1)
-                        *oPtr++ = pixel;
-                    else
-                    {
-                        tempShort = reinterpret_cast<unsigned short*>(oPtr);
-                        *tempShort = pixel;
-                        tempShort++;
-                        oPtr = reinterpret_cast<unsigned char *>(tempShort);
-                    }
-                }
+               pixel = *iPtr++;
+               while (count--)
+               {
+                  *oPtr++ = pixel;
+               }
             }
-        }
-    }
-    else
-    {
-        size_pos pos = static_cast<size_pos>(512)+
-                      (static_cast<size_pos>(y)*static_cast<size_pos>(raw.sizeX)*static_cast<size_pos>(raw.bpc))+
-                      (static_cast<size_pos>(z)*static_cast<size_pos>(raw.sizeX)*static_cast<size_pos>(raw.sizeY)*static_cast<size_pos>(raw.bpc));
+         }
+      }
+      else
+      {
+         while (!done)
+         {
+            tempShort = reinterpret_cast<unsigned short*>(iPtr);
+            pixel = *tempShort;
+            tempShort++;
+            iPtr = reinterpret_cast<unsigned char *>(tempShort);
+            ConvertShort(&pixel, 1);
+            count = (int)(pixel & 0x7F);
+            // limit the count value to the remaining row size
+            if (raw->sizeX*raw->bpc <= (oPtr - buf))
+            {
+               count = raw->sizeX - (oPtr - buf) / raw->bpc;
+            }
 
-        size_pos amount = static_cast<size_pos>(raw.sizeX)*static_cast<size_pos>(raw.bpc);
+            if (count <= 0)
+            {
+               done = 1;
+               return true;
+            }
+            if (pixel & 0x80)
+            {
+               while (count--)
+               {
+                  tempShort = reinterpret_cast<unsigned short*>(iPtr);
+                  pixel = *tempShort;
+                  tempShort++;
+                  iPtr = reinterpret_cast<unsigned char *>(tempShort);
 
-        raw.file->seekg(pos,std::ios::beg);
-        raw.file->read((char*)buf, amount);
-        if(raw.swapFlag && raw.bpc != 1){
-            ConvertShort(reinterpret_cast<unsigned short*>(buf), raw.sizeX);
-        }
-    }
+                  ConvertShort(&pixel, 1);
+
+                  tempShort = reinterpret_cast<unsigned short*>(oPtr);
+                  *tempShort = pixel;
+                  tempShort++;
+                  oPtr = reinterpret_cast<unsigned char *>(tempShort);
+               }
+            }
+            else
+            {
+               tempShort = reinterpret_cast<unsigned short*>(iPtr);
+               pixel = *tempShort;
+               tempShort++;
+               iPtr = reinterpret_cast<unsigned char *>(tempShort);
+               ConvertShort(&pixel, 1);
+               while (count--)
+               {
+                  tempShort = reinterpret_cast<unsigned short*>(oPtr);
+                  *tempShort = pixel;
+                  tempShort++;
+                  oPtr = reinterpret_cast<unsigned char *>(tempShort);
+               }
+            }
+         }
+      }     
+   }
+   else
+   {
+      unsigned int offset = 512 + (y*raw->sizeX*raw->bpc) + (z*raw->sizeX*raw->sizeY*raw->bpc);
+      if (offset <= sourceBufSize)
+      {
+         unsigned char *sourcePtrOffset = (unsigned char *)sourceBuf + offset;
+         memcpy((char*)buf, sourcePtrOffset, raw->sizeX*raw->bpc);
+         if (raw->swapFlag && raw->bpc != 1){
+            ConvertShort(reinterpret_cast<unsigned short*>(buf), raw->sizeX);
+         }
+      }
+      else
+      {
+         OSG_WARN << "Trying to copy data outside memory bound" << std::endl;
+         return false;
+      }
+   }
+   return true;
 }
 
-
-static void RawImageGetData(rawImageRec& raw, unsigned char **data )
+static bool RawImageGetData(rawImageRec *raw, unsigned char **data)
 {
-    unsigned char *ptr;
-    int i, j;
-    unsigned short *tempShort;
+   unsigned char *ptr;
+   int i, j;
+   unsigned short *tempShort;
 
-    //     // round the width to a factor 4
-    //     int width = (int)(floorf((float)raw.sizeX/4.0f)*4.0f);
-    //     if (width!=raw.sizeX) width += 4;
+   //     // round the width to a factor 4
+   //     int width = (int)(floorf((float)raw->sizeX/4.0f)*4.0f);
+   //     if (width!=raw->sizeX) width += 4;
 
-    // byte aligned.
+   // byte aligned.
+   OSG_INFO << "raw->sizeX = " << raw->sizeX << std::endl;
+   OSG_INFO << "raw->sizeY = " << raw->sizeY << std::endl;
+   OSG_INFO << "raw->sizeZ = " << raw->sizeZ << std::endl;
+   OSG_INFO << "raw->bpc = " << raw->bpc << std::endl;
 
-    OSG_INFO<<"raw.sizeX = "<<raw.sizeX<<std::endl;
-    OSG_INFO<<"raw.sizeY = "<<raw.sizeY<<std::endl;
-    OSG_INFO<<"raw.sizeZ = "<<raw.sizeZ<<std::endl;
-    OSG_INFO<<"raw.bpc = "<<raw.bpc<<std::endl;
+   // Output data buffer
+   long totalImageSize = (raw->sizeX)*(raw->sizeY)*(raw->sizeZ)*(raw->bpc);
+   *data = new unsigned char[totalImageSize];
+   if (data == NULL)
+   {
+      OSG_FATAL << "Out of memory!" << std::endl;      
+      return false;
+   }
+   ptr = *data;
 
-    *data = new unsigned char [(raw.sizeX)*(raw.sizeY)*(raw.sizeZ)*(raw.bpc)];
+   // read the file at once instead of line by line  
+   raw->file->seekg(0, raw->file->end);   
+   long fileSize = raw->file->tellg();  // get the size of the file
+   raw->file->seekg(0);
+   unsigned char *theImageBuffer = new unsigned char[fileSize];
+   if (theImageBuffer == NULL)
+   {
+      OSG_FATAL << "Out of memory!" << std::endl;
+      return false;
+   }
+   raw->file->read((char*)theImageBuffer, fileSize);  // read the file in memory
+   
+   // copy data in temp buffer because we need to byte swap or do specific process on rgb data (RawImageGetRow)
+   for (i = 0; i < (int)(raw->sizeY); i++)
+   {
+      // copy line one by one into the rgb temp buffer   
+      if (raw->sizeZ >= 1)
+      {
+         if (!RawImageGetRow(raw, theImageBuffer, fileSize, raw->tmpR, i, 0))
+            return false;
+      }
+      if (raw->sizeZ >= 2)
+      {
+         if (!RawImageGetRow(raw, theImageBuffer, fileSize, raw->tmpG, i, 1))
+            return false;
+      }
+      if (raw->sizeZ >= 3)
+      {
+         if (!RawImageGetRow(raw, theImageBuffer, fileSize, raw->tmpB, i, 2))
+            return false;
+      }
+      if (raw->sizeZ >= 4)
+      {
+         if (!RawImageGetRow(raw, theImageBuffer, fileSize, raw->tmpA, i, 3))
+         {
+            return false;
+         }
+      }
 
-    ptr = *data;
-    for (i = 0; i < (int)(raw.sizeY); i++)
-    {
-        if( raw.sizeZ >= 1 )
-            RawImageGetRow(raw, raw.tmpR, i, 0);
-        if( raw.sizeZ >= 2 )
-            RawImageGetRow(raw, raw.tmpG, i, 1);
-        if( raw.sizeZ >= 3 )
-            RawImageGetRow(raw, raw.tmpB, i, 2);
-        if( raw.sizeZ >= 4 )
-            RawImageGetRow(raw, raw.tmpA, i, 3);
-        for (j = 0; j < (int)(raw.sizeX); j++)
-        {
-          if(raw.bpc == 1){
-            if( raw.sizeZ >= 1 )
-                *ptr++ = *(raw.tmpR + j);
-            if( raw.sizeZ >= 2 )
-                *ptr++ = *(raw.tmpG + j);
-            if( raw.sizeZ >= 3 )
-                *ptr++ = *(raw.tmpB + j);
-            if( raw.sizeZ >= 4 )
-                *ptr++ = *(raw.tmpA + j);
-          }else{
-            if( raw.sizeZ >= 1 )
+      if (raw->bpc == 1)
+      {
+         for (j = 0; j < (int)(raw->sizeX); j++)
+         {            
+            if (raw->sizeZ >= 1)
+               *ptr++ = *(raw->tmpR + j);
+            if (raw->sizeZ >= 2)
+               *ptr++ = *(raw->tmpG + j);
+            if (raw->sizeZ >= 3)
+               *ptr++ = *(raw->tmpB + j);
+            if (raw->sizeZ >= 4)
+               *ptr++ = *(raw->tmpA + j);
+         }
+      }
+      else
+      {
+         for (j = 0; j < (int)(raw->sizeX); j++)
+         {
+            if (raw->sizeZ >= 1)
             {
-                tempShort = reinterpret_cast<unsigned short*>(ptr);
-                *tempShort = *(reinterpret_cast<unsigned short*>(raw.tmpR) + j);
-                tempShort++;
-                ptr = reinterpret_cast<unsigned char *>(tempShort);
+               tempShort = reinterpret_cast<unsigned short*>(ptr);
+               *tempShort = *(reinterpret_cast<unsigned short*>(raw->tmpR) + j);
+               tempShort++;
+               ptr = reinterpret_cast<unsigned char *>(tempShort);
             }
-            if( raw.sizeZ >= 2 )
+            if (raw->sizeZ >= 2)
             {
-                tempShort = reinterpret_cast<unsigned short*>(ptr);
-                *tempShort = *(reinterpret_cast<unsigned short*>(raw.tmpG) + j);
-                tempShort++;
-                ptr = reinterpret_cast<unsigned char *>(tempShort);
+               tempShort = reinterpret_cast<unsigned short*>(ptr);
+               *tempShort = *(reinterpret_cast<unsigned short*>(raw->tmpG) + j);
+               tempShort++;
+               ptr = reinterpret_cast<unsigned char *>(tempShort);
             }
-            if( raw.sizeZ >= 3 )
+            if (raw->sizeZ >= 3)
             {
-                tempShort = reinterpret_cast<unsigned short*>(ptr);
-                *tempShort = *(reinterpret_cast<unsigned short*>(raw.tmpB) + j);
-                tempShort++;
-                ptr = reinterpret_cast<unsigned char *>(tempShort);
+               tempShort = reinterpret_cast<unsigned short*>(ptr);
+               *tempShort = *(reinterpret_cast<unsigned short*>(raw->tmpB) + j);
+               tempShort++;
+               ptr = reinterpret_cast<unsigned char *>(tempShort);
             }
-            if( raw.sizeZ >= 4 )
+            if (raw->sizeZ >= 4)
             {
-                tempShort = reinterpret_cast<unsigned short*>(ptr);
-                *tempShort = *(reinterpret_cast<unsigned short*>(raw.tmpA) + j);
-                tempShort++;
-                ptr = reinterpret_cast<unsigned char *>(tempShort);
-            }
-          }
-        }
-        //         // pad the image width with blanks to bring it up to the rounded width.
-        //         for(;j<width;++j) *ptr++ = 0;
-    }
+               tempShort = reinterpret_cast<unsigned short*>(ptr);
+               *tempShort = *(reinterpret_cast<unsigned short*>(raw->tmpA) + j);
+               tempShort++;
+               ptr = reinterpret_cast<unsigned char *>(tempShort);
+            }            
+         }
+      }
+   }
+   //         // pad the image width with blanks to bring it up to the rounded width.
+   //         for(;j<width;++j) *ptr++ = 0;
+     
+   if (theImageBuffer) 
+      delete [] theImageBuffer;
+
+   return true;
 }
-
 
 class ReaderWriterRGB : public osgDB::ReaderWriter
 {
@@ -501,6 +562,12 @@ class ReaderWriterRGB : public osgDB::ReaderWriter
                 return ReadResult::ERROR_IN_READING_FILE;
             }
 
+            if (raw->imagic != 474)
+            {
+               OSG_INFO << "RGB magic number=" << raw->imagic << " and should be 474. Error reading the file." << std::endl;
+               return ReadResult::ERROR_IN_READING_FILE;
+            }
+
             int s = raw->sizeX;
             int t = raw->sizeY;
             int r = 1;
@@ -517,7 +584,12 @@ class ReaderWriterRGB : public osgDB::ReaderWriter
               GL_UNSIGNED_SHORT;
 
             unsigned char *data;
-            RawImageGetData(*raw, &data);
+            if (!RawImageGetData(raw, &data))
+            {
+               OSG_INFO << "Unable to read RGB file correctly (possibly a corrupted file)" << std::endl;
+               return ReadResult::ERROR_IN_READING_FILE;
+            }
+            RawImageClose(raw);
 
             Image* image = new Image();
             image->setImage(s,t,r,
@@ -558,6 +630,7 @@ class ReaderWriterRGB : public osgDB::ReaderWriter
             if(!istream) return ReadResult::FILE_NOT_HANDLED;
             ReadResult rr = readRGBStream(istream);
             if(rr.validImage()) rr.getImage()->setFileName(file);
+
             return rr;
         }
 

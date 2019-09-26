@@ -1015,6 +1015,9 @@ trpgTexture::trpgTexture()
     numMipMap = 0;
     writeHandle = false;
     handle = -1;
+    //VRV_PATCH BEGIN
+    numMipMap = 0;
+    //VRV_PATCH END
 }
 
 // Copy construction
@@ -1037,6 +1040,9 @@ trpgTexture::trpgTexture(const trpgTexture &in):
     // storageSize + levelOffset
     handle = in.handle;
     writeHandle = in.writeHandle;
+    //VRV_PATCH BEGIN
+    numMipMap = in.numMipMap;
+    //VRV_PATCH END
 }
 
 // Destruction
@@ -1262,25 +1268,33 @@ bool trpgTexture::GetNumTile(int &num) const
 // Copy operator
 trpgTexture &trpgTexture::operator = (const trpgTexture &in)
 {
-    mode = in.mode;
-    type = in.type;
+   if (this != &in) // VRV_PATCH
+   {
+      mode = in.mode;
+      type = in.type;
 
-    if (in.name)
-        SetName(in.name);
+      if (in.name)
+         SetName(in.name);
 
-    useCount = in.useCount;
+      useCount = in.useCount;
 
-    sizeX = in.sizeX;
-    sizeY = in.sizeY;
+      sizeX = in.sizeX;
+      sizeY = in.sizeY;
 
-    // RGBX
-    numLayer = in.numLayer;
+      // RGBX
+      numLayer = in.numLayer;
 
-    isMipmap = in.isMipmap;
-    addr = in.addr;
+      isMipmap = in.isMipmap;
+      addr = in.addr;
 
-    writeHandle = in.writeHandle;
-    handle = in.handle;
+      writeHandle = in.writeHandle;
+      handle = in.handle;
+
+      // VRV_PATCH BEGIN
+      numMipMap = in.numMipMap;
+      // VRV_PATCH END
+   }
+
 
     return *this;
 }

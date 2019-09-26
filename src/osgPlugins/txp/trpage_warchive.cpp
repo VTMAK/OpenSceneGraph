@@ -66,6 +66,11 @@ void trpgwArchive::Init(trpgEndian inNess, trpgwArchive::TileMode inTileMode,int
     numLod = 0;
 
     firstHeaderWrite = true;
+
+    // VRV_PATCH BEGIN
+    numLod = 0;
+    errMess[0] = '\0';
+    // VRV_PATCH END
 }
 
 // Constructor for regenerate
@@ -528,7 +533,6 @@ bool trpgwArchive::CheckpointHeader()
             }
             else
             {
-
                 // Set up the sizes
                 int32 numLods;
                 header.GetNumLods(numLods);
@@ -538,7 +542,6 @@ bool trpgwArchive::CheckpointHeader()
                     header.GetLodSize(i,lodSize);
                     tileTable.SetNumTiles(lodSize.x,lodSize.y,i);
                 }
-
             }
             firstHeaderWrite = false;
         }

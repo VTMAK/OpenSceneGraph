@@ -222,6 +222,23 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
         /** Get the incremental compile operation. */
         osgUtil::IncrementalCompileOperation* getIncrementalCompileOperation() { return _incrementalCompileOperation.get(); }
 
+        // VRV patch cull thread parallelization - _mainThreadOperation needs to be created/delete 
+        // outside of this system
+        void virtual addMainThreadOperation(osg::Operation * op){ _mainThreadOperation = op; }
+        void virtual removeMainThreadOperation(){ _mainThreadOperation=NULL; }
+        osg::Operation* getMainThreadOperation(){ return _mainThreadOperation; }
+
+        //VRV patch main thread callback functionality
+
+        void virtual addMainThreadPreDrawOperation(osg::Operation * op){ _mainThreadPreDrawOperations.push_back(op); }
+        void virtual removeMainThreadPreDrawOperation(osg::Operation * op){
+           std::vector<osg::Operation *>::iterator it = std::find(_mainThreadPreDrawOperations.begin(), _mainThreadPreDrawOperations.end(), op);
+           if (it != _mainThreadPreDrawOperations.end()){
+              _mainThreadPreDrawOperations.erase(it);
+           }
+        }
+        const std::vector<osg::Operation *> & getMainThreadPreDrawOperations(){ return _mainThreadPreDrawOperations; }
+        // END VRV PATCH
 
         enum FrameScheme
         {
@@ -301,20 +318,25 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
 
         bool getRequestContinousUpdate() const { return _requestContinousUpdate; }
 
-protected:
+    protected:
+        // VRV_PATCH make public, and optimize content management
+        inline void makeCurrent(osg::GraphicsContext* gc)
+        {
+           if (_currentContext == gc) return;
+           
+           // VRV_PATCH only set the context to none if there's no new context to use
+           if (!gc || !gc->valid()) {
+              releaseContext();
+           }
+
+           if (gc && gc->valid() && gc->makeCurrent()) {
+              _currentContext = gc;
+           }
+        }
 
         void viewerBaseInit();
 
         friend class osgViewer::View;
-
-        inline void makeCurrent(osg::GraphicsContext* gc)
-        {
-            if (_currentContext==gc) return;
-
-            releaseContext();
-
-            if (gc && gc->valid() && gc->makeCurrent()) _currentContext = gc;
-        }
 
         inline void releaseContext()
         {
@@ -363,6 +385,9 @@ protected:
 
         osg::observer_ptr<osg::GraphicsContext>             _currentContext;
 
+        //VRV patch cull thread parallelization - only one main thread operation supported
+        osg::Operation* _mainThreadOperation;
+        std::vector<osg::Operation *> _mainThreadPreDrawOperations;
     private:
 
         // Define private copy constructor

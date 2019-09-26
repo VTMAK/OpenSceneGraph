@@ -69,7 +69,9 @@ namespace osgParticle
         Particle();
 
         /// Get the shape of the particle.
-        inline Shape getShape() const;
+        // BEGIN VRV_PATCH
+        inline const Shape& getShape() const;
+        // END VRV_PATCH
 
         /// Set the shape of the particle.
         inline void setShape(Shape s);
@@ -335,7 +337,9 @@ namespace osgParticle
 
     // INLINE FUNCTIONS
 
-    inline Particle::Shape Particle::getShape() const
+    // BEGIN VRV_PATCH
+    inline const Particle::Shape& Particle::getShape() const
+    // BEGIN VRV_PATCH
     {
         return _shape;
     }

@@ -45,6 +45,9 @@
 #include <osgDB/FileNameUtils>
 #include <osgDB/ConvertUTF>
 
+#include <OpenThreads/ScopedLock>
+#include <OpenThreads/Mutex>
+
 using namespace osgDB;
 
 DynamicLibrary::DynamicLibrary(const std::string& name, HANDLE handle)
@@ -74,14 +77,48 @@ DynamicLibrary::~DynamicLibrary()
 
 DynamicLibrary* DynamicLibrary::loadLibrary(const std::string& libraryName)
 {
-
     HANDLE handle = NULL;
+    // BEGIN VRV_PATCH keep the DynamicLibrary pointers for lookup by library name
+    static std::map<std::string, DynamicLibrary*> handleLookup;
+    static OpenThreads::ReentrantMutex s_protect_mutex;
+    std::string fullLibraryName;
 
-    std::string fullLibraryName = osgDB::findLibraryFile(libraryName);
-    if (!fullLibraryName.empty()) handle = getLibraryHandle( fullLibraryName ); // try the lib we have found
-    else handle = getLibraryHandle( libraryName ); // haven't found a lib ourselves, see if the OS can find it simply from the library name.
+    DynamicLibrary* returnLib = NULL;
+    if (handleLookup.find(libraryName) == handleLookup.end())
+    {
+       s_protect_mutex.lock();
+       fullLibraryName = osgDB::findLibraryFile(libraryName);
 
-    if (handle) return new DynamicLibrary(libraryName,handle);
+       if (!fullLibraryName.empty())
+       {
+          // try the lib we have found
+          handle = getLibraryHandle(fullLibraryName);
+       }
+       else
+       {
+          // haven't found a lib ourselves, see if the OS can 
+          // find it simply from the library name.
+          handle = getLibraryHandle(libraryName);
+       }
+
+       if (handle)
+       {
+          returnLib = new DynamicLibrary(libraryName, handle);
+       }
+
+       handleLookup[libraryName] = returnLib;
+       s_protect_mutex.unlock();
+    }
+    else
+    {
+       returnLib = handleLookup[libraryName];
+    }
+
+    if (returnLib)
+    {
+       return returnLib;
+    }
+    // END VRV_PATCH
 
     // else no lib found so report errors.
     OSG_INFO << "DynamicLibrary::failed loading \""<<libraryName<<"\""<<std::endl;
@@ -127,7 +164,10 @@ DynamicLibrary::HANDLE DynamicLibrary::getLibraryHandle( const std::string& libr
         localLibraryName = libraryName;
 #endif
 
-    handle = dlopen( localLibraryName.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+//  CFB 3/15/10 Change plugin behavior to require all symbols to be resolved, 
+//  and to use a LOCAL symbol space.
+//    handle = dlopen( localLibraryName.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    handle = dlopen( localLibraryName.c_str(), RTLD_NOW | RTLD_LOCAL);
     if( handle == NULL )
     {
         if (fileExists(localLibraryName))

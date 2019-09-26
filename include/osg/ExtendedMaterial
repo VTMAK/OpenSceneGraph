@@ -1,0 +1,195 @@
+/******************************************************************************
+** Copyright (c) 2017 MAK Technologies, Inc.
+** All rights reserved.
+******************************************************************************/
+
+//! \file ExtendedMaterial.h 
+//! \brief Contains the osg::ExtendedMaterial class
+//! \ingroup osg
+
+#ifndef OSG_EXTENDED_MATERIAL
+#define OSG_EXTENDED_MATERIAL 1
+
+#include <osg/Material>
+
+
+namespace osg
+{
+   /** ExtendedMaterial - extended material for OpenFlight file*/
+   class OSG_EXPORT ExtendedMaterial : public Material
+   {
+   public:
+
+      //Default CTOR
+      ExtendedMaterial();
+
+      /** Copy constructor using CopyOp to manage deep vs shallow copy. */
+      ExtendedMaterial(const ExtendedMaterial& mat, const CopyOp& copyop = CopyOp::SHALLOW_COPY) :
+         Material(mat, copyop),
+         effectTextureIndexMap(mat.effectTextureIndexMap),
+         effectTextureNameMap(mat.effectTextureNameMap),
+         used(mat.used),
+         globalAlpha(mat.globalAlpha),
+         shadeModel(mat.shadeModel),
+         alphaQuality(mat.alphaQuality),
+         lightMapMaximumIntensity(mat.lightMapMaximumIntensity),
+         shadowMapMaximumIntensity(mat.shadowMapMaximumIntensity),
+         reflectionTintColor(mat.reflectionTintColor){}
+
+      META_StateAttribute(osg, ExtendedMaterial, EXTENDED_MATERIAL);
+
+      /** return -1 if *this < *rhs, 0 if *this==*rhs, 1 if *this>*rhs. */
+      virtual int compare(const StateAttribute& sa) const
+      {
+         // check the types are equal and then create the rhs variable
+         // used by the COMPARE_StateAttribute_Parameter macros below.
+         COMPARE_StateAttribute_Types(ExtendedMaterial, sa)
+
+            //compare each parameter in turn against the rhs.
+            COMPARE_StateAttribute_Parameter(effectTextureIndexMap)
+            COMPARE_StateAttribute_Parameter(effectTextureNameMap)
+            COMPARE_StateAttribute_Parameter(used)
+            COMPARE_StateAttribute_Parameter(globalAlpha)
+            COMPARE_StateAttribute_Parameter(shadeModel)
+            COMPARE_StateAttribute_Parameter(alphaQuality)
+            COMPARE_StateAttribute_Parameter(lightMapMaximumIntensity)
+            COMPARE_StateAttribute_Parameter(shadowMapMaximumIntensity)
+            COMPARE_StateAttribute_Parameter(reflectionTintColor)
+
+            return 0; // passed all the above comparison macros, must be equal.
+      }
+
+      ExtendedMaterial& operator = (const ExtendedMaterial& rhs);
+
+      //Call osg::Material::apply, this will override if there is already a osg::Materail in the stateset
+      virtual void apply(State& state) const;
+
+      enum ShadeModel
+      {
+         FLAT_SHADED,
+         PER_VERTEXT_PHONG,
+         PER_FRAG_PHONG
+      };
+
+      enum AlphaQuality
+      {
+         MULTISAMPLE_TRANSPARENCY,
+         HIGH_QUALITY_ALPHA_BLENDING
+      };
+
+      enum EffectTextureLayer
+      {
+         AMBIENT_LAYER,
+         DIFFUSE_LAYER,
+         SPECULAR_LAYER,
+         EMISSIVE_LAYER,
+         ALPHA_LAYER,
+         LIGHT_MAP_LAYER,
+         NORMAL_MAP_LAYER,
+         BUMP_MAP_LAYER,
+         SHADOW_MAP_LAYER,
+         REFLECTION_BASE_LAYER,
+         REFLECTION_MASK_LAYER,
+         PHYSICAL_MAP_LAYER,
+         // VRV_PATCH BEGIN - Adding type to pass new extended texture to vantage
+         GLOSS_MAP_LAYER  // Shininess 
+         // VRV_PATCH END
+      };
+
+      //EffectTextureLayer-->Texture Index in OpenFlight
+      typedef std::map<int, int> EffectTextureIndexMap;
+      //EffectTextureLayer-->Effect Texture Name
+      typedef std::map<int, std::string> EffectTextureNameMap;
+
+      //Set the index of the effect texture in the flt file
+      void setEffectTextureIndex(EffectTextureLayer layer, int index);
+      //Set the name of the effect texture in the flt file
+      void setEffectTextureName(EffectTextureLayer layer, const std::string& name);
+
+      //Check if a texture is an effect texture by it's full path name,return it's type
+      bool isEffectTexture(const std::string& name, EffectTextureLayer& layer);
+
+      //Get the effect texture index map 
+      const EffectTextureIndexMap& getEffectTextureIndexMap() const;
+
+      //Set whether this material is used by opengFlight model
+      void setUsed(bool used);
+      //Get whether this material is used by opengFlight model
+      bool getUsed() const;
+
+      //Set the shader model 
+      void setShadedModel(ShadeModel shadeModel);
+      //Get the shader model 
+      ShadeModel getShadedModel() const;
+
+      //Set the alpha used for ambient,diffuse,specular,emission in osg::Material
+      void setGlobalAlpha(float globalAlpha);
+      //Get the alpha used for ambient,diffuse,specular,emission in osg::Material
+      float getGlobalAlpha() const;
+
+      //Set the ambient FrontAndBack using the global alpha
+      void setAmbientFrontAndBack(const osg::Vec3f&);
+      //Set the diffuse FrontAndBack using the global alpha
+      void setDiffuseFrontAndBack(const osg::Vec3f&);
+      //Set the specular FrontAndBack using the global alpha
+      void setSpecularFrontAndBack(const osg::Vec3f&);
+      //Set the shininess FrontAndBack
+      void setShininessFrontAndBack(float);
+      //Set the emissive FrontAndBack using the global alpha
+      void setEmissiveFrontAndBack(const osg::Vec3f&);
+      //Set the alpha FrontAndBack, this will override the globalAlpha in ambient,diffuse,
+      //specular,emission in osg::Material.
+      void setAlphaFrontAndBack(float);
+
+
+      //Set the alpha quality, this is currently not supported.
+      void setAlphaQuality(AlphaQuality);
+      //Set the lightMap maximum intensity, this is currently not supported.
+      void setLightMapMaximumIntensity(float);
+      //Set the shadowMap maximum intensity, this is currently not supported.
+      void setShadowMapMaximumIntensity(float);
+      //Set the reflection tintColor,this is currently not supported.
+      void setReflectionTintColor(const osg::Vec3f&);
+
+
+   protected:
+      //check if the effect texture matches the texture name passed in
+      bool checkMatch(const std::string& effectname,const std::string& textureName);
+
+      //get the simple file name. Same as osgDB::getSimpleFileName
+      std::string getSimpleFileName(const std::string& fileName);
+
+      // gets the lowercase extension without dot (Ex: /a/b/c.Ext => ext). Same as osgDB::getLowerCaseFileExtension
+      std::string getLowerCaseExtension(const std::string& fileName);
+
+      // get the name of the texture without path, extension, 
+      // underScore(reprensent the original extension for meif texture)
+      // a/b/c_png.meif => c
+      // a.rgb=>a
+      std::string getNameLessExtension(const std::string& textureName);
+
+   protected:
+
+      //DTOR
+      virtual ~ExtendedMaterial();
+
+      EffectTextureIndexMap effectTextureIndexMap;
+      EffectTextureNameMap effectTextureNameMap;
+
+      //whether this material is used in openFlight file
+      bool used;
+      //This is the alpha for ambient,diffuse,specular,emission in osg::Material
+      float globalAlpha;
+
+      ////Those are not supported
+      ShadeModel shadeModel;
+      AlphaQuality alphaQuality;
+      float lightMapMaximumIntensity;
+      float shadowMapMaximumIntensity;
+      osg::Vec3f reflectionTintColor;
+      //////////////////////////////////////////////////////////////////////////
+
+   };
+}
+
+#endif

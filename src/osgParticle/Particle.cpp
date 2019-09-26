@@ -101,7 +101,9 @@ bool osgParticle::Particle::update(double dt, bool onlyTimeStamp)
     if (onlyTimeStamp) return true;
 
     //Compute the current texture tile based on our normalized age
-    int currentTile = _start_tile + static_cast<int>(x * getNumTiles());
+    // BEGIN VRV_PATCH
+    const int currentTile = _start_tile + static_cast<int>(x * getNumTiles());
+    // END VRV_PATCH
 
     //If the current texture tile is different from previous, then compute new texture coords
     if(currentTile != _cur_tile)
@@ -118,14 +120,162 @@ bool osgParticle::Particle::update(double dt, bool onlyTimeStamp)
     _prev_angle = _angle;
     _angle += _angul_arvel * dt;
 
-    if (_angle.x() > osg::PI*2) _angle.x() -= osg::PI*2;
-    if (_angle.x() < -osg::PI*2) _angle.x() += osg::PI*2;
-    if (_angle.y() > osg::PI*2) _angle.y() -= osg::PI*2;
-    if (_angle.y() < -osg::PI*2) _angle.y() += osg::PI*2;
-    if (_angle.z() > osg::PI*2) _angle.z() -= osg::PI*2;
-    if (_angle.z() < -osg::PI*2) _angle.z() += osg::PI*2;
+    // BEGIN VRV_PATCH
+    const float pi2 = osg::PI * 2.0f;
+    float& angleX = _angle.x();
+    float& angleY = _angle.y();
+    float& angleZ = _angle.z();
+
+    if (angleX > pi2) angleX -= pi2;
+    if (angleX < -pi2) angleX += pi2;
+    if (angleY > pi2) angleY -= pi2;
+    if (angleY < -pi2) angleY += pi2;
+    if (angleZ > pi2) angleZ -= pi2;
+    if (angleZ < -pi2) angleZ += pi2;
+    // END VRV_PATCH
 
     return true;
+}
+
+void osgParticle::Particle::render(osg::GLBeginEndAdapter* gl, const osg::Vec3& xpos, const osg::Vec3& px, const osg::Vec3& py, float scale) const
+{
+    gl->Color4f( _current_color.x(),
+                _current_color.y(),
+                _current_color.z(),
+                _current_color.w() * _current_alpha);
+
+    const float sizeScale = _current_size * scale;
+    const osg::Vec3 p1(px * sizeScale);
+    const osg::Vec3 p2(py * sizeScale);
+
+    //VRV PATCH lets get a reasonable normal for the particle instead of just using 1,0,0 or in some cases not setting it at all.
+    osg::Vec3 normal(px ^ py);
+    gl->Normal3fv(normal.ptr());
+
+    // Don't retrieve x,y,z all the time - store it
+    const float xposX = xpos.x();
+    const float xposY = xpos.y();
+    const float xposZ = xpos.z();
+    //VRV PATCH END
+
+
+    switch (_shape)
+    {
+    case POINT:
+        //VRV PATCH
+        gl->Vertex3f(xposX, xposY, xposZ);
+        //VRV PATCH END
+        break;
+
+    case QUAD:
+        gl->TexCoord2f(_s_coord, _t_coord);
+        gl->Vertex3fv((xpos-(p1+p2)).ptr());
+        gl->TexCoord2f(_s_coord+_s_tile, _t_coord);
+        gl->Vertex3fv((xpos+(p1-p2)).ptr());
+        gl->TexCoord2f(_s_coord+_s_tile, _t_coord+_t_tile);
+        gl->Vertex3fv((xpos+(p1+p2)).ptr());
+        gl->TexCoord2f(_s_coord, _t_coord+_t_tile);
+        gl->Vertex3fv((xpos-(p1-p2)).ptr());
+        break;
+
+    case QUAD_TRIANGLESTRIP:
+        gl->PushMatrix();
+        //VRV PATCH
+        gl->Translatef(xposX, xposY, xposZ);
+        //VRV PATCH END
+        // we must gl.Begin() and gl.End() here, because each particle is a single strip
+        gl->Begin(GL_TRIANGLE_STRIP);
+        gl->TexCoord2f(_s_coord+_s_tile, _t_coord+_t_tile);
+        gl->Vertex3fv((p1+p2).ptr());
+        gl->TexCoord2f(_s_coord, _t_coord+_t_tile);
+        gl->Vertex3fv((-p1+p2).ptr());
+        gl->TexCoord2f(_s_coord+_s_tile, _t_coord);
+        gl->Vertex3fv((p1-p2).ptr());
+        gl->TexCoord2f(_s_coord, _t_coord);
+        gl->Vertex3fv((-p1-p2).ptr());
+        gl->End();
+        gl->PopMatrix();
+        break;
+
+    case HEXAGON:
+        gl->PushMatrix();
+        //VRV PATCH
+        gl->Translatef(xposX, xposY, xposZ);
+        //VRV PATCH END
+        // we must gl.Begin() and gl.End() here, because each particle is a single fan
+        gl->Begin(GL_TRIANGLE_FAN);
+        gl->TexCoord2f(_s_coord + _s_tile * 0.5f, _t_coord + _t_tile * 0.5f);
+        gl->Vertex3f(0,0,0);
+        gl->TexCoord2f(_s_coord + _s_tile * hex_texcoord_x1, _t_coord + _t_tile * hex_texcoord_y1);
+        gl->Vertex3fv((p1*cosPI3+p2*sinPI3).ptr());
+        gl->TexCoord2f(_s_coord + _s_tile * hex_texcoord_x2, _t_coord + _t_tile * hex_texcoord_y1);
+        gl->Vertex3fv((-p1*cosPI3+p2*sinPI3).ptr());
+        gl->TexCoord2f(_s_coord, _t_coord + _t_tile * 0.5f);
+        gl->Vertex3fv((-p1).ptr());
+        gl->TexCoord2f(_s_coord + _s_tile * hex_texcoord_x2, _t_coord + _t_tile * hex_texcoord_y2);
+        gl->Vertex3fv((-p1*cosPI3-p2*sinPI3).ptr());
+        gl->TexCoord2f(_s_coord + _s_tile * hex_texcoord_x1, _t_coord + _t_tile * hex_texcoord_y2);
+        gl->Vertex3fv((p1*cosPI3-p2*sinPI3).ptr());
+        gl->TexCoord2f(_s_coord + _s_tile, _t_coord + _t_tile * 0.5f);
+        gl->Vertex3fv((p1).ptr());
+        gl->TexCoord2f(_s_coord + _s_tile * hex_texcoord_x1, _t_coord + _t_tile * hex_texcoord_y1);
+        gl->Vertex3fv((p1*cosPI3+p2*sinPI3).ptr());
+        gl->End();
+        gl->PopMatrix();
+        break;
+
+    case LINE:
+        {
+            // Get the normalized direction of the particle, to be used in the
+            // calculation of one of the linesegment endpoints.
+            float vl = _velocity.length();
+            if (vl != 0) {
+                //VRV PATCH
+                float velScale = _current_size * scale / vl;
+                osg::Vec3 v = _velocity * velScale;
+                const float* vArr = v.ptr();
+
+                gl->TexCoord1f(0);
+                gl->Vertex3f(xposX, xposY, xposZ);
+                gl->TexCoord1f(1);
+                gl->Vertex3f(xposX + vArr[0], xposY + vArr[1], xposZ + vArr[2]);
+                //VRV PATCH END
+            }
+        }
+        break;
+
+    default:
+        OSG_WARN << "Invalid shape for particles\n";
+    }
+}
+
+void osgParticle::Particle::render(osg::RenderInfo& renderInfo, const osg::Vec3& xpos, const osg::Vec3& xrot) const
+{
+#if defined(OSG_GL_MATRICES_AVAILABLE)
+    if (_drawable.valid())
+    {
+        bool requiresRotation = (xrot.x()!=0.0f || xrot.y()!=0.0f || xrot.z()!=0.0f);
+        glColor4f(_current_color.x(),
+                  _current_color.y(),
+                  _current_color.z(),
+                  _current_color.w() * _current_alpha);
+        glPushMatrix();
+        glTranslatef(xpos.x(), xpos.y(), xpos.z());
+        if (requiresRotation)
+        {
+            osg::Quat rotation(xrot.x(), osg::X_AXIS, xrot.y(), osg::Y_AXIS, xrot.z(), osg::Z_AXIS);
+#if defined(OSG_GLES1_AVAILABLE)
+            glMultMatrixf(osg::Matrixf(rotation).ptr());
+#else
+            glMultMatrixd(osg::Matrixd(rotation).ptr());
+#endif
+        }
+        _drawable->draw(renderInfo);
+        glPopMatrix();
+    }
+#else
+    OSG_NOTICE<<"Warning: Particle::render(..) not supported for user-defined shape."<<std::endl;
+#endif
 }
 
 void osgParticle::Particle::setUpTexCoordsAsPartOfConnectedParticleSystem(ParticleSystem* ps)

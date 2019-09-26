@@ -58,16 +58,13 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
 
         virtual ReadResult readObject(const std::string& file, const osgDB::ReaderWriter::Options* options) const
         {
+           std::string ext = osgDB::getLowerCaseFileExtension(file);
+           if (!acceptsExtension(ext)) return ReadResult::FILE_NOT_HANDLED;
+
             if (file.empty()) return ReadResult::FILE_NOT_FOUND;
 
-            if (osgDB::equalCaseInsensitive(osgDB::getFileExtension(file),"gdal"))
-            {
-                return readObject(osgDB::getNameLessExtension(file),options);
-            }
-
             OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex);
-
-            std::string fileName = osgDB::findDataFile( file, options );
+            std::string fileName = osgDB::findDataFile(osgDB::getNameLessExtension(file), options);
             if (fileName.empty()) return ReadResult::FILE_NOT_FOUND;
 
             initGDAL();
@@ -83,28 +80,24 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
 
         virtual ReadResult readImage(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const
         {
+           std::string ext = osgDB::getLowerCaseFileExtension(fileName);
+           if (!acceptsExtension(ext)) return ReadResult::FILE_NOT_HANDLED;
+
             if (fileName.empty()) return ReadResult::FILE_NOT_FOUND;
 
-            if (osgDB::equalCaseInsensitive(osgDB::getFileExtension(fileName),"gdal"))
-            {
-                return readImage(osgDB::getNameLessExtension(fileName),options);
-            }
-
             OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex);
-            return const_cast<ReaderWriterGDAL*>(this)->local_readImage(fileName, options);
+            return const_cast<ReaderWriterGDAL*>(this)->local_readImage(osgDB::getNameLessExtension(fileName), options);
         }
 
         virtual ReadResult readHeightField(const std::string& fileName, const osgDB::ReaderWriter::Options* options) const
         {
+           std::string ext = osgDB::getLowerCaseFileExtension(fileName);
+           if (!acceptsExtension(ext)) return ReadResult::FILE_NOT_HANDLED;
+
             if (fileName.empty()) return ReadResult::FILE_NOT_FOUND;
 
-            if (osgDB::equalCaseInsensitive(osgDB::getFileExtension(fileName),"gdal"))
-            {
-                return readHeightField(osgDB::getNameLessExtension(fileName),options);
-            }
-
             OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex);
-            return const_cast<ReaderWriterGDAL*>(this)->local_readHeightField(fileName, options);
+            return const_cast<ReaderWriterGDAL*>(this)->local_readHeightField(osgDB::getNameLessExtension(fileName), options);
         }
 
         virtual ReadResult local_readImage(const std::string& file, const osgDB::ReaderWriter::Options* options)
@@ -559,8 +552,7 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
 
                 if (texCoordRange.valid()) image->setUserData(texCoordRange.get());
 
-                image->flipVertical();
-
+                image->flipVertical();                
                 return image;
 
             }
@@ -572,9 +564,6 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
 
         ReadResult local_readHeightField(const std::string& fileName, const osgDB::ReaderWriter::Options* options)
         {
-            //std::string ext = osgDB::getFileExtension(fileName);
-            //if (!acceptsExtension(ext)) return ReadResult::FILE_NOT_HANDLED;
-
             initGDAL();
 
             std::auto_ptr<GDALDataset> dataset((GDALDataset*)GDALOpen(fileName.c_str(),GA_ReadOnly));

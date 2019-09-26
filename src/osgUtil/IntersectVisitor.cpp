@@ -29,6 +29,18 @@
 using namespace osg;
 using namespace osgUtil;
 
+#define EPSILON 0.000001
+#define CROSS(dest,v1,v2) \
+          dest[0]=v1[1]*v2[2]-v1[2]*v2[1]; \
+          dest[1]=v1[2]*v2[0]-v1[0]*v2[2]; \
+          dest[2]=v1[0]*v2[1]-v1[1]*v2[0];
+#define DOT(v1,v2) (v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2])
+
+
+#define SUB(dest,v1,v2) \
+          dest[0]=v1[0]-v2[0]; \
+          dest[1]=v1[1]-v2[1]; \
+          dest[2]=v1[2]-v2[2];
 
 
 Hit::Hit():
@@ -432,12 +444,12 @@ struct TriangleIntersect
 {
     osg::ref_ptr<LineSegment> _seg;
 
-    Vec3    _s;
-    Vec3    _d;
-    float   _length;
+    Vec3d    _s;
+    Vec3d    _d;
+    double   _length;
 
     int _index;
-    float _ratio;
+    double _ratio;
     bool _hit;
 
 
@@ -447,9 +459,9 @@ struct TriangleIntersect
     TriangleHitList _thl;
 
     TriangleIntersect():
-        _length(0.0f),
+        _length(0.0),
         _index(0),
-        _ratio(0.0f),
+        _ratio(0.0),
         _hit(false)
     {
     }
@@ -473,108 +485,100 @@ struct TriangleIntersect
     }
 
     //   bool intersect(const Vec3& v1,const Vec3& v2,const Vec3& v3,float& r)
-    inline void operator () (const Vec3& v1,const Vec3& v2,const Vec3& v3)
+
+    /* and one CROSS has been moved out from the if-else if-else */
+    inline void operator () (const osg::Vec3& v1,const osg::Vec3& v2,const osg::Vec3& v3, bool treatVertexDataAsTemporary)
     {
         ++_index;
-
         if (v1==v2 || v2==v3 || v1==v3) return;
 
-        Vec3 v12 = v2-v1;
-        Vec3 n12 = v12^_d;
-        float ds12 = (_s-v1)*n12;
-        float d312 = (v3-v1)*n12;
-        if (d312>=0.0f)
-        {
-            if (ds12<0.0f) return;
-            if (ds12>d312) return;
-        }
-        else                     // d312 < 0
-        {
-            if (ds12>0.0f) return;
-            if (ds12<d312) return;
-        }
+         double r1, r2, r3;
 
-        Vec3 v23 = v3-v2;
-        Vec3 n23 = v23^_d;
-        float ds23 = (_s-v2)*n23;
-        float d123 = (v1-v2)*n23;
-        if (d123>=0.0f)
-        {
-            if (ds23<0.0f) return;
-            if (ds23>d123) return;
-        }
-        else                     // d123 < 0
-        {
-            if (ds23>0.0f) return;
-            if (ds23<d123) return;
-        }
+         float* vert0 = &(*(const_cast<osg::Vec3*>(&v1)))[0];
+         float* vert1 = &(*(const_cast<osg::Vec3*>(&v2)))[0];
+         float* vert2 = &(*(const_cast<osg::Vec3*>(&v3)))[0];
 
-        Vec3 v31 = v1-v3;
-        Vec3 n31 = v31^_d;
-        float ds31 = (_s-v3)*n31;
-        float d231 = (v2-v3)*n31;
-        if (d231>=0.0f)
-        {
-            if (ds31<0.0f) return;
-            if (ds31>d231) return;
-        }
-        else                     // d231 < 0
-        {
-            if (ds31>0.0f) return;
-            if (ds31<d231) return;
-        }
+         double* orig = &_s[0];
+         double* dir = &_d[0];
+         double* t = &r1;
+         double* u = &r2;
+         double* v = &r3;
+
+         double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
+         double det,inv_det;
+
+         /* find vectors for two edges sharing vert0 */
+         SUB(edge1, vert1, vert0);
+         SUB(edge2, vert2, vert0);
+
+         /* begin calculating determinant - also used to calculate U parameter */
+         CROSS(pvec, dir, edge2);
+
+         /* if determinant is near zero, ray lies in plane of triangle */
+         det = DOT(edge1, pvec);
+        
+         /* calculate distance from vert0 to ray origin */
+         SUB(tvec, orig, vert0);
 
 
-        float r3;
-        if (ds12==0.0f) r3=0.0f;
-        else if (d312!=0.0f) r3 = ds12/d312;
-        else return; // the triangle and the line must be parallel intersection.
+         inv_det = 1.0 / det;
 
-        float r1;
-        if (ds23==0.0f) r1=0.0f;
-        else if (d123!=0.0f) r1 = ds23/d123;
-        else return; // the triangle and the line must be parallel intersection.
-
-        float r2;
-        if (ds31==0.0f) r2=0.0f;
-        else if (d231!=0.0f) r2 = ds31/d231;
-        else return; // the triangle and the line must be parallel intersection.
-
-        float total_r = (r1+r2+r3);
-        if (total_r!=1.0f)
-        {
-            if (total_r==0.0f) return; // the triangle and the line must be parallel intersection.
-            float inv_total_r = 1.0f/total_r;
-            r1 *= inv_total_r;
-            r2 *= inv_total_r;
-            r3 *= inv_total_r;
-        }
-
-        Vec3 in = v1*r1+v2*r2+v3*r3;
-        if (!in.valid())
-        {
-            OSG_WARN<<"Warning:: Picked up error in TriangleIntersect"<<std::endl;
-            OSG_WARN<<"   ("<<v1<<",\t"<<v2<<",\t"<<v3<<")"<<std::endl;
-            OSG_WARN<<"   ("<<r1<<",\t"<<r2<<",\t"<<r3<<")"<<std::endl;
+         CROSS(qvec, tvec, edge1);
+            
+         if (det > EPSILON)
+         {
+            *u = DOT(tvec, pvec);
+            if (*u < 0.0 || *u > det)
+               return;
+                  
+            /* calculate V parameter and test bounds */
+            *v = DOT(dir, qvec);
+            if (*v < 0.0 || *u + *v > det)
             return;
-        }
-
-        float d = (in-_s)*_d;
-
-        if (d<0.0f) return;
-        if (d>_length) return;
-
-        osg::Vec3 normal = v12^v23;
-        normal.normalize();
-
-        float r = d/_length;
+            
+         }
+         else if(det < -EPSILON)
+         {
+            /* calculate U parameter and test bounds */
+            *u = DOT(tvec, pvec);
 
 
-        _thl.insert(std::pair<const float,TriangleHit>(r,TriangleHit(_index-1,normal,r1,&v1,r2,&v2,r3,&v3)));
-        _hit = true;
+            if (*u > 0.0 || *u < det)
+               return;
+            
+            /* calculate V parameter and test bounds */
+            *v = DOT(dir, qvec) ;
+            if (*v > 0.0 || *u + *v < det)
+               return;
+         }
+         else return;  /* ray is parallell to the plane of the triangle */
 
+         (*u) *= inv_det;
+         (*v) *= inv_det;
+         *t = 1. - ( (*u) + (*v) );
+
+         double d = DOT(edge2, qvec) * inv_det;
+
+         if (d<0.0f) return;
+         if (d>_length) return;
+
+         float normalArray[3];
+         CROSS(normalArray, edge1, edge2 );
+         osg::Vec3 normal = osg::Vec3( normalArray[0], normalArray[1], normalArray[2] );
+         normal.normalize();
+
+         float r = d/_length;
+
+         if (treatVertexDataAsTemporary)
+         {
+            _thl.insert(std::pair<const float,TriangleHit>(r,TriangleHit(_index-1,normal,r1,0,r2,0,r3,0)));
+         }
+         else
+         {
+            _thl.insert(std::pair<const float,TriangleHit>(r,TriangleHit(_index-1,normal,r1,&v1,r2,&v2,r3,&v3)));
+         }
+         _hit = true;
     }
-
 };
 
 bool IntersectVisitor::intersect(Drawable& drawable)

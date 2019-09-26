@@ -4,6 +4,7 @@
 #include <strings.h>//for strncasecmp
 #endif
 
+//#include <vrvOsg/DtOsgPrintNodeHierarchyVisitor.h> // TO DEBUG IN VANTAGE
 #include <osg/Notify>
 #include <osg/MatrixTransform>
 #include <osg/Material>
@@ -15,11 +16,8 @@
 #include <osgDB/FileUtils>
 #include <osgDB/ReadFile>
 #include <osgDB/Registry>
-#include <osgAnimation/AnimationManagerBase>
-#include <osgAnimation/Bone>
-#include <osgAnimation/RigGeometry>
-#include <osgAnimation/Skeleton>
-#include <osgAnimation/VertexInfluence>
+#include "fbxUtil.h"
+#include "fbxMatrixTransformVisitor.h"
 
 #if defined(_MSC_VER)
     #pragma warning( disable : 4505 )
@@ -31,60 +29,6 @@
 #include "fbxReader.h"
 #include "WriterNodeVisitor.h"
 
-/// Returns true if the given node is a basic root group with no special information.
-/// Used in conjunction with UseFbxRoot option.
-/// Identity transforms are considered as basic root nodes.
-bool isBasicRootNode(const osg::Node& node)
-{
-    const osg::Group* osgGroup = node.asGroup();
-    if (!osgGroup || node.asGeode())        // WriterNodeVisitor handles Geodes the "old way" (= Derived from Node, not Group as for now). Geodes may be considered "basic root nodes" when WriterNodeVisitor will be adapted.
-    {
-        // Geodes & such are not basic root nodes
-        return false;
-    }
-
-    // Test if we've got an empty transform (= a group!)
-    const osg::Transform* transform = osgGroup->asTransform();
-    if (transform)
-    {
-        if (const osg::MatrixTransform* matrixTransform = transform->asMatrixTransform())
-        {
-            if (!matrixTransform->getMatrix().isIdentity())
-            {
-                // Non-identity matrix transform
-                return false;
-            }
-        }
-        else if (const osg::PositionAttitudeTransform* pat = transform->asPositionAttitudeTransform())
-        {
-            if (pat->getPosition() != osg::Vec3d() ||
-                pat->getAttitude() != osg::Quat() ||
-                pat->getScale() != osg::Vec3d(1.0f, 1.0f, 1.0f) ||
-                pat->getPivotPoint() != osg::Vec3d())
-            {
-                // Non-identity position attribute transform
-                return false;
-            }
-        }
-        else
-        {
-            // Other transform (not identity or not predefined type)
-            return false;
-        }
-    }
-
-    // Test the presence of a non-empty stateset
-    if (node.getStateSet())
-    {
-        osg::ref_ptr<osg::StateSet> emptyStateSet = new osg::StateSet;
-        if (node.getStateSet()->compare(*emptyStateSet, true) != 0)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
 
 
 class CleanUpFbx
@@ -100,115 +44,51 @@ public:
     }
 };
 
-//Some files don't correctly mark their skeleton nodes, so this function infers
-//them from the nodes that skin deformers linked to.
-void findLinkedFbxSkeletonNodes(FbxNode* pNode, std::set<const FbxNode*>& fbxSkeletons)
+void printSceneUnitInfo(FbxScene* pScene)
 {
-    if (const FbxGeometry* pMesh = FbxCast<FbxGeometry>(pNode->GetNodeAttribute()))
-    {
-        for (int i = 0; i < pMesh->GetDeformerCount(FbxDeformer::eSkin); ++i)
-        {
-            const FbxSkin* pSkin = (const FbxSkin*)pMesh->GetDeformer(i, FbxDeformer::eSkin);
-
-            for (int j = 0; j < pSkin->GetClusterCount(); ++j)
-            {
-                const FbxNode* pSkeleton = pSkin->GetCluster(j)->GetLink();
-                fbxSkeletons.insert(pSkeleton);
-            }
-        }
-    }
-
-    for (int i = 0; i < pNode->GetChildCount(); ++i)
-    {
-        findLinkedFbxSkeletonNodes(pNode->GetChild(i), fbxSkeletons);
-    }
+   if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::mm)
+      OSG_INFO << "FBX in millimeters will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::dm)
+      OSG_INFO << "FBX in decimeters will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::cm)
+      OSG_INFO << "FBX in centimeters will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::km)
+      OSG_INFO << "FBX in kilometers will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::Inch)
+      OSG_INFO << "FBX in inches will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::Foot)
+      OSG_INFO << "FBX in feet will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::Mile)
+      OSG_INFO << "FBX in miles will be converted to meters" << std::endl;
+   else if (pScene->GetGlobalSettings().GetSystemUnit() == FbxSystemUnit::Yard)
+      OSG_INFO << "FBX in yards will be converted to meters" << std::endl;
+   else
+      OSG_INFO << "FBX unknown units" << std::endl;
 }
 
-void resolveBindMatrices(
-    osg::Node& root,
-    const BindMatrixMap& boneBindMatrices,
-    const std::map<FbxNode*, osg::Node*>& nodeMap)
+void printAxisInfo(const FbxAxisSystem& fbxAxis)
 {
-    std::set<std::string> nodeNames;
-    for (std::map<FbxNode*, osg::Node*>::const_iterator it = nodeMap.begin(); it != nodeMap.end(); ++it)
-    {
-        nodeNames.insert(it->second->getName());
-    }
-
-    for (BindMatrixMap::const_iterator it = boneBindMatrices.begin(); it != boneBindMatrices.end(); ++it)
-    {
-        FbxNode* const fbxBone = it->first;
-        std::map<FbxNode*, osg::Node*>::const_iterator nodeIt = nodeMap.find(fbxBone);
-        if (nodeIt != nodeMap.end())
-        {
-            osgAnimation::Bone* originalBone = dynamic_cast<osgAnimation::Bone*>(nodeIt->second);
-
-            // Iterate bind matrices and create new bones if needed
-            const BindMatrixGeometryMap& bindMatrixGeom = it->second;
-            for ( BindMatrixGeometryMap::const_iterator bindIt = bindMatrixGeom.begin(); bindIt != bindMatrixGeom.end(); ++bindIt)
-            {
-                // First matrix will use original bone
-                if (bindIt == bindMatrixGeom.begin())
-                {
-                    originalBone->setInvBindMatrixInSkeletonSpace(bindIt->first);
-                }
-                else
-                {
-                    // Additional matrices need new bone
-                    std::string name;
-                    for (int i = 0;; ++i)
-                    {
-                        std::stringstream ss;
-                        ss << originalBone->getName() << '_' << i;
-                        name = ss.str();
-                        if (nodeNames.insert(name).second)
-                        {
-                            break;
-                        }
-                    }
-                    osgAnimation::Bone* newBone = new osgAnimation::Bone(name);
-                    newBone->setDefaultUpdateCallback();
-                    newBone->setInvBindMatrixInSkeletonSpace(bindIt->first);
-                    originalBone->addChild(newBone);
-
-                    // Update rig geometry with new bone names
-                    for (std::set<osgAnimation::RigGeometry*>::const_iterator rigIt = bindIt->second.begin();
-                         rigIt != bindIt->second.end();
-                         ++rigIt)
-                    {
-                        osgAnimation::RigGeometry* pRigGeometry = (*rigIt);
-
-                        osgAnimation::VertexInfluenceMap* vertexInfluences = pRigGeometry->getInfluenceMap();
-
-                        osgAnimation::VertexInfluenceMap::iterator vimIt = vertexInfluences->find(originalBone->getName());
-                        if (vimIt != vertexInfluences->end())
-                        {
-                            osgAnimation::VertexInfluence vi;
-                            vi.swap(vimIt->second);
-                            vertexInfluences->erase(vimIt);
-                            osgAnimation::VertexInfluence& vi2 = (*vertexInfluences)[name];
-                            vi.swap(vi2);
-                            vi2.setName(name);
-                        }
-                        else
-                        {
-                            OSG_WARN << "No vertex influences found for \"" << originalBone->getName() << "\"" << std::endl;
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            OSG_WARN << "No bone found for \"" << fbxBone->GetName() << "\"" << std::endl;
-            ++it;
-        }
-    }
+   if (fbxAxis == FbxAxisSystem::MayaZUp)
+      OSG_INFO << "FbxAxisSystem::MayaZUp" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::MayaYUp)
+      OSG_INFO << "FbxAxisSystem::MayaYUp" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::Max)
+      OSG_INFO << "FbxAxisSystem::Max" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::Motionbuilder)
+      OSG_INFO << "FbxAxisSystem::Motionbuilder" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::OpenGL)
+      OSG_INFO << "FbxAxisSystem::OpenGL" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::DirectX)
+      OSG_INFO << "FbxAxisSystem::DirectX" << std::endl;
+   else if (fbxAxis == FbxAxisSystem::Lightwave)
+      OSG_INFO << "FbxAxisSystem::Lightwave" << std::endl;
+   else
+      OSG_INFO << "FbxAxisSystem:: ??? " << std::endl;
 }
 
 osgDB::ReaderWriter::ReadResult
 ReaderWriterFBX::readNode(const std::string& filenameInit,
-                          const Options* options) const
+                          const osgDB::Options* options) const
 {
     try
     {
@@ -217,6 +97,10 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
 
         std::string filename(osgDB::findDataFile(filenameInit, options));
         if (filename.empty()) return ReadResult::FILE_NOT_FOUND;
+
+        // keep the current path for possible xref files
+        ReaderWriterFBX* thisReader = const_cast<ReaderWriterFBX*>(this);
+        thisReader->currentFilePath = osgDB::getFilePath(filenameInit);
 
         FbxManager* pSdkManager = FbxManager::Create();
 
@@ -258,7 +142,7 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
         {
             lTakeInfo->mSelect = true;
         }
-
+        
         if (!lImporter->Import(pScene))
         {
 #if FBXSDK_VERSION_MAJOR < 2014
@@ -267,15 +151,24 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             return std::string(lImporter->GetStatus().GetErrorString());
 #endif
         }
-
-        //FbxAxisSystem::OpenGL.ConvertScene(pScene);        // Doesn't work as expected. Still need to transform vertices.
+        
+        // Convert to Max 3D coordinate system
+        // We should only need this call to orient the scene
+        // but it's not working correctly 
+        //FbxAxisSystem::Max.ConvertScene(pScene);
+        //FbxAxisSystem::MayaYUp.ConvertScene(pScene);
+        
+        // Converting to meters
+        printSceneUnitInfo(pScene);
+        FbxSystemUnit::m.ConvertScene(pScene);
+        
 
         if (FbxNode* pNode = pScene->GetRootNode())
         {
             bool useFbxRoot = false;
             bool lightmapTextures = false;
             bool tessellatePolygons = false;
-            bool zUp = false;
+            bool zUp = true;
             if (options)
             {
                 std::istringstream iss(options->getOptionString());
@@ -318,9 +211,10 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             FbxMaterialToOsgStateSet fbxMaterialToOsgStateSet(filePath, localOptions.get(), lightmapTextures);
 
             std::set<const FbxNode*> fbxSkeletons;
-            findLinkedFbxSkeletonNodes(pNode, fbxSkeletons);
+            fbxUtil::findLinkedFbxSkeletonNodes(pNode, fbxSkeletons);
 
             OsgFbxReader::AuthoringTool authoringTool = OsgFbxReader::UNKNOWN;
+            FbxString appName;
             if (FbxDocumentInfo* pDocInfo = pScene->GetDocumentInfo())
             {
                 struct ToolName
@@ -334,7 +228,7 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                     {"3ds Max", OsgFbxReader::AUTODESK_3DSTUDIO_MAX}
                 };
 
-                FbxString appName = pDocInfo->LastSaved_ApplicationName.Get();
+                appName = pDocInfo->LastSaved_ApplicationName.Get();
 
                 for (unsigned int i = 0; i < sizeof(authoringTools) / sizeof(authoringTools[0]); ++i)
                 {
@@ -360,15 +254,20 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                 *localOptions,
                 authoringTool,
                 lightmapTextures,
-                tessellatePolygons);
-
-            ReadResult res = reader.readFbxNode(pNode, bIsBone, nLightCount);
+                tessellatePolygons,
+                currentFilePath);
+            
+            // Empty texture unit map that will be pass down
+            // and filled as needed
+            textureUnitMap textureMap;
+            
+            ReadResult res = reader.readFbxNode(pNode, bIsBone, nLightCount, textureMap, appName);
 
             if (res.success())
             {
                 fbxMaterialToOsgStateSet.checkInvertTransparency();
 
-                resolveBindMatrices(*res.getNode(), reader.boneBindMatrices, reader.nodeMap);
+                fbxUtil::resolveBindMatrices(*res.getNode(), reader.boneBindMatrices, reader.nodeMap);
 
                 osg::Node* osgNode = res.getNode();
                 osgNode->getOrCreateStateSet()->setMode(GL_RESCALE_NORMAL,osg::StateAttribute::ON);
@@ -382,89 +281,134 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                         osgGroup->addChild(osgNode);
                         osgNode = osgGroup;
                     }
+                }
 
-                    //because the animations may be altered after registering
-                    reader.pAnimationManager->buildTargetReference();
-                    osgNode->setUpdateCallback(reader.pAnimationManager.get());
+                // Unregister the animation here since they will be register in Vantage
+                if (reader.pAnimationManager)
+                {
+                   const osgAnimation::AnimationList& anims = reader.pAnimationManager->getAnimationList();
+                   for (size_t i = 0; i < anims.size(); ++i)
+                   {
+                      osgAnimation::Animation* pAnimation = anims[i].get();
+                      reader.pAnimationManager->unregisterAnimation(pAnimation);
+                   }
                 }
 
                 FbxAxisSystem fbxAxis = pScene->GetGlobalSettings().GetAxisSystem();
-                // some reminder: http://www.realtimerendering.com/blog/left-handed-vs-right-handed-world-coordinates/                
-                int upSign;
+                printAxisInfo(fbxAxis);
+
+                //// some reminder: http://www.realtimerendering.com/blog/left-handed-vs-right-handed-world-coordinates/                
+                int upSign, frontSign;
                 FbxAxisSystem::EUpVector eUp = fbxAxis.GetUpVector(upSign);
+                FbxAxisSystem::EFrontVector eFront = fbxAxis.GetFrontVector(frontSign);
+                eFront;
                 bool bLeftHanded = fbxAxis.GetCoorSystem() == FbxAxisSystem::eLeftHanded;
                 float fSign = upSign < 0 ? 1.0f : -1.0f;
                 float HorizSign = bLeftHanded ? -1.0f : 1.0f;
 
                 bool refCoordSysChange = false;
                 osg::Matrix mat;
-               
-                if (zUp)
+
+                // TODO REMOVE THE CODE BELLOW ONCE FbxAxisSystem::Max.ConvertScene(pScene); is working again
+                // We want to put all in Right Hand and Z up
+                if (bLeftHanded)
                 {
-                    if (eUp != FbxAxisSystem::eZAxis || fSign != 1.0  || upSign != 1.0)
-                    {                    
+                     // NOT TESTED
+                     switch (eUp)
+                     {
+                     case FbxAxisSystem::eXAxis:
+                        mat.set(0, fSign, 0, 0, -fSign, 0, 0, 0, 0, 0, HorizSign, 0, 0, 0, 0, 1); 
+                        break;
+                     case FbxAxisSystem::eYAxis:
+                        mat.set(1, 0, 0, 0, 0, fSign, 0, 0, 0, 0, fSign*HorizSign, 0, 0, 0, 0, 1);
+                        break;
+                     case FbxAxisSystem::eZAxis:
+                        mat.set(1, 0, 0, 0, 0, 0, -fSign * HorizSign, 0, 0, fSign, 0, 0, 0, 0, 0, 1);
+                        break;
+                     }
+                     refCoordSysChange = true;
+                }
+                else
+                {
+                     // In this case just change to Z up
+                     if (eUp != FbxAxisSystem::eZAxis || fSign != 1.0 || upSign != 1.0)
+                     {
                         switch (eUp)
                         {
                         case FbxAxisSystem::eXAxis:
-                            mat.set(0,fSign,0,0,-fSign,0,0,0,0,0,HorizSign,0,0,0,0,1);
-                            break;
+                           mat.set(0, fSign, 0, 0,
+                                  -fSign, 0, 0, 0,
+                                   0, 0, HorizSign, 0, 
+                                   0, 0, 0, 1);
+                           refCoordSysChange = true;
+                           break;
                         case FbxAxisSystem::eYAxis:
-                            mat.set(1,0,0,0,0,0,-fSign*HorizSign,0,0,fSign,0,0,0,0,0,1);
-                            break;
-                        case FbxAxisSystem::eZAxis:
-                            mat.set(1,0,0,0,0,fSign,0,0,0,0,fSign*HorizSign,0,0,0,0,1);
-                            break;
+                           mat.set(1, 0, 0, 0, 
+                                   0, 0, -fSign * HorizSign, 0, 
+                                   0, fSign, 0, 0, 
+                                   0, 0, 0, 1);
+                           refCoordSysChange = true;
+                           break;
+                        // Do nothing when Z is up
+                        //case FbxAxisSystem::eZAxis:
+                        //   mat.set(1, 0, 0, 0, 
+                        //           0, fSign, 0, 0, 
+                        //           0, 0, fSign*HorizSign, 0, 
+                        //           0, 0, 0, 1);
+                        //   refCoordSysChange = true;
+                        //   break;
                         }
-                        refCoordSysChange = true;
-                    }
-                } 
-                else if (fbxAxis != FbxAxisSystem::OpenGL)
-                {
-                    switch (eUp)
-                    {
-                    case FbxAxisSystem::eXAxis:
-                        mat.set(0,-fSign,0,0,fSign,0,0,0,0,0,HorizSign,0,0,0,0,1);
-                        break;
-                    case FbxAxisSystem::eYAxis:
-                        mat.set(1,0,0,0,0,-fSign,0,0,0,0,-fSign*HorizSign,0,0,0,0,1);
-                        break;
-                    case FbxAxisSystem::eZAxis:
-                        mat.set(1,0,0,0,0,0,fSign*HorizSign,0,0,-fSign,0,0,0,0,0,1);
-                        break;
-                    } 
-                    refCoordSysChange = true;
+                     }
                 }
+                
                 if (refCoordSysChange)
                 {
-                    osg::Transform* pTransformTemp = osgNode->asTransform();
-                    osg::MatrixTransform* pMatrixTransform = pTransformTemp ?
-                        pTransformTemp->asMatrixTransform() : NULL;
-                    if (pMatrixTransform)
-                    {
-                        pMatrixTransform->setMatrix(pMatrixTransform->getMatrix() * mat);
-                    }
-                    else
-                    {
-                        pMatrixTransform = new osg::MatrixTransform(mat);
-                        if (useFbxRoot && isBasicRootNode(*osgNode))
-                        {
-                            // If root node is a simple group, put all FBX elements under the OSG root
-                            osg::Group* osgGroup = osgNode->asGroup();
-                            for(unsigned int i = 0; i < osgGroup->getNumChildren(); ++i)
-                            {
-                                pMatrixTransform->addChild(osgGroup->getChild(i));
-                            }
-                            pMatrixTransform->setName(osgGroup->getName());
-                        }
-                        else
-                        {
-                            pMatrixTransform->addChild(osgNode);
-                        }
-                    }
-                    osgNode = pMatrixTransform;
+                   osg::Transform* pTransformTemp = osgNode->asTransform();
+                   osg::MatrixTransform* pMatrixTransform = pTransformTemp ?
+                      pTransformTemp->asMatrixTransform() : NULL;
+                   if (pMatrixTransform)
+                   {
+                      pMatrixTransform->setMatrix(pMatrixTransform->getMatrix() * mat);
+                   }
+                   else
+                   {
+                      pMatrixTransform = new osg::MatrixTransform(mat);
+                      pMatrixTransform->setDataVariance(osg::Object::STATIC);
+                      if (useFbxRoot && fbxUtil::isBasicRootNode(*osgNode))
+                      {
+                         // If root node is a simple group, put all FBX elements under the OSG root
+                         osg::Group* osgGroup = osgNode->asGroup();
+                         for (unsigned int i = 0; i < osgGroup->getNumChildren(); ++i)
+                         {
+                            pMatrixTransform->addChild(osgGroup->getChild(i));
+                         }
+                         pMatrixTransform->setName(osgGroup->getName());
+                      }
+                      else
+                      {
+                         pMatrixTransform->addChild(osgNode);
+                      }
+                   }
+                   // IMPORTANT: if a transform is added at the top, we need 
+                   // to add a group before for instancing to work in Vantage
+                   osg::Group* rootGroup = new osg::Group();
+                   rootGroup->addChild(pMatrixTransform);
+                   osgNode = rootGroup;
                 }
 
                 osgNode->setName(filenameInit);
+
+#if 0 // TO DEBUG IN VANTAGE
+                std::cout << "File: " << filenameInit << std::endl;
+                std::cout << "FBX Model: Begin======" << std::endl;
+                makVrv::DtOsgPrintNodeHierarchyVisitor printer;
+                osgNode->accept(printer);
+                std::cout << "FBX Model: End" << std::endl;
+#endif
+
+                // Visitor that goes through a adjust the put matrix of DOF transform
+                fbxMatrixTransformVisitor mtVis;
+                osgNode->accept(mtVis);
                 return osgNode;
             }
         }
@@ -544,7 +488,7 @@ osgDB::ReaderWriter::WriteResult ReaderWriterFBX::writeNode(
 
         pluginfbx::WriterNodeVisitor writerNodeVisitor(pScene, pSdkManager, filename,
             options, osgDB::getFilePath(node.getName().empty() ? filename : node.getName()));
-        if (useFbxRoot && isBasicRootNode(node))
+        if (useFbxRoot && fbxUtil::isBasicRootNode(node))
         {
             // If root node is a simple group, put all elements under the FBX root
             const osg::Group * osgGroup = node.asGroup();

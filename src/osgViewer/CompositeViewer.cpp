@@ -26,6 +26,7 @@
 using namespace osgViewer;
 
 CompositeViewer::CompositeViewer()
+   : ViewerBase()
 {
     constructorInit();
 }
@@ -1477,3 +1478,18 @@ void CompositeViewer::getUsage(osg::ApplicationUsage& usage) const
         }
     }
 }
+
+// VRV_PATCH BEGIN
+void CompositeViewer::prepare()
+{
+   if (_firstFrame)
+   {
+      viewerInit();
+      if (!isRealized())
+      {
+         realize();
+      }
+      _firstFrame = false;
+   }
+}
+// VRV_PATCH END

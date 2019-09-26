@@ -56,6 +56,11 @@ osgParticle::ParticleSystem::ParticleSystem()
     _sortMode(NO_SORT),
     _visibilityDistance(-1.0),
     _estimatedMaxNumOfParticles(0)
+    _draw_count(0),
+    _xAxis(1.0f,0.0f,0.0f),
+    _yAxis(0.0f,1.0f,0.0f),
+    _zAxis(0.0f,0.0f,1.0f),
+    _userShape(Particle::USER)
 {
     // we don't support display lists because particle systems
     // are dynamic, and they always changes between frames
@@ -88,6 +93,11 @@ osgParticle::ParticleSystem::ParticleSystem(const ParticleSystem& copy, const os
     _sortMode(copy._sortMode),
     _visibilityDistance(copy._visibilityDistance),
     _estimatedMaxNumOfParticles(0)
+    _draw_count(0),
+    _xAxis(copy._xAxis),
+    _yAxis(copy._yAxis),
+    _zAxis(copy._zAxis),
+    _userShape(copy._userShape)
 {
 }
 
@@ -132,6 +142,16 @@ osgParticle::Particle* osgParticle::ParticleSystem::createParticle(const osgPart
 
 void osgParticle::ParticleSystem::update(double dt, osg::NodeVisitor& nv)
 {
+    // BEGIN VRV_PATCH
+    // No particles to update? Skip!
+    const int particlesSize = _particles.size();
+    if (particlesSize == 0) return;
+
+    // Hmm, so all the particles are dead? Then skip.
+    const int deadparticlesSize = _deadparts.size();
+    if (particlesSize == deadparticlesSize) return;
+    // END VRV_PATCH
+
     // reset bounds
     _reset_bounds_flag = true;
 
@@ -152,7 +172,9 @@ void osgParticle::ParticleSystem::update(double dt, osg::NodeVisitor& nv)
         }
     }
 
-    for(unsigned int i=0; i<_particles.size(); ++i)
+    // BEGIN VRV_PATCH
+    for(int i=0; i<particlesSize; ++i)
+    // END VRV_PATCH
     {
         Particle& particle = _particles[i];
         if (particle.isAlive())
@@ -513,7 +535,11 @@ void osgParticle::ParticleSystem::drawImplementation(osg::RenderInfo& renderInfo
         // restore color mask settings
         glPopAttrib();
 #endif
+        state.haveAppliedAttribute(osg::StateAttribute::COLORMASK);
+
     }
+
+    state.haveAppliedAttribute(osg::StateAttribute::DEPTH);
 }
 
 void osgParticle::ParticleSystem::setDefaultAttributes(const std::string& texturefile, bool emissive_particles, bool lighting, int texture_unit)
@@ -645,6 +671,7 @@ void osgParticle::ParticleSystem::setDefaultAttributesUsingShaders(const std::st
     setUseShaders(true);
 }
 
+<<<<<<< HEAD
 osg::BoundingBox osgParticle::ParticleSystem::computeBoundingBox() const
 {
     if (!_bounds_computed)
@@ -655,6 +682,42 @@ osg::BoundingBox osgParticle::ParticleSystem::computeBoundingBox() const
         return osg::BoundingBox(_bmin,_bmax);
     }
 }
+=======
+
+void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo, const osg::Matrix& inModelview) const
+{
+    _draw_count = 0;
+    // BEGIN VRV_PATCH
+    int particlesSize = _particles.size();
+    if (particlesSize <= 0) return;
+
+    // Hmm, so all the particles are dead? Then skip.
+    int deadparticlesSize = _deadparts.size();
+    if (particlesSize == deadparticlesSize) return;
+
+    // For VR, orient particles based on eye<->particle position
+    // only (particle does not change based on the viewer orientation)
+
+    osg::Matrix modelview = inModelview;
+    osg::Matrix lookAtMat;
+
+    // get the position of the camera relative to the particle system
+    modelview = osg::Matrix::inverse(inModelview);
+    // END VRV_PATCH
+
+    osg::GLBeginEndAdapter* gl = &(renderInfo.getState()->getGLBeginEndAdapter());
+
+    // Nearly always, we are using quads which have 4 verts
+    // do this *before* startParticle->beginRender so that beginRender can
+    // resize the arrays
+    // + 1 because we are usually adding one vert, color, normal, etc.
+    gl->setNumElementsHint((particlesSize+1) * 4);
+
+    float scale = sqrtf(static_cast<float>(_detail));
+
+    osg::Vec3 xAxis = _align_X_axis;
+    osg::Vec3 yAxis = _align_Y_axis;
+>>>>>>> Merge of Mak's OSG 3.4 changes.   * Untested *
 
 
 void osgParticle::ParticleSystem::resizeGLObjectBuffers(unsigned int maxSize)
@@ -691,16 +754,31 @@ osg::VertexArrayState* osgParticle::ParticleSystem::createVertexArrayStateImplem
 
     osg::VertexArrayState* vas = new osg::VertexArrayState(&state);
 
+<<<<<<< HEAD
     vas->assignVertexArrayDispatcher();
     vas->assignNormalArrayDispatcher();
     vas->assignColorArrayDispatcher();
     vas->assignTexCoordArrayDispatcher(1);
 
     if (state.useVertexArrayObject(_useVertexArrayObject))
+=======
+    bool requiresEndRender = false;
+    const Particle* startParticle = &_particles[0];
+    // BEGIN VRV_PATCH
+    const Particle::Shape& startShape = startParticle->getShape();
+    if (startShape != _userShape)
+    {
+    // END VRV_PATCH
+        startParticle->beginRender(gl);
+        requiresEndRender = true;
+    }
+    else
+>>>>>>> Merge of Mak's OSG 3.4 changes.   * Untested *
     {
         vas->generateVertexArrayObject();
     }
 
+<<<<<<< HEAD
     return vas;
 }
 
@@ -751,6 +829,114 @@ void osgParticle::ParticleSystem::ArrayData::init3()
     texcoords3 = new osg::Vec3Array(osg::Array::BIND_PER_VERTEX);
     texcoords3->setBufferObject(vertexBufferObject.get());
     texcoords3->setDataVariance(osg::Object::DYNAMIC);
+=======
+    // BEGIN VRV_PATCH
+    // Don't recreate matrix each time
+    osg::Matrix R;
+
+    for(int i=0; i<particlesSize; i+=_detail)
+    // END VRV_PATCH
+    {
+        const Particle* currentParticle = &_particles[i];
+        // BEGIN VRV_PATCH
+        const double particleDepth = currentParticle->getDepth();
+        const bool isAlive = currentParticle->isAlive();
+        // END VRV_PATCH
+
+        bool insideDistance = true;
+        if (_sortMode != NO_SORT && _visibilityDistance>0.0)
+            insideDistance = (particleDepth >=0.0 && particleDepth <=_visibilityDistance); // VRV_PATCH
+
+        if (isAlive && insideDistance) // VRV_PATCH
+        {
+            // BEGIN VRV_PATCH - don't get these unless we needed to
+            const Particle::Shape& currShape = currentParticle->getShape();
+            const osg::Vec3& pos = currentParticle->getPosition();
+            const osg::Vec3& angle = currentParticle->getAngle();
+            const float& xAngle = angle[0];
+            const float& yAngle = angle[1];
+            const float& zAngle = angle[2];
+            // END VRV_PATCH
+
+            if (currShape != startShape) // VRV_PATCH
+            {
+                startParticle->endRender(gl);
+                startParticle = currentParticle;
+                if (currShape != _userShape)
+                {
+                    currentParticle->beginRender(gl);
+                    requiresEndRender = true;
+                    glDepthMask(GL_FALSE);
+                }
+                else
+                    glDepthMask(GL_TRUE);
+            }
+            ++_draw_count;
+
+            if (currShape == _userShape)
+            {
+                if (requiresEndRender)
+                {
+                    startParticle->endRender(gl);
+                    requiresEndRender = false;
+                }
+                currentParticle->render(renderInfo, pos, angle); // VRV_PATCH
+                continue;
+            }
+
+
+            bool requiresRotation = (xAngle !=0.0f || yAngle!=0.0f || zAngle!=0.0f); // VRV_PATCH
+
+            if (_alignment == BILLBOARD)
+            {
+               //Begin VRV_PATCH
+               // We need to orient every particle towards the camera so that the particle look good that are near
+               // the edges of the screen.
+               lookAtMat.makeLookAt(modelview.getTrans() - currentParticle->_position, osg::Vec3d(0, 0, 0), osg::Vec3d(0, 0, 1));
+               //End VRV_PATCH
+            }
+
+            if (requiresRotation)
+            {
+                R.makeRotate(
+                    // BEGIN VRV_PATCH
+                    xAngle, _xAxis,
+                    yAngle, _yAxis,
+                    zAngle, _zAxis);
+                    // END VRV_PATCH
+
+                if (_alignment==BILLBOARD)
+                {
+                    xAxis = osg::Matrix::transform3x3(R,scaled_aligned_xAxis);
+                    xAxis = osg::Matrix::transform3x3(lookAtMat, xAxis);
+
+                    yAxis = osg::Matrix::transform3x3(R,scaled_aligned_yAxis);
+                    yAxis = osg::Matrix::transform3x3(lookAtMat, yAxis);
+
+                    currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
+                }
+                else
+                {
+                    xAxis = osg::Matrix::transform3x3(R, scaled_aligned_xAxis);
+                    yAxis = osg::Matrix::transform3x3(R, scaled_aligned_yAxis);
+
+                    currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
+                }
+            }
+            else
+            {
+                xAxis = osg::Matrix::transform3x3(lookAtMat, scaled_aligned_xAxis);
+                yAxis = osg::Matrix::transform3x3(lookAtMat, scaled_aligned_yAxis);
+                currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
+            }
+        }
+    }
+
+    if (requiresEndRender)
+        startParticle->endRender(gl);
+
+    renderInfo.getState()->haveAppliedAttribute(osg::StateAttribute::DEPTH);
+>>>>>>> Merge of Mak's OSG 3.4 changes.   * Untested *
 }
 
 void osgParticle::ParticleSystem::ArrayData::reserve(unsigned int numVertices)
@@ -846,4 +1032,12 @@ void osgParticle::ParticleSystem::ArrayData::dispatchPrimitives()
         glDrawArrays(mc.first, base, mc.second);
         base += mc.second;
     }
+}
+
+// Give a hint as to how many particles we are going to create in an emitter
+// so that it does not trigger a resize when particles are pushed back
+void osgParticle::ParticleSystem::setNumParticlesToCreateHint(unsigned int numParticles)
+{
+    // does this need ScopedReadLock lock(_readWriteMutex); ?
+    if (numParticles > _particles.size()) { _particles.reserve(numParticles); }
 }

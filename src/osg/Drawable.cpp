@@ -34,6 +34,8 @@
 using namespace osg;
 
 static unsigned int s_minimumNumberOfDisplayListsToRetainInCache = 0;
+bool Drawable::s_useVertexBufferObjectsDefault = false;
+
 void Drawable::setMinimumNumberOfDisplayListsToRetainInCache(unsigned int minimum)
 {
     s_minimumNumberOfDisplayListsToRetainInCache = minimum;
@@ -207,35 +209,28 @@ GLuint Drawable::generateDisplayList(unsigned int contextID, unsigned int sizeHi
 
 void Drawable::deleteDisplayList(unsigned int contextID,GLuint globj, unsigned int sizeHint)
 {
-    osg::get<DisplayListManager>(contextID)->deleteDisplayList(globj, sizeHint);
-}
+   _boundingBoxComputed = false;
 
-
-Drawable::Drawable()
-{
-    // Note, if your are defining a subclass from drawable which is
-    // dynamically updated then you should set both the following to
-    // to false in your constructor.  This will prevent any display
-    // lists from being automatically created and safeguard the
-    // dynamic updating of data.
+   // Note, if your are defining a subclass from drawable which is
+   // dynamically updated then you should set both the following to
+   // to false in your constructor.  This will prevent any display
+   // lists from being automatically created and safeguard the
+   // dynamic updating of data.
 #ifdef OSG_GL_DISPLAYLISTS_AVAILABLE
-    _supportsDisplayList = true;
-    _useDisplayList = true;
+   _supportsDisplayList = true;
+   _useDisplayList = true;
 #else
-    _supportsDisplayList = false;
-    _useDisplayList = false;
+   _supportsDisplayList = false;
+   _useDisplayList = false;
 #endif
+   _supportsVertexBufferObjects = true;
+   _useVertexBufferObjects = true;
+   _useVertexArrayObject = false;
 
-#if 0
-    _supportsVertexBufferObjects = false;
-    //_useVertexBufferObjects = false;
-    _useVertexBufferObjects = false;
-#else
-    _supportsVertexBufferObjects = true;
-    _useVertexBufferObjects = true;
-#endif
-
-    _useVertexArrayObject = false;
+   if (s_useVertexBufferObjectsDefault){
+      _useVertexBufferObjects = true;
+      _useDisplayList = false;
+   }
 }
 
 Drawable::Drawable(const Drawable& drawable,const CopyOp& copyop):
@@ -458,8 +453,6 @@ void Drawable::setUseVertexArrayObject(bool flag)
 
 void Drawable::setUseVertexBufferObjects(bool flag)
 {
-    // _useVertexBufferObjects = true;
-
     // OSG_NOTICE<<"Drawable::setUseVertexBufferObjects("<<flag<<")"<<std::endl;
 
     // if value unchanged simply return.

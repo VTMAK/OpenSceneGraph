@@ -29,6 +29,9 @@ SET(TARGET_SRC
     Vertex.cpp
     VertexPaletteManager.cpp
     VertexRecords.cpp
+	DtCDBSigSize.cpp
+	DtCDBSigSizeTable.cpp
+	DtCDBDatasetInfo.cpp
 )
 
 SET(TARGET_H
@@ -51,9 +54,17 @@ SET(TARGET_H
     Opcodes.h
     Types.h
     Utils.h
+	DtCDBSigSize.h
+	DtCDBSigSizeTable.h
+	DtCDBDatasetInfo.h
 )
 
 SET(TARGET_ADDED_LIBRARIES osgSim )
 
+INCLUDE_DIRECTORIES(${BOOST_INCLUDE_DIR})
+
+link_directories(${BOOST_LIB_DIR})
+
 #### end var setup  ###
 SETUP_PLUGIN(openflight)
+

@@ -4,7 +4,9 @@
 
 #include <nvtt/nvtt.h>
 #include <string.h>
-
+//VRV PATCH, There were significant changes made to this file to add
+// support for multiple layers in an image that is passed to this processor.
+// it should now correctly mip multi layer images.
 class NVTTProcessor : public osgDB::ImageProcessor
 {
 public:
@@ -36,7 +38,7 @@ protected:
         virtual ~OSGImageOutputHandler();
 
         // create the osg image from the given format
-        bool assignImage(osg::Image& image);
+        bool assignImage(osg::Image& image, int layer);
 
         /// Indicate the start of a new compressed image that's part of the final texture.
         virtual void beginImage(int size, int width, int height, int depth, int face, int miplevel);
@@ -48,10 +50,10 @@ protected:
     };
 
     // Convert RGBA to BGRA : nvtt only accepts BGRA pixel format
-    void convertRGBAToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image );
+    void convertRGBAToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image, int layer );
 
     // Convert RGB to BGRA : nvtt only accepts BGRA pixel format
-    void convertRGBToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image );
+    void convertRGBToBGRA(std::vector<unsigned char>& outputData, const osg::Image& image, int layer);
 
 };
 
@@ -98,7 +100,7 @@ NVTTProcessor::OSGImageOutputHandler::~OSGImageOutputHandler()
 }
 
 // create the osg image from the given format
-bool NVTTProcessor::OSGImageOutputHandler::assignImage(osg::Image& image)
+bool NVTTProcessor::OSGImageOutputHandler::assignImage(osg::Image& image, int layer)
 {
     // convert nvtt format to OpenGL pixel format
     GLint pixelFormat;
@@ -130,26 +132,30 @@ bool NVTTProcessor::OSGImageOutputHandler::assignImage(osg::Image& image)
         return false;
     }
 
-    // Compute the total size and the mipmap offsets
-    osg::Image::MipmapDataType mipmapOffsets(_mipmaps.size()-1);
-    unsigned int totalSize = _mipmaps[0]->size();
-    for (unsigned int n=1; n<_mipmaps.size(); n++)
+    if (layer == 0)
     {
-        mipmapOffsets[n-1] = totalSize;
-        totalSize += _mipmaps[n]->size();
+       // Compute the total size and the mipmap offsets
+       osg::Image::MipmapDataType mipmapOffsets(_mipmaps.size() - 1);
+       unsigned int totalSize = _mipmaps[0]->size();
+       for (unsigned int n = 1; n < _mipmaps.size(); n++)
+       {
+          mipmapOffsets[n - 1] = totalSize;
+          totalSize += _mipmaps[n]->size();
+       }
+
+       // Allocate data and copy it
+       unsigned char* data = new unsigned char[totalSize * image.r()];
+       
+       image.setImage(_width, _height, image.r(), pixelFormat, pixelFormat, GL_UNSIGNED_BYTE, data, osg::Image::USE_NEW_DELETE);
+       image.setMipmapLevels(mipmapOffsets);
     }
 
-    // Allocate data and copy it
-    unsigned char* data = new unsigned char[ totalSize ];
-    unsigned char* ptr = data;
-    for (unsigned int n=0; n<_mipmaps.size(); n++)
+    unsigned char* ptr = image.data(0,0,layer);
+    for (unsigned int n = 0; n < _mipmaps.size(); n++)
     {
-        memcpy( ptr, &(*_mipmaps[n])[0], _mipmaps[n]->size() );
-        ptr += _mipmaps[n]->size();
+       memcpy(ptr, &(*_mipmaps[n])[0], _mipmaps[n]->size());
+       ptr += _mipmaps[n]->size();
     }
-
-    image.setImage(_width,_height,1,pixelFormat,pixelFormat,GL_UNSIGNED_BYTE,data,osg::Image::USE_NEW_DELETE);
-    image.setMipmapLevels(mipmapOffsets);
 
     return true;
 }
@@ -184,12 +190,12 @@ bool NVTTProcessor::OSGImageOutputHandler::writeData(const void * data, int size
 }
 
 // Convert RGBA to BGRA : nvtt only accepts BGRA pixel format
-void NVTTProcessor::convertRGBAToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image )
+void NVTTProcessor::convertRGBAToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image, int layer )
 {
     unsigned int n=0;
     for(int row=0; row<image.t(); ++row)
     {
-        const unsigned char* data = image.data(0,row);
+       const unsigned char* data = image.data(0, row, layer);
         for(int column=0; column<image.s(); ++column)
         {
             outputData[n] = data[column*4+2];
@@ -202,12 +208,12 @@ void NVTTProcessor::convertRGBAToBGRA( std::vector<unsigned char>& outputData, c
 }
 
 // Convert RGB to BGRA : nvtt only accepts BGRA pixel format
-void NVTTProcessor::convertRGBToBGRA( std::vector<unsigned char>& outputData, const osg::Image& image )
+void NVTTProcessor::convertRGBToBGRA(std::vector<unsigned char>& outputData, const osg::Image& image, int layer)
 {
     unsigned int n=0;
     for(int row=0; row<image.t(); ++row)
     {
-        const unsigned char* data = image.data(0,row);
+        const unsigned char* data = image.data(0,row, layer);
         for(int column=0; column<image.s(); ++column)
         {
             outputData[n] = data[column*3+2];
@@ -222,98 +228,110 @@ void NVTTProcessor::convertRGBToBGRA( std::vector<unsigned char>& outputData, co
 // Main interface with NVTT
 void NVTTProcessor::process( osg::Image& image, nvtt::Format format, bool generateMipMap, bool resizeToPowerOfTwo, CompressionMethod method, CompressionQuality quality)
 {
-    // Fill input options
-    nvtt::InputOptions inputOptions;
-    inputOptions.setTextureLayout(nvtt::TextureType_2D, image.s(), image.t() );
-    inputOptions.setNormalMap(false);
-    inputOptions.setConvertToNormalMap(false);
-    inputOptions.setGamma(2.2f, 2.2f);
-    inputOptions.setNormalizeMipmaps(false);
-    inputOptions.setWrapMode(nvtt::WrapMode_Clamp);
-    if (resizeToPowerOfTwo)
-    {
-        inputOptions.setRoundMode(nvtt::RoundMode_ToNearestPowerOfTwo);
-    }
-    inputOptions.setMipmapGeneration(generateMipMap);
 
-    if (image.getPixelFormat() == GL_RGBA)
-    {
-        inputOptions.setAlphaMode( nvtt::AlphaMode_Transparency );
-    }
-    else
-    {
-        inputOptions.setAlphaMode( nvtt::AlphaMode_None );
-    }
-    std::vector<unsigned char> imageData( image.s() * image.t() * 4 );
-    if (image.getPixelFormat() == GL_RGB)
-    {
-        convertRGBToBGRA( imageData, image );
-    }
-    else
-    {
-        convertRGBAToBGRA( imageData, image );
-    }
-    inputOptions.setMipmapData(&imageData[0],image.s(),image.t());
+   std::vector<std::vector<unsigned char> > imageData;
+   for (int layer = 0; layer < image.r(); layer++)
+   {
+      imageData.push_back(std::vector<unsigned char>(image.s() * image.t() * 4));
+      if (image.getPixelFormat() == GL_RGB)
+      {
+         convertRGBToBGRA(imageData[layer], image, layer);
+      }
+      else
+      {
+         convertRGBAToBGRA(imageData[layer], image, layer);
+      }
+   }
 
-    // Fill compression options
-    nvtt::CompressionOptions compressionOptions;
-    switch(quality)
-    {
+   for (int layer = 0; layer < image.r(); layer++)
+   {
+
+      // Fill input options
+      nvtt::InputOptions inputOptions;
+      inputOptions.setTextureLayout(nvtt::TextureType_2D, image.s(), image.t());
+      inputOptions.setNormalMap(false);
+      inputOptions.setConvertToNormalMap(false);
+      inputOptions.setGamma(2.2f, 2.2f);
+      inputOptions.setNormalizeMipmaps(false);
+      inputOptions.setWrapMode(nvtt::WrapMode_Clamp);
+      if (resizeToPowerOfTwo)
+      {
+         inputOptions.setRoundMode(nvtt::RoundMode_ToNearestPowerOfTwo);
+      }
+      inputOptions.setMipmapGeneration(generateMipMap);
+
+      if (image.getPixelFormat() == GL_RGBA)
+      {
+         inputOptions.setAlphaMode(nvtt::AlphaMode_Transparency);
+      }
+      else
+      {
+         inputOptions.setAlphaMode(nvtt::AlphaMode_None);
+      }
+     
+      inputOptions.setMipmapData(&imageData[layer][0], image.s(), image.t());
+
+      // Fill compression options
+      nvtt::CompressionOptions compressionOptions;
+      switch (quality)
+      {
       case FASTEST:
-        compressionOptions.setQuality( nvtt::Quality_Fastest );
-        break;
+         compressionOptions.setQuality(nvtt::Quality_Fastest);
+         break;
       case NORMAL:
-        compressionOptions.setQuality( nvtt::Quality_Normal );
-        break;
+         compressionOptions.setQuality(nvtt::Quality_Normal);
+         break;
       case PRODUCTION:
-        compressionOptions.setQuality( nvtt::Quality_Production);
-        break;
+         compressionOptions.setQuality(nvtt::Quality_Production);
+         break;
       case HIGHEST:
-        compressionOptions.setQuality( nvtt::Quality_Highest);
-        break;
-    }
-    compressionOptions.setFormat( format );
-    //compressionOptions.setQuantization(false,false,false);
-    if (format == nvtt::Format_RGBA)
-    {
-        if (image.getPixelFormat() == GL_RGB)
-        {
-            compressionOptions.setPixelFormat(24,0xff,0xff00,0xff0000,0);
-        }
-        else
-        {
-            compressionOptions.setPixelFormat(32,0xff,0xff00,0xff0000,0xff000000);
-        }
-    }
+         compressionOptions.setQuality(nvtt::Quality_Highest);
+         break;
+      }
+      compressionOptions.setFormat(format);
+      //compressionOptions.setQuantization(false,false,false);
+      if (format == nvtt::Format_RGBA)
+      {
+         if (image.getPixelFormat() == GL_RGB)
+         {
+            compressionOptions.setPixelFormat(24, 0xff, 0xff00, 0xff0000, 0);
+         }
+         else
+         {
+            compressionOptions.setPixelFormat(32, 0xff, 0xff00, 0xff0000, 0xff000000);
+         }
+      }
 
-    // Handler
-    OSGImageOutputHandler outputHandler(format,image.getPixelFormat() == GL_RGB);
-    VPBErrorHandler errorHandler;
+      // Handler
+      OSGImageOutputHandler outputHandler(format, image.getPixelFormat() == GL_RGB);
+      VPBErrorHandler errorHandler;
 
-    // Fill output options
-    nvtt::OutputOptions outputOptions;
-    outputOptions.setOutputHandler(&outputHandler);
-    outputOptions.setErrorHandler(&errorHandler);
-    outputOptions.setOutputHeader(false);
+      // Fill output options
+      nvtt::OutputOptions outputOptions;
+      outputOptions.setOutputHandler(&outputHandler);
+      outputOptions.setErrorHandler(&errorHandler);
+      outputOptions.setOutputHeader(false);
 
-    // Process the compression now
-    nvtt::Compressor compressor;
-    if(method == USE_GPU)
-    {
-        compressor.enableCudaAcceleration(true);
-        if(!compressor.isCudaAccelerationEnabled())
-        {
-            OSG_WARN<< "CUDA acceleration was enabled but it is not available. CPU will be used."<<std::endl;
-        }
-    }
-    else
-    {
-        compressor.enableCudaAcceleration(false);
-    }
+      // Process the compression now
+      nvtt::Compressor compressor;
+      if (method == USE_GPU)
+      {
+         compressor.enableCudaAcceleration(true);
+         if (!compressor.isCudaAccelerationEnabled())
+         {
+            OSG_WARN << "CUDA acceleration was enabled but it is not available. CPU will be used." << std::endl;
+         }
+      }
+      else
+      {
+         compressor.enableCudaAcceleration(false);
+      }
 
-    compressor.process(inputOptions,compressionOptions,outputOptions);
+      compressor.process(inputOptions, compressionOptions, outputOptions);
 
-    outputHandler.assignImage(image);
+      outputHandler.assignImage(image, layer);
+
+   }
 }
 
 void NVTTProcessor::compress(osg::Image& image, osg::Texture::InternalFormatMode compressedFormat, bool generateMipMap, bool resizeToPowerOfTwo, CompressionMethod method, CompressionQuality quality)

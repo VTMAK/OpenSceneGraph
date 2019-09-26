@@ -899,9 +899,20 @@ std::string daeReader::processImagePath(const domImage* pDomImage) const
         pDomImage->getInit_from()->getValue().validate();
         if (strcmp(pDomImage->getInit_from()->getValue().getProtocol(), "file") == 0)
         {
-            std::string path = pDomImage->getInit_from()->getValue().pathDir() +
-                pDomImage->getInit_from()->getValue().pathFile();
+           // Fix for missing collada textures.  MarcM 03/23/16
+           // Below, getValue() returns a valid result but pathDir() and pathFile() do
+           // not for some files.  Not sure why we're trying to get the pathDir() and 
+           // pathFile() when we're calling CovertColladaCompatibleURIToFilePath() anyway.
+
+           const xsAnyURI& uriValue = pDomImage->getInit_from()->getValue();
+           std::string path = uriValue.str();
+
+           // std::string path = pDomImage->getInit_from()->getValue().pathDir() +
+           //   pDomImage->getInit_from()->getValue().pathFile();
+
+
             path = ReaderWriterDAE::ConvertColladaCompatibleURIToFilePath(path);
+
             if (path.empty())
             {
                 OSG_WARN << "Unable to get path from URI." << std::endl;

@@ -1,9 +1,9 @@
-/*
+/* 
  * This library is open source and may be redistributed and/or modified under
  * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or (at
  * your option) any later version. The full license is in the LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -75,7 +75,7 @@ public:
     void setStripTextureFilePath( bool strip ) { _stripTextureFilePath = strip; }
     bool getStripTextureFilePath() const { return _stripTextureFilePath; }
 
-    FltWriteResult & getWriteResult() const { return( wr_ ); }
+    FltWriteResult & getWriteResult() { return( wr_ ); }
 
     // Parse the OptionString and override values based on
     //   what was set in the OptionString.
@@ -89,14 +89,14 @@ protected:
     bool _lightingDefault;
     bool _stripTextureFilePath;
 
-    mutable FltWriteResult wr_;
+    FltWriteResult wr_;
 
-    static std::string _versionOption;
-    static std::string _unitsOption;
-    static std::string _validateOption;
-    static std::string _tempDirOption;
-    static std::string _lightingOption;
-    static std::string _stripTextureFilePathOption;
+    static const std::string _versionOption;
+    static const std::string _unitsOption;
+    static const std::string _validateOption;
+    static const std::string _tempDirOption;
+    static const std::string _lightingOption;
+    static const std::string _stripTextureFilePathOption;
 };
 
 }

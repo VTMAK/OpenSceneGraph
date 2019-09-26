@@ -272,6 +272,10 @@ namespace osgParticle
         void setEstimatedMaxNumOfParticles(int num) { _estimatedMaxNumOfParticles = num; }
         int getEstimatedMaxNumOfParticles() const { return _estimatedMaxNumOfParticles; }
 
+        // Give a hint as to how many particles we are going to create in an emitter
+        // so that it does not trigger a resize when particles are pushed back
+        void setNumParticlesToCreateHint(unsigned int numParticles);
+
     protected:
 
         virtual ~ParticleSystem();
@@ -317,6 +321,14 @@ namespace osgParticle
         int _detail;
         SortMode _sortMode;
         double _visibilityDistance;
+
+        // don't compute these each time, just store in class
+        const osg::Vec3 _xAxis;
+        const osg::Vec3 _yAxis;
+        const osg::Vec3 _zAxis;
+        const Particle::Shape _userShape;
+
+        mutable int _draw_count;
 
         mutable ReadWriterMutex _readWriteMutex;
 
@@ -541,6 +553,33 @@ namespace osgParticle
         _visibilityDistance = distance;
         if (_useShaders) _dirty_uniforms = true;
     }
+
+    // I'm not sure this function should be inlined...
+
+    inline Particle* ParticleSystem::createParticle(const Particle* ptemplate)
+    {
+        // is there any dead particle?
+        if (!_deadparts.empty()) {
+
+            // retrieve a pointer to the last dead particle
+            Particle* P = _deadparts.top();
+
+            // create a new (alive) particle in the same place
+            *P = ptemplate? *ptemplate: _def_ptemp;
+
+            // remove the pointer from the death stack
+            _deadparts.pop();
+
+            return P;
+        } else {
+
+            // add a new particle to the vector
+            _particles.push_back(ptemplate? *ptemplate: _def_ptemp);
+
+            return &_particles.back();
+        }
+    }
+
 
 }
 

@@ -1,16 +1,21 @@
+/******************************************************************************
+** Copyright(c) 2019 MAK Technologies, Inc.
+** All rights reserved.
+******************************************************************************/
+
 #ifndef READERWRITERFBX_H
 #define READERWRITERFBX_H
 
 #include <osgDB/ReaderWriter>
 #include <fbxsdk/fbxsdk_def.h>
-
+#include <string>
 
 ///////////////////////////////////////////////////////////////////////////
 // OSG reader plugin for the ".fbx" format.
 // See http://www.autodesk.com/fbx
-// This plugin requires the FBX SDK version 2013.3 or 2014.1 or later
+// This plugin requires the FBX SDK version 2019.0 
 
-#if FBXSDK_VERSION_MAJOR < 2013 || (FBXSDK_VERSION_MAJOR == 2013 && FBXSDK_VERSION_MINOR < 3)
+#if FBXSDK_VERSION_MAJOR < 2019 || (FBXSDK_VERSION_MAJOR == 2019 && FBXSDK_VERSION_MINOR < 0)
 #error Wrong FBX SDK version
 #endif
 
@@ -40,6 +45,9 @@ public:
 
     virtual ReadResult readNode(const std::string& filename, const Options*) const;
     virtual WriteResult writeNode(const osg::Node&, const std::string& filename, const Options*) const;
+
+protected:
+    std::string currentFilePath;
 };
 
 ///////////////////////////////////////////////////////////////////////////

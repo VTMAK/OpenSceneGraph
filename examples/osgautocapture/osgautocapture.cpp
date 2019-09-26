@@ -147,14 +147,14 @@ public:
     /** Set flag to omit drawing in renderingTraversals */
     void setCullOnly(bool on) { _cullOnly = on; }
 
-    virtual void operator () (osg::GraphicsContext* /*context*/)
+    virtual void operator () (osg::GraphicsContext* context)
         {
             if (_graphicsThreadDoesCull)
             {
                 if (_cullOnly)
                     cull();
                 else
-                    cull_draw();
+                    cull_draw(context);
             }
         }
 

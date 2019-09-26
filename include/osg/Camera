@@ -152,6 +152,10 @@ class OSG_EXPORT Camera : public Transform, public CullSettings
         /** Set the viewport of the camera to specified dimensions. */
         void setViewport(int x,int y,int width,int height);
 
+        // VRV_PATCH support for multiple viewports
+        /** Set the viewport of the camera to specified dimensions. */
+        void setViewport(int viewport_index, float x, float y, float width, float height);
+
         /** Get the const viewport. */
         const Viewport* getViewport() const { return _viewport.get(); }
 
@@ -182,7 +186,6 @@ class OSG_EXPORT Camera : public Transform, public CullSettings
 
         /** Set the policy used to determine if and how the projection matrix should be adjusted on window resizes. */
         inline void setProjectionResizePolicy(ProjectionResizePolicy policy) { _projectionResizePolicy = policy; }
-
         /** Get the policy used to determine if and how the projection matrix should be adjusted on window resizes. */
         inline ProjectionResizePolicy getProjectionResizePolicy() const { return _projectionResizePolicy; }
 

@@ -23,7 +23,8 @@ LightPoint::LightPoint():
     _radius(1.0f),
     _sector(0),
     _blinkSequence(0),
-    _blendingMode(BLENDED)
+    _blendingMode(BLENDED),
+    _typeName("")
 {
 }
 
@@ -35,7 +36,8 @@ LightPoint::LightPoint(const osg::Vec3& position,const osg::Vec4& color):
     _radius(1.0f),
     _sector(0),
     _blinkSequence(0),
-    _blendingMode(BLENDED)
+    _blendingMode(BLENDED),
+    _typeName("")
 {
 }
 
@@ -54,7 +56,8 @@ LightPoint::LightPoint(bool                 on,
     _radius(radius),
     _sector(sector),
     _blinkSequence(blinkSequence),
-    _blendingMode(blendingMode)
+    _blendingMode(blendingMode),
+    _typeName("")
 {
 }
 
@@ -66,7 +69,8 @@ LightPoint::LightPoint(const LightPoint& lp):
     _radius(lp._radius),
     _sector(lp._sector),
     _blinkSequence(lp._blinkSequence),
-    _blendingMode(lp._blendingMode)
+    _blendingMode(lp._blendingMode),
+    _typeName(lp._typeName)
 {
 }
 
@@ -80,6 +84,7 @@ LightPoint& LightPoint::operator = (const LightPoint& lp)
     _sector = lp._sector;
     _blinkSequence = lp._blinkSequence;
     _blendingMode = lp._blendingMode;
+    _typeName = lp._typeName;
 
     return *this;
 }

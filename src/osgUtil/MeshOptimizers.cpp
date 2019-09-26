@@ -498,7 +498,9 @@ float findVertexScore (Vertex& vert)
         return -1.0f;
     }
     float score = 0.0f;
-    int cachePosition = vert.cachePosition;
+    // BEGIN VRV_PATCH
+    const int cachePosition = vert.cachePosition;
+    // END VRV_PATCH
 
     if (cachePosition < 0)
     {
@@ -545,8 +547,14 @@ typedef std::vector<Triangle> TriangleList;
 inline float findTriangleScore(Triangle& tri, const VertexList& vertices)
 {
     float result = 0.0f;
-    for (int i = 0; i < 3; ++i)
-        result += vertices[tri.verts[i]].score;
+    // BEGIN VRV_PATCH
+    // Remove loop: for (int i = 0; i < 3; ++i)
+    const unsigned int* const vertArray = tri.verts;
+    result += vertices[vertArray[0]].score;
+    result += vertices[vertArray[1]].score;
+    result += vertices[vertArray[2]].score;
+    // END VRV_PATCH
+
     return result;
 }
 
@@ -557,13 +565,20 @@ TriangleScore computeTriScores(Vertex& vert, const VertexList& vertices,
 {
     float bestScore = 0.0;
     unsigned bestTri = 0;
+    // BEGIN VRV_PATCH
+    size_t endTri = vert.triList + vert.numActiveTris;
+    // END VRV_PATCH
     for (size_t i = vert.triList;
-         i < vert.triList + vert.numActiveTris;
+         i < endTri;
          ++i)
     {
         unsigned tri = triStore[i];
-        float score = triangles[tri].score = findTriangleScore(triangles[tri],
+        // BEGIN VRV_PATCH
+        Triangle& currTri = triangles[tri];
+        float score = currTri.score = findTriangleScore(currTri,
                                                                vertices);
+        // END VRV_PATCH
+
         if (score > bestScore)
         {
             bestScore = score;
@@ -614,6 +629,7 @@ struct TriangleAddOperator
     std::vector<unsigned>* vertexTris;
     TriangleList* triangles;
     int triIdx;
+
     TriangleAddOperator() : vertices(0), vertexTris(0), triangles(0), triIdx(0) {}
 
     void doVertex(unsigned p)
@@ -816,10 +832,21 @@ void VertexCacheVisitor::doVertexOptimization(Geometry& geom,
             // The cache was empty, or all the triangles that use
             // vertices in the cache have already been added.
             OSG_DEBUG << "VertexCacheVisitor searching all triangles" << std::endl;
-            TriangleList::iterator maxItr
-                = std::max_element(triangles.begin(), triangles.end(),
-                              CompareTriangle());
-            triToAdd = &(*maxItr);
+            // BEGIN VRV_PATCH
+            const unsigned int triSize = triangles.size();
+            unsigned int maxIdx = 0;
+            float maxScore = -1.0;
+            for (unsigned int i = 0; i < triSize; ++i)
+            {
+                const float currScore = triangles[i].score;
+                if (currScore > maxScore)
+                {
+                    maxScore = currScore;
+                    maxIdx = i;
+                }
+            }
+            triToAdd = &(triangles[maxIdx]);
+            // END VRV_PATCH
         }
         assert(triToAdd != 0 && triToAdd->score > 0.0);
         // Add triangle vertices, and remove triangle from the
@@ -831,6 +858,11 @@ void VertexCacheVisitor::doVertexOptimization(Geometry& geom,
             unsigned vertIdx = triToAdd->verts[i];
             Vertex* vert = &vertices[vertIdx];
             vertDrawList.push_back(vertIdx);
+            // BEGIN VRV_PATCH
+            // This looks funky, std::remove is supposed to
+            // return an iterator, but it doesn't get used here.
+            // I believe this is using std::remove for swapping.
+            // END VRV_PATCH
             std::remove(vertTriListStore.begin() + vert->triList,
                    vertTriListStore.begin() + vert->triList
                    + vert->numActiveTris,
@@ -848,8 +880,11 @@ void VertexCacheVisitor::doVertexOptimization(Geometry& geom,
                  itr != end;
                 ++itr)
             {
-                vertices[*itr].cachePosition = -1;
-                vertices[*itr].score = findVertexScore(vertices[*itr]);
+                // BEGIN VRV_PATCH
+                Vertex& currVert = vertices[*itr];
+                currVert.cachePosition = -1;
+                currVert.score = findVertexScore(currVert);
+                // END VRV_PATCH
             }
             for (std::vector<unsigned>::iterator itr = cache.entries.end() - 3,
                      end = cache.entries.end();
@@ -859,14 +894,20 @@ void VertexCacheVisitor::doVertexOptimization(Geometry& geom,
                                  vertTriListStore);
         }
         cache.addEntries(&triToAdd->verts[0], &triToAdd->verts[3]);
-        for (std::vector<unsigned>::const_iterator itr = cache.entries.begin(),
+        // BEGIN VRV_PATCH
+        std::vector<unsigned>::const_iterator cacheBegin = cache.entries.begin();
+        // END VRV_PATCH
+        for (std::vector<unsigned>::const_iterator itr = cacheBegin,
                  end = cache.entries.end();
              itr != end;
              ++itr)
         {
             unsigned vertIdx = *itr;
-            vertices[vertIdx].cachePosition = itr - cache.entries.begin();
-            vertices[vertIdx].score = findVertexScore(vertices[vertIdx]);
+            // BEGIN VRV_PATCH
+            Vertex& currVert = vertices[vertIdx];
+            currVert.cachePosition = itr - cacheBegin;
+            currVert.score = findVertexScore(currVert);
+            // END VRV_PATCH
         }
      }
 }

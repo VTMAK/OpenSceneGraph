@@ -60,6 +60,10 @@ Options::~Options()
 {
 }
 
+Options::~Options()
+{
+}
+
 void Options::parsePluginStringData(const std::string& str, char separator1, char separator2)
 {
     StringList valueList;

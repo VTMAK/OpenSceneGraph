@@ -1,9 +1,9 @@
-/*
+/* 
  * This library is open source and may be redistributed and/or modified under
  * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or (at
  * your option) any later version. The full license is in the LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -53,7 +53,7 @@ public:
 
     unsigned int byteOffset( unsigned int idx ) const;
 
-    void write( DataOutputStream& dos ) const;
+    void write( DataOutputStream& dos );
 
     /*!
        Static utility routines for handling the morass of array
@@ -97,7 +97,7 @@ protected:
     typedef std::map< const osg::Array*, ArrayInfo > ArrayMap;
     ArrayMap _arrayMap;
 
-    mutable osgDB::ofstream _verticesStr;
+    osgDB::ofstream _verticesStr;
     DataOutputStream* _vertices;
     std::string _verticesTempName;
 

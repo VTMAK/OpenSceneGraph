@@ -19,6 +19,10 @@
 
 namespace osg {
 
+// VRV_PATCH support for multiple viewports this isn't quite done 
+// but should work well enough for simple cases, not sure how relavent 
+// it is to get params of multiple viewports
+
 /** Encapsulate OpenGL glViewport. */
 class OSG_EXPORT Viewport : public StateAttribute
 {
@@ -31,11 +35,14 @@ class OSG_EXPORT Viewport : public StateAttribute
 #endif
         Viewport();
 
-        Viewport(value_type x,value_type y,value_type width,value_type height):
-            _x(x),
-            _y(y),
-            _width(width),
-            _height(height) {}
+        Viewport(value_type x, value_type y, value_type width, value_type height)
+        {
+           _x.push_back(x);
+           _y.push_back(y);
+           _width.push_back(width);
+           _height.push_back(height);
+           _numViewports = 1;
+        }
 
 
         /** Copy constructor using CopyOp to manage deep vs shallow copy. */
@@ -44,7 +51,11 @@ class OSG_EXPORT Viewport : public StateAttribute
             _x(vp._x),
             _y(vp._y),
             _width(vp._width),
-            _height(vp._height) {}
+            _height(vp._height),
+            _numViewports(vp._numViewports)
+        {
+           ;
+        }
 
         META_StateAttribute(osg, Viewport,VIEWPORT);
 
@@ -72,18 +83,36 @@ class OSG_EXPORT Viewport : public StateAttribute
             _y = rhs._y;
             _width = rhs._width;
             _height = rhs._height;
-            
+            _numViewports = rhs._numViewports;
             return *this;
         }
 
         inline void setViewport(value_type x,value_type y,value_type width,value_type height)
         {
-            _x = x;
-            _y = y;
-            _width = width;
-            _height = height;
+           int index = 0;
+            _x[index] = x;
+            _y[index] = y;
+            _width[index] = width;
+            _height[index] = height;
         }
 
+        inline void setViewport(int index, value_type x,value_type y,value_type width,value_type height)
+        {
+           if (_numViewports < index + 1){
+              _numViewports = index + 1;
+              while (_x.size() < _numViewports)
+              {
+                 _x.push_back(0);
+                 _y.push_back(0);
+                 _width.push_back(128);
+                 _height.push_back(128);
+              }
+           }
+           _x[index] = x;
+           _y[index] = y;
+           _width[index] = width;
+           _height[index] = height;
+        }
 #if 0
         void getViewport(int& x,int& y,int& width,int& height) const
         {
@@ -101,24 +130,24 @@ class OSG_EXPORT Viewport : public StateAttribute
             height = _height;
         }
 #endif
-        inline value_type& x() { return _x; }
-        inline value_type x() const { return _x; }
+        inline value_type& x() { return _x[0]; }
+        inline value_type x() const { return _x[0]; }
 
-        inline value_type& y() { return _y; }
-        inline value_type y() const { return _y; }
+        inline value_type& y() { return _y[0]; }
+        inline value_type y() const { return _y[0]; }
 
-        inline value_type& width() { return _width; }
-        inline value_type width() const { return _width; }
+        inline value_type& width() { return _width[0]; }
+        inline value_type width() const { return _width[0]; }
 
-        inline value_type& height() { return _height; }
-        inline value_type height() const { return _height; }
+        inline value_type& height() { return _height[0]; }
+        inline value_type height() const { return _height[0]; }
 
-        inline bool valid() const { return _width>0 && _height>0; }
+        inline bool valid() const { return _width[0]>0 && _height[0]>0; }
 
         /** Return the aspectRatio of the viewport, which is equal to width/height.
           * If height is zero, the potential division by zero is avoided by simply returning 1.0f.
         */
-        inline double aspectRatio() const { if (_height!=0) return (double)_width/(double)_height; else return 1.0; }
+        inline double aspectRatio() const { if (_height[0] != 0) return (double)_width[0] / (double)_height[0]; else return 1.0; }
 
         /** Compute the Window Matrix which takes projected coords into Window coordinates.
           * To convert local coordinates into window coordinates use v_window = v_local * MVPW matrix,
@@ -132,16 +161,18 @@ class OSG_EXPORT Viewport : public StateAttribute
         }
 
         virtual void apply(State& state) const;
+        
+        int numViewports(){ return _numViewports; }
 
     protected:
 
         virtual ~Viewport();
 
-        value_type _x;
-        value_type _y;
-        value_type _width;
-        value_type _height;
-
+        std::vector<value_type> _x;
+        std::vector<value_type> _y;
+        std::vector<value_type> _width;
+        std::vector<value_type> _height;
+        int _numViewports;
 };
 
 }

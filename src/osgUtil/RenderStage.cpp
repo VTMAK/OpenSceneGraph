@@ -17,6 +17,7 @@
 #include <osg/Texture2D>
 #include <osg/Texture2DMultisample>
 #include <osg/Texture3D>
+#include <osg/Texture2DArray>
 #include <osg/TextureRectangle>
 #include <osg/TextureCubeMap>
 #include <osg/ContextData>
@@ -225,6 +226,157 @@ void RenderStage::drawPreRenderStages(osg::RenderInfo& renderInfo,RenderLeaf*& p
 }
 
 
+const char* getBufferComponentStr(Camera::BufferComponent buffer)
+{
+   switch (buffer)
+   {
+   case (osg::Camera::DEPTH_BUFFER) : return "DEPTH_BUFFER";
+   case (osg::Camera::STENCIL_BUFFER) : return "STENCIL_BUFFER";
+   case (osg::Camera::PACKED_DEPTH_STENCIL_BUFFER) : return "PACKED_DEPTH_STENCIL_BUFFER";
+   case (osg::Camera::COLOR_BUFFER) : return "COLOR_BUFFER";
+   case (osg::Camera::COLOR_BUFFER0) : return "COLOR_BUFFER0";
+   case (osg::Camera::COLOR_BUFFER1) : return "COLOR_BUFFER1";
+   case (osg::Camera::COLOR_BUFFER2) : return "COLOR_BUFFER2";
+   case (osg::Camera::COLOR_BUFFER3) : return "COLOR_BUFFER3";
+   case (osg::Camera::COLOR_BUFFER4) : return "COLOR_BUFFER4";
+   case (osg::Camera::COLOR_BUFFER5) : return "COLOR_BUFFER5";
+   case (osg::Camera::COLOR_BUFFER6) : return "COLOR_BUFFER6";
+   case (osg::Camera::COLOR_BUFFER7) : return "COLOR_BUFFER7";
+   case (osg::Camera::COLOR_BUFFER8) : return "COLOR_BUFFER8";
+   case (osg::Camera::COLOR_BUFFER9) : return "COLOR_BUFFER9";
+   case (osg::Camera::COLOR_BUFFER10) : return "COLOR_BUFFER10";
+   case (osg::Camera::COLOR_BUFFER11) : return "COLOR_BUFFER11";
+   case (osg::Camera::COLOR_BUFFER12) : return "COLOR_BUFFER12";
+   case (osg::Camera::COLOR_BUFFER13) : return "COLOR_BUFFER13";
+   case (osg::Camera::COLOR_BUFFER14) : return "COLOR_BUFFER14";
+   case (osg::Camera::COLOR_BUFFER15) : return "COLOR_BUFFER15";
+   default: return "UnknownBufferComponent";
+   }
+}
+
+const char *
+glFormatsToString(int compressed_format_type)
+{
+   switch (compressed_format_type)
+   {
+   case GL_RGB: return"GL_RGB";
+   case GL_SRGB:return"GL_SRGB";
+   case GL_RGBA: return"GL_RGBA";
+   case GL_SRGB_ALPHA_EXT: return"GL_SRGB_ALPHA";
+   case GL_LUMINANCE: return "GL_LUMINANCE";
+   case GL_SLUMINANCE:   return "GL_SLUMINANCE";
+   case GL_LUMINANCE_ALPHA:      return "GL_LUMINANCE_ALPHA";
+   case GL_SLUMINANCE_ALPHA:      return "GL_SLUMINANCE_ALPHA";
+   case GL_SRGB8:      return "GL_SRGB8";
+   case GL_SRGB8_ALPHA8:      return "GL_SRGB8_ALPHA8";
+   case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:    return "GL_COMPRESSED_RGB_S3TC_DXT1";
+   case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT1";
+   case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT3";
+   case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT5";
+   case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:      return "GL_COMPRESSED_SRGB_S3TC_DXT1";
+   case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1";
+   case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3";
+   case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5";
+   case GL_RGB4:      return "GL_RGB4";
+   case GL_RGB5:      return "GL_RGB5";
+   case GL_RGB8:      return "GL_RGB8";
+   case GL_RGB10:     return "GL_RGB10";
+   case GL_RGB12:     return "GL_RGB12";
+   case GL_RGB16:     return "GL_RGB16";
+   case GL_RGBA2:     return "GL_RGBA2";
+   case GL_RGBA4:     return "GL_RGBA4";
+   case GL_RGB5_A1:   return "GL_RGB5_A1";
+   case GL_RGBA8:     return "GL_RGBA8";
+   case GL_RGB10_A2:  return "GL_RGB10_A2";
+   case GL_RGBA12:    return "GL_RGBA12";
+   case GL_RGBA16:    return "GL_RGBA16";
+   case GL_DEPTH_COMPONENT16: return "GL_DEPTH_COMPONENT16";
+   case GL_DEPTH_COMPONENT24: return "GL_DEPTH_COMPONENT24";
+   case GL_DEPTH_COMPONENT32: return "GL_DEPTH_COMPONENT32";
+   case GL_DEPTH_COMPONENT32F: return "GL_DEPTH_COMPONENT32F";
+         
+
+   case GL_RG:  return "GL_RG";
+   case GL_RG_INTEGER:  return "GL_RG_INTEGER";
+   case GL_R8:  return "GL_R8";
+   case GL_R16:  return "GL_R16";
+   case GL_RG8:  return "GL_RG8";
+   case GL_RG16:  return "GL_RG16";
+   case GL_R16F:  return "GL_R16F";
+   case GL_R32F:  return "GL_R32F";
+   case GL_RG16F:  return "GL_RG16F";
+   case GL_RG32F:  return "GL_RG32F";
+   case GL_R8I:  return "GL_R8I";
+   case GL_R8UI:  return "GL_R8UI";
+   case GL_R16I:  return "GL_R16I";
+   case GL_R16UI:  return "GL_R16UI";
+   case GL_R32I:  return "GL_R32I";
+   case GL_R32UI:  return "GL_R32UI";
+   case GL_RG8I:  return "GL_RG8I";
+   case GL_RG8UI:  return "GL_RG8UI";
+   case GL_RG16I:  return "GL_RG16I";
+   case GL_RG16UI:  return "GL_RG16UI";
+   case GL_RG32I:  return "GL_RG32I";
+   case GL_RG32UI: return "GL_RG32UI";
+   case GL_RGBA32F_ARB: return "GL_RGBA32F";
+   case GL_RGB32F_ARB: return "GL_RGB32F_ARB";
+   case GL_ALPHA32F_ARB: return "GL_ALPHA32F_ARB";
+   case GL_INTENSITY32F_ARB: return "GL_INTENSITY32F";
+   case GL_LUMINANCE32F_ARB: return "GL_LUMINANCE32F";
+   case GL_LUMINANCE_ALPHA32F_ARB: return "GL_LUMINANCE_ALPHA32F";
+   case GL_RGBA16F_ARB: return "GL_RGBA16F";
+   case GL_RGB16F_ARB: return "GL_RGB16F";
+   case GL_ALPHA16F_ARB: return "GL_ALPHA16F";
+   case GL_INTENSITY16F_ARB: return "GL_INTENSITY16F";
+   case GL_LUMINANCE16F_ARB: return "GL_LUMINANCE16F";
+   case GL_LUMINANCE_ALPHA16F_ARB: return "GL_LUMINANCE_ALPHA16F";
+   case -1:      return "Unspecified GL_FORMAT";
+
+   }
+   return  "Unknown GL Format";
+}
+
+
+void dumpFboInfo(osg::ref_ptr<osg::FrameBufferObject> fbo)
+{
+    OSG_WARN << "Dumping FBO info for " << fbo->getName() << std::endl;
+
+   for (int i = 0; i < Camera::COLOR_BUFFER15; i++)
+   {
+      if (fbo->hasAttachment((Camera::BufferComponent)i))
+      {
+         OSG_WARN << "Has Attachment for BufferComponent " << getBufferComponentStr((Camera::BufferComponent)i) << std::endl;
+         const osg::FrameBufferAttachment & fba = fbo->getAttachment((Camera::BufferComponent)i);
+         if (fba.getTexture()){
+            const  Texture * texture = fba.getTexture();
+            OSG_WARN << "   " << texture->className() << " Named : " << texture->getName() << std::endl;
+            const Texture2DArray * tex2da = dynamic_cast<const Texture2DArray *>(fba.getTexture());
+            if (tex2da) {
+            //    OSG_WARN << "   Num Images: " << tex2da->getNumImages() << std::endl;
+                OSG_WARN << "   width: " << tex2da->getTextureWidth() << std::endl;
+                OSG_WARN << "   height: " << tex2da->getTextureHeight() << std::endl;
+                OSG_WARN << "   depth: " << tex2da->getTextureDepth() << std::endl;
+            }
+            else {
+                OSG_WARN << "   width: " << texture->getTextureWidth() << std::endl;
+                OSG_WARN << "   height: " << texture->getTextureHeight() << std::endl;
+            }
+            OSG_WARN << "   internal format: " << std::hex << texture->getInternalFormat() << " - " << glFormatsToString(texture->getInternalFormat()) << std::endl;
+            OSG_WARN << "   num images: " << texture->getNumImages() << std::endl;
+         }
+         if (fba.getRenderBuffer())
+         {
+             const RenderBuffer * rb = fba.getRenderBuffer();
+            OSG_WARN << "   Renderbuffer Named: " << rb->getName() << std::endl;
+            OSG_WARN << "   width: " << rb->getWidth() << std::endl;
+            OSG_WARN << "   height: " << rb->getHeight() << std::endl;
+            OSG_WARN << "   internal format: " << std::hex << rb->getInternalFormat() << " - " << glFormatsToString(rb->getInternalFormat()) << std::endl;
+            OSG_WARN << "   samples: " << rb->getSamples() << std::endl;
+         }
+      }
+   };
+}
+
 void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
 {
     _cameraRequiresSetUp = false;
@@ -343,7 +495,7 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
         }
     }
 
-    if (renderTargetImplementation==osg::Camera::FRAME_BUFFER_OBJECT)
+    if (renderTargetImplementation == osg::Camera::FRAME_BUFFER_OBJECT)
     {
         osg::GLExtensions* ext = state.get<osg::GLExtensions>();
         bool fbo_supported = ext->isFrameBufferObjectSupported;
@@ -356,6 +508,7 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
 
             osg::ref_ptr<osg::FrameBufferObject> fbo = new osg::FrameBufferObject;
             osg::ref_ptr<osg::FrameBufferObject> fbo_multisample;
+            fbo->setName(_camera->getName());
 
             bool colorAttached = false;
             bool depthAttached = false;
@@ -390,6 +543,7 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                 if (samples)
                 {
                     fbo_multisample = new osg::FrameBufferObject;
+                    fbo_multisample->setName(_camera->getName() + "_ms_");
 
                     // Use the value of the Camera's use resolve buffers mask as the
                     // resolve mask.
@@ -450,7 +604,7 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                     depthAttached = true;
                     stencilAttached = true;
                 }
-                else if (buffer>=osg::Camera::COLOR_BUFFER) colorAttached = true;
+                else if (buffer>=Camera::COLOR_BUFFER) colorAttached = true;
 
             }
 
@@ -466,15 +620,17 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                 // buffers. In both cases, resolveBuffersMask is used to configure "fbo".
                 if( resolveBuffersMask & osg::Camera::IMPLICIT_DEPTH_BUFFER_ATTACHMENT )
                 {
-                    fbo->setAttachment(osg::Camera::DEPTH_BUFFER, osg::FrameBufferAttachment(new osg::RenderBuffer(width, height, GL_DEPTH_COMPONENT24)));
+                    osg::RenderBuffer * rb = new osg::RenderBuffer(width, height, GL_DEPTH_COMPONENT24);
+                    rb->setName(_name + "_autogen_rb");
+                    fbo->setAttachment(osg::Camera::DEPTH_BUFFER, osg::FrameBufferAttachment(rb));
                     depthAttached = true;
                 }
                 if (fbo_multisample.valid() &&
                     ( renderBuffersMask & osg::Camera::IMPLICIT_DEPTH_BUFFER_ATTACHMENT ) )
                 {
-                    fbo_multisample->setAttachment(osg::Camera::DEPTH_BUFFER,
-                        osg::FrameBufferAttachment(new osg::RenderBuffer(width,
-                        height, GL_DEPTH_COMPONENT24, samples, colorSamples)));
+                    osg::RenderBuffer * rb = new osg::RenderBuffer(width, height, GL_DEPTH_COMPONENT24, samples, colorSamples);
+                    rb->setName(_name + "_autogen_ms_rb");
+                    fbo_multisample->setAttachment(osg::Camera::DEPTH_BUFFER, osg::FrameBufferAttachment(rb));
                 }
             }
             if (!stencilAttached)
@@ -497,13 +653,13 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
             {
                 if( resolveBuffersMask & osg::Camera::IMPLICIT_COLOR_BUFFER_ATTACHMENT )
                 {
-                    fbo->setAttachment(osg::Camera::COLOR_BUFFER, osg::FrameBufferAttachment(new osg::RenderBuffer(width, height, GL_RGB)));
+                    fbo->setAttachment(Camera::COLOR_BUFFER, osg::FrameBufferAttachment(new osg::RenderBuffer(width, height, GL_RGB)));
                     colorAttached = true;
                 }
                 if (fbo_multisample.valid() &&
                     ( renderBuffersMask & osg::Camera::IMPLICIT_COLOR_BUFFER_ATTACHMENT ) )
                 {
-                    fbo_multisample->setAttachment(osg::Camera::COLOR_BUFFER,
+                    fbo_multisample->setAttachment(Camera::COLOR_BUFFER,
                         osg::FrameBufferAttachment(new osg::RenderBuffer(width,
                         height, GL_RGB, samples, colorSamples)));
                 }
@@ -529,11 +685,51 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
 
             if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
             {
-                OSG_NOTICE<<"RenderStage::runCameraSetUp(), FBO setup failed, FBO status= 0x"<<std::hex<<status<<std::dec<<std::endl;
+                OSG_WARN<<"\nRenderStage::runCameraSetUp(), FBO setup failed, FBO status= 0x"<<std::hex<<status<<std::dec<<std::endl;
+                if (status == GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_FORMATS" << std::endl;
+                }                
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_UNSUPPORTED_EXT){
+                   OSG_WARN << "GL_FRAMEBUFFER_UNSUPPORTED" << std::endl;
+                }
+                else if (status == GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS){
+                   OSG_WARN << "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS" << std::endl;
+                }
+
+                OSG_WARN << "Camera '"<< _camera->getName() << "'" << std::endl;
+                OSG_WARN << "  width:" << width << std::endl;
+                OSG_WARN << "  height:" << height << std::endl;
+                OSG_WARN << "  colorAttached: " << (colorAttached ? "Yes" : "No") << std::endl;
+                OSG_WARN << "  depthAttached: " << (depthAttached ? "Yes" : "No") << std::endl;
+                OSG_WARN << "  stencilAttached: " << (stencilAttached ? "Yes" : "No") << std::endl;
+                OSG_WARN << "  samples: " << samples << std::endl;
+                OSG_WARN << "  colorSamples: " << colorSamples << std::endl;
+
+                OSG_WARN << "FBO '" << fbo->getName() << "' fbo details" << std::endl;
+
+                dumpFboInfo(fbo);
+
 
                 fbo_supported = false;
                 GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
                 ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, fboId);
+                state.setLastAppliedFboId(fboId); //save off the current framebuffer in the state
+
                 fbo = 0;
 
                 // clean up.
@@ -542,7 +738,11 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
             }
             else
             {
-                setDrawBuffer(GL_NONE, false );
+               //OSG_WARN << "Camera '" << _camera->getName() << "' fbo details" << std::endl;
+
+               //dumpFboInfo(fbo);
+               
+               setDrawBuffer(GL_NONE, false);
                 setReadBuffer(GL_NONE, false );
 
                 _fbo = fbo;
@@ -655,7 +855,7 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                         traits->stencil = 8;
                         break;
                     }
-                    case(osg::Camera::COLOR_BUFFER):
+                    case(Camera::COLOR_BUFFER):
                     {
                         if (attachment._internalFormat!=GL_NONE)
                         {
@@ -970,6 +1170,9 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
             case Camera::PACKED_DEPTH_STENCIL_BUFFER:
                 blitMask |= GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
                 break;
+            //VRV PATCH BEGINS
+            case Camera::COLOR_BUFFER0:
+            //VRV PATCH ENDS
             case Camera::COLOR_BUFFER:
                 blitMask |= GL_COLOR_BUFFER_BIT;
                 break;
@@ -1005,7 +1208,7 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
                 end =_resolveFbo->getAttachmentMap().end(); it != end; ++it)
             {
                 osg::Camera::BufferComponent attachment = it->first;
-                if (attachment >=osg::Camera::COLOR_BUFFER0)
+                if (attachment >= osg::Camera::COLOR_BUFFER0)
                 {
                     state.glReadBuffer(GL_COLOR_ATTACHMENT0_EXT + (attachment - osg::Camera::COLOR_BUFFER0));
                     state.glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT + (attachment - osg::Camera::COLOR_BUFFER0));
@@ -1089,6 +1292,8 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
             // switch off the frame buffer object
             GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
             ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, fboId);
+            state.setLastAppliedFboId(fboId); //save off the current framebuffer in the state
+
         }
 
         doCopyTexture = true;
@@ -1331,14 +1536,21 @@ void RenderStage::drawImplementation(osg::RenderInfo& renderInfo,RenderLeaf*& pr
 
     // set up the back buffer.
     state.applyAttribute(_viewport.get());
-
-    glScissor( static_cast<int>(_viewport->x()),
-               static_cast<int>(_viewport->y()),
-               static_cast<int>(_viewport->width()),
-               static_cast<int>(_viewport->height()) );
-    //cout << "    clearing "<<this<< "  "<<_viewport->x()<<","<< _viewport->y()<<","<< _viewport->width()<<","<< _viewport->height()<<std::endl;
-    state.applyMode( GL_SCISSOR_TEST, true );
-
+    
+    // vantage patch for multicast shadows
+    if (_viewport.get()->numViewports() == 1)
+    {
+       glScissor(static_cast<int>(_viewport->x()),
+          static_cast<int>(_viewport->y()),
+          static_cast<int>(_viewport->width()),
+          static_cast<int>(_viewport->height()));
+       //cout << "    clearing "<<this<< "  "<<_viewport->x()<<","<< _viewport->y()<<","<< _viewport->width()<<","<< _viewport->height()<<std::endl;
+       state.applyMode(GL_SCISSOR_TEST, true);
+    }
+    else{
+       // vantage patch for multicast shadows
+       state.applyMode(GL_SCISSOR_TEST, false);
+    }
     // glEnable( GL_DEPTH_TEST );
 
     // set which color planes to operate on.

@@ -11,6 +11,7 @@ FIND_PATH(NVTT_INCLUDE_DIR nvtt/nvtt.h
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES include
 )
@@ -22,6 +23,7 @@ FIND_LIBRARY(NVTT_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -32,6 +34,7 @@ FIND_LIBRARY(NVTT_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}  
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -43,6 +46,7 @@ FIND_LIBRARY(NVIMAGE_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -53,6 +57,7 @@ FIND_LIBRARY(NVIMAGE_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -64,6 +69,7 @@ FIND_LIBRARY(NVMATH_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -74,6 +80,7 @@ FIND_LIBRARY(NVMATH_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -85,6 +92,7 @@ FIND_LIBRARY(NVCORE_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -94,6 +102,7 @@ FIND_LIBRARY(NVCORE_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )

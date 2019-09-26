@@ -10,6 +10,9 @@ SET(TARGET_SRC
     WriterCompareTriangle.cpp
     WriterNodeVisitor.cpp
     fbxMaterialToOsgStateSet.cpp
+    fbxTextureUnitMap.cpp
+    fbxUtil.cpp
+    fbxMatrixTransformVisitor.cpp
 )
 
 SET(TARGET_H
@@ -18,6 +21,9 @@ SET(TARGET_H
     ReaderWriterFBX.h
     WriterCompareTriangle.h
     WriterNodeVisitor.h
+    fbxTextureUnitMap.h
+    fbxUtil.h
+    fbxMatrixTransformVisitor.h
 )
 
 IF(CMAKE_COMPILER_IS_GNUCXX)
@@ -49,7 +55,7 @@ IF(APPLE)
 ENDIF(APPLE)
 
 SET(TARGET_LIBRARIES_VARS FBX_LIBRARY)
-SET(TARGET_ADDED_LIBRARIES osgAnimation)
+SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim)
 
 #### end var setup  ###
 SETUP_PLUGIN(fbx)

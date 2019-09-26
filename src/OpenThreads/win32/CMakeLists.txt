@@ -45,9 +45,9 @@ ENDIF()
 
 INSTALL(
     TARGETS OpenThreads
-    ARCHIVE DESTINATION lib COMPONENT libopenthreads-dev
-    LIBRARY DESTINATION lib COMPONENT libopenthreads
-    RUNTIME DESTINATION bin COMPONENT libopenthreads
+    ARCHIVE DESTINATION lib${libext} COMPONENT libopenthreads-dev
+    LIBRARY DESTINATION lib${libext} COMPONENT libopenthreads
+    RUNTIME DESTINATION bin${libext} COMPONENT libopenthreads
 )
 INSTALL(
     FILES ${OpenThreads_PUBLIC_HEADERS}

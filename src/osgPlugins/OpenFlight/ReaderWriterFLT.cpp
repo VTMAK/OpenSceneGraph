@@ -1,13 +1,13 @@
-/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield
+/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield 
  *
- * This library is open source and may be redistributed and/or modified under
- * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
+ * This library is open source and may be redistributed and/or modified under  
+ * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or 
  * (at your option) any later version.  The full license is in LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
  * OpenSceneGraph Public License for more details.
 */
 
@@ -20,12 +20,14 @@
 #include <stdexcept>
 #include <osg/Notify>
 #include <osg/ProxyNode>
+#include <osg/ConcurrencyViewerMacros>
 #include <osgDB/FileNameUtils>
 #include <osgDB/FileUtils>
 #include <osgDB/Registry>
 #include <osgDB/ReadFile>
 #include <OpenThreads/ReentrantMutex>
 #include <osgUtil/Optimizer>
+#include <vector>
 
 #include "Registry.h"
 #include "Document.h"
@@ -33,8 +35,10 @@
 #include "DataOutputStream.h"
 #include "FltExportVisitor.h"
 #include "ExportOptions.h"
+#include "DtCDBSigSize.h"
+#include "DtCDBSigSizeTable.h"
 
-#define SERIALIZER() OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex)
+#define SERIALIZER() OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex)  
 
 using namespace flt;
 using namespace osg;
@@ -223,10 +227,13 @@ class FLTReaderWriter : public ReaderWriter
 {
     public:
         FLTReaderWriter()
-          : _implicitPath( "." )
+          //: _implicitPath( "." )
         {
-            supportsExtension("flt","OpenFlight format");
+           //Make sure the registry is initialized at least once.
+            flt::Registry::instance(true);
 
+            supportsExtension("flt","OpenFlight format");
+            
             supportsOption("clampToEdge","Import option");
             supportsOption("keepExternalReferences","Import option");
             supportsOption("preserveFace","Import option");
@@ -263,16 +270,19 @@ class FLTReaderWriter : public ReaderWriter
         {
             return readNode(file, options);
         }
-
+        
         virtual ReadResult readNode(const std::string& file, const Options* options) const
         {
-            SERIALIZER();
+            //SERIALIZER();
+
+           flt::Registry* registry = flt::Registry::instance();
 
             std::string ext = osgDB::getLowerCaseFileExtension(file);
             if (!acceptsExtension(ext)) return ReadResult::FILE_NOT_HANDLED;
 
             std::string fileName = osgDB::findDataFile(file, options);
             if (fileName.empty()) return ReadResult::FILE_NOT_FOUND;
+
 
             // in local cache?
             {
@@ -281,7 +291,7 @@ class FLTReaderWriter : public ReaderWriter
                     return ReadResult(node, ReaderWriter::ReadResult::FILE_LOADED_FROM_CACHE);
             }
 
-            // setting up the database path so that internally referenced file are searched for on relative paths.
+            // setting up the database path so that internally referenced file are searched for on relative paths. 
             osg::ref_ptr<Options> local_opt = options ? static_cast<Options*>(options->clone(osg::CopyOp::SHALLOW_COPY)) : new Options;
             local_opt->getDatabasePathList().push_front(osgDB::getFilePath(fileName));
 
@@ -299,14 +309,17 @@ class FLTReaderWriter : public ReaderWriter
                 }
             }
 
+            intptr_t nestedExternalsLevel = (intptr_t)local_opt->getPluginData("nestedExternalsLevel");
             if (rr.success())
             {
                 // add to local cache.
-                flt::Registry::instance()->addExternalToLocalCache(fileName,rr.getNode());
-
+                registry->addExternalToLocalCache(fileName,rr.getNode());
+        
                 bool keepExternalReferences = false;
                 if (options)
+                {
                     keepExternalReferences = (options->getOptionString().find("keepExternalReferences")!=std::string::npos);
+                }
 
 
                 if ( !keepExternalReferences )
@@ -315,13 +328,17 @@ class FLTReaderWriter : public ReaderWriter
                     // read externals.
                     if (rr.getNode())
                     {
+                        nestedExternalsLevel++;
+                        local_opt->setPluginData("nestedExternalsLevel",(void*)nestedExternalsLevel);
                         ReadExternalsVisitor visitor(local_opt.get());
                         rr.getNode()->accept(visitor);
+                        nestedExternalsLevel--;
+                        local_opt->setPluginData("nestedExternalsLevel",(void*)nestedExternalsLevel);
                     }
                 }
                 else
                 {
-                    OSG_DEBUG << "keepExternalReferences found, so externals will be left as ProxyNodes"<<std::endl;
+                    OSG_DEBUG << "keepExternalReferences found, so externals will be left as ProxyNodes"<<std::endl;    
                 }
             }
 
@@ -330,17 +347,27 @@ class FLTReaderWriter : public ReaderWriter
                 osg::ConfigureBufferObjectsVisitor cbov;
                 rr.getNode()->accept(cbov);
             }
+            
+            // clear local cache.
+            if (nestedExternalsLevel == 0)
+            {
+               registry->clearLocalCache();
+            }
 
             return rr;
         }
-
+        
         virtual ReadResult readObject(std::istream& fin, const Options* options) const
         {
             return readNode(fin, options);
         }
-
+        
         virtual ReadResult readNode(std::istream& fin, const Options* options) const
         {
+           osg::CVMarkerSeries series("SubloadParentTask");
+           osg::CVSpan UpdateTick(series, 4, "Read Flt File");
+
+            flt::Registry* registry = flt::Registry::instance();
             Document document;
             document.setOptions(options);
 
@@ -348,7 +375,24 @@ class FLTReaderWriter : public ReaderWriter
             if (options)
             {
                 const char readerMsg[] = "flt reader option: ";
-
+                
+                std::set<std::string> opaqueFiles;
+                size_t currentLoc = options->getOptionString().find("forceOpaque=\"");
+                while(currentLoc != std::string::npos)
+                {  
+                   size_t wordBegin = currentLoc + 13;
+                   size_t wordEnd = options->getOptionString().find("\"",wordBegin);
+                   if(wordEnd == std::string::npos) break;
+                   //13 is length of "forceOpaque=\"                   
+                   size_t length = (wordEnd - wordBegin) - 1;
+                   if(length > 0)
+                   {
+                     opaqueFiles.insert(options->getOptionString().substr(wordBegin,length));
+                   }                   
+                   currentLoc = options->getOptionString().find("forceOpaque=\"",wordEnd);
+                }
+                document.setForcedOpaqueImages(opaqueFiles);
+                
                 document.setReplaceClampWithClampToEdge((options->getOptionString().find("clampToEdge")!=std::string::npos));
                 OSG_DEBUG << readerMsg << "clampToEdge=" << document.getReplaceClampWithClampToEdge() << std::endl;
 
@@ -382,6 +426,9 @@ class FLTReaderWriter : public ReaderWriter
                 document.setDoUnitsConversion((options->getOptionString().find("noUnitsConversion")==std::string::npos)); // default to true, unless noUnitsConversion is specified.
                 OSG_DEBUG << readerMsg << "noUnitsConversion=" << !document.getDoUnitsConversion() << std::endl;
 
+                document.setIgnoreNonBaseTextures((options->getOptionString().find("ignoreNonBaseTextures") != std::string::npos)); // default to false
+                OSG_DEBUG << readerMsg << "ignoreNonBaseTextures=" << document.getIgnoreNonBaseTextures() << std::endl;
+
                 if (document.getDoUnitsConversion())
                 {
                     if (options->getOptionString().find("convertToFeet")!=std::string::npos)
@@ -405,6 +452,8 @@ class FLTReaderWriter : public ReaderWriter
                         document.setColorPool( pools->getColorPool(), true );
                     if (pools->getTexturePool())
                         document.setTexturePool( pools->getTexturePool(), true );
+                    if (pools->getMultiTexturePool())
+                       document.setMultiTexturePool( pools->getMultiTexturePool(), true );
                     if (pools->getMaterialPool())
                         document.setMaterialPool( pools->getMaterialPool(), true );
                     if (pools->getLightSourcePool())
@@ -416,6 +465,34 @@ class FLTReaderWriter : public ReaderWriter
                     if (pools->getShaderPool())
                         document.setShaderPool( pools->getShaderPool(), true );
                 }
+
+                // check if the source is from a CDB database     
+                const osgDB::ReaderWriter::Options* options = document.getOptions();
+                if (options->getPluginStringData("SOURCE") == "\"cdb\"")
+                {
+                   {
+                      // Tell the FTL plugin it's a CDB model
+                      document.setCdb(true);
+                      // Set the specific SigSize Table
+                      document.setSigSizeTable((makVrv::oe::CDB::CDBSigSizeTable*)options->getPluginData("DtCdbSigSizeTable"));
+                      // Mip Map texture LOD offset
+                      std::string offset = options->getPluginStringData("CDBMIPMAP_OFFSET");
+                      if (!offset.empty())
+                      {
+                         // take only a single digit from the string (with the following format for ex.) "2"
+                         document.setMipMapOffset(atoi(offset.substr(1,1).c_str()));
+                      }
+                   }
+                }
+
+                // VRV_PATCH BEGIN
+                if (options->getOptionString().find("vrvUseReverseZBuffer") != std::string::npos)
+                {
+                    // Tell the FTL plugin to use reverse Z buffer values for polygon offset 
+                    document.setUseReverseZBuffer(true);
+                }
+                // VRV_PATCH END
+
             }
 
             const int RECORD_HEADER_SIZE = 4;
@@ -431,7 +508,7 @@ class FLTReaderWriter : public ReaderWriter
                 opcode_type opcode = (opcode_type)dataStream.readUInt16();
                 size_type   size   = (size_type)dataStream.readUInt16();
 
-                // If size == 0, an EOF has probably been reached, i.e. there is nothing
+                // If size == 0, an EOF has probably been reached, i.e. there is nothing 
                 // more to read so we must return.
                 if (size==0)
                 {
@@ -517,12 +594,21 @@ class FLTReaderWriter : public ReaderWriter
                 osgUtil::Optimizer optimizer;
                 optimizer.optimize(document.getHeaderNode(),
                     osgUtil::Optimizer::SHARE_DUPLICATE_STATE |
-                    osgUtil::Optimizer::MERGE_GEOMETRY |
-                    osgUtil::Optimizer::MERGE_GEODES |
+                    osgUtil::Optimizer::MERGE_GEOMETRY | 
+                    osgUtil::Optimizer::MERGE_GEODES | 
                     osgUtil::Optimizer::TESSELLATE_GEOMETRY |
-                    osgUtil::Optimizer::STATIC_OBJECT_DETECTION);
+                    osgUtil::Optimizer::STATIC_OBJECT_DETECTION |
+                    osgUtil::Optimizer::INDEX_MESH |
+                    osgUtil::Optimizer::VERTEX_PRETRANSFORM |
+                    osgUtil::Optimizer::VERTEX_POSTTRANSFORM
+                    );
             }
 
+            // If it's a CDB flt from zip clear the cache
+            if (!options->getPluginStringData("STREAM_FILENAME").empty())
+            {
+               registry->clearLocalCache();      
+            }
             return document.getHeaderNode();
         }
 
@@ -544,10 +630,18 @@ class FLTReaderWriter : public ReaderWriter
             if ( !acceptsExtension(ext) )
                 return WriteResult::FILE_NOT_HANDLED;
 
+            osg::ref_ptr<Options> local_opt =  options ? static_cast<Options*>(options->clone(osg::CopyOp::SHALLOW_COPY)) : new Options;
+
             // Get and save the implicit path name (in case a path wasn't specified in Options).
             std::string filePath = osgDB::getFilePath( fileName );
             if (!filePath.empty())
-                _implicitPath = filePath;
+            {
+               local_opt->setPluginData("_implicitPath", new std::string(filePath));
+            }
+            else
+            {
+               local_opt->setPluginData("_implicitPath", new std::string("."));
+            }
 
             osgDB::ofstream fOut;
             fOut.open( fileName.c_str(), std::ios::out | std::ios::binary );
@@ -560,6 +654,12 @@ class FLTReaderWriter : public ReaderWriter
             WriteResult wr = WriteResult::FILE_NOT_HANDLED;
             wr = writeNode( node, fOut, options );
             fOut.close();
+
+            std::string* str = (std::string*)local_opt->getPluginData("_implicitPath");
+            if(str)
+            {
+               delete str;
+            }
 
             return wr;
         }
@@ -581,7 +681,17 @@ class FLTReaderWriter : public ReaderWriter
             // If user didn't specify a temp dir, use the output directory
             //   that was implicit in the output file name.
             if (fltOpt->getTempDir().empty())
-                fltOpt->setTempDir( _implicitPath );
+            {
+               const std::string* str = (const std::string*) options->getPluginData("_implicitPath");
+               if(str)
+               {
+                  fltOpt->setTempDir( *str );
+               }
+               else
+               {
+                  fltOpt->setTempDir( ".");
+               }
+            }
             if (!fltOpt->getTempDir().empty())
             {
                 // If the temp directory doesn't already exist, make it.
@@ -608,9 +718,8 @@ class FLTReaderWriter : public ReaderWriter
         }
 
     protected:
-        mutable std::string _implicitPath;
-
-        mutable OpenThreads::ReentrantMutex _serializerMutex;
+        //mutable std::string _implicitPath;
+        //mutable OpenThreads::ReentrantMutex _serializerMutex;
 };
 
 // now register with Registry to instantiate the above

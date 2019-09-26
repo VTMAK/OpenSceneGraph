@@ -48,10 +48,10 @@ class OSGSIM_EXPORT LightPointDrawable : public osg::Drawable
         //typedef std::pair<unsigned int,osg::Vec3> ColorPosition;
         struct ColorPosition
         {
-            unsigned int first;
+            osg::Vec4 first;
             osg::Vec3 second;
             ColorPosition() {}
-            ColorPosition(unsigned int f,const osg::Vec3& s):first(f),second(s) {}
+            ColorPosition(const osg::Vec4f & f, const osg::Vec3& s) :first(f), second(s) {}
         };
 
         void reset();
@@ -64,19 +64,19 @@ class OSGSIM_EXPORT LightPointDrawable : public osg::Drawable
         inline void addOpaqueLightPoint(unsigned int pointSize,const osg::Vec3& position,const osg::Vec4& color)
         {
             if (pointSize>=_sizedOpaqueLightPointList.size()) _sizedOpaqueLightPointList.resize(pointSize+1);
-            _sizedOpaqueLightPointList[pointSize].push_back(ColorPosition(asRGBA(color),position));
+            _sizedOpaqueLightPointList[pointSize].push_back(ColorPosition(color,position));
         }
 
         inline void addAdditiveLightPoint(unsigned int pointSize,const osg::Vec3& position,const osg::Vec4& color)
         {
             if (pointSize>=_sizedAdditiveLightPointList.size()) _sizedAdditiveLightPointList.resize(pointSize+1);
-            _sizedAdditiveLightPointList[pointSize].push_back(ColorPosition(asRGBA(color),position));
+            _sizedAdditiveLightPointList[pointSize].push_back(ColorPosition(color,position));
         }
 
         inline void addBlendedLightPoint(unsigned int pointSize,const osg::Vec3& position,const osg::Vec4& color)
         {
             if (pointSize>=_sizedBlendedLightPointList.size()) _sizedBlendedLightPointList.resize(pointSize+1);
-            _sizedBlendedLightPointList[pointSize].push_back(ColorPosition(asRGBA(color),position));
+            _sizedBlendedLightPointList[pointSize].push_back(ColorPosition(color,position));
         }
 
         /** draw LightPoints. */
@@ -122,7 +122,9 @@ class OSGSIM_EXPORT LightPointDrawable : public osg::Drawable
         osg::ref_ptr<osg::BlendFunc>    _blendOneMinusSrcAlpha;
         osg::ref_ptr<osg::ColorMask>    _colorMaskOff;
 
-
+        //VRV PATCH - For reverse depth
+        mutable GLint                   _depthFunction;
+        //END VRV PATCH
 };
 
 }

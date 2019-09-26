@@ -6,6 +6,11 @@ ELSE()
     ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
 ENDIF()
 
+if (WIN32)
+   include_directories(${MSVCCONVIS_INCLUDE_DIR} )
+   add_compile_options("/bigobj")
+endif(WIN32)
+
 SET(LIB_NAME osg)
 
 #
@@ -60,6 +65,7 @@ SET(TARGET_H
     ${HEADER_PATH}/ComputeBoundsVisitor
     ${HEADER_PATH}/DispatchCompute
     ${HEADER_PATH}/ContextData
+	${HEADER_PATH}/ConcurrencyViewerMacros
     ${HEADER_PATH}/ConvexPlanarOccluder
     ${HEADER_PATH}/ConvexPlanarPolygon
     ${HEADER_PATH}/CoordinateSystemNode
@@ -68,6 +74,7 @@ SET(TARGET_H
     ${HEADER_PATH}/CullingSet
     ${HEADER_PATH}/CullSettings
     ${HEADER_PATH}/CullStack
+	${HEADER_PATH}/DatabaseRequestHandler
     ${HEADER_PATH}/DeleteHandler
     ${HEADER_PATH}/Depth
     ${HEADER_PATH}/DepthRangeIndexed
@@ -76,6 +83,7 @@ SET(TARGET_H
     ${HEADER_PATH}/DrawPixels
     ${HEADER_PATH}/Endian
     ${HEADER_PATH}/Export
+    ${HEADER_PATH}/ExtendedMaterial
     ${HEADER_PATH}/fast_back_stack
     ${HEADER_PATH}/Fog
     ${HEADER_PATH}/FragmentProgram
@@ -275,6 +283,7 @@ SET(TARGET_SRC
     ComputeBoundsVisitor.cpp
     DispatchCompute.cpp
     ContextData.cpp
+	ConcurrencyViewerMacros.cpp
     ConvexPlanarOccluder.cpp
     ConvexPlanarPolygon.cpp
     CoordinateSystemNode.cpp
@@ -291,6 +300,7 @@ SET(TARGET_SRC
     DrawPixels.cpp
     dxtctool.cpp
     dxtctool.h
+    ExtendedMaterial.cpp
     Fog.cpp
     FragmentProgram.cpp
     FrameBufferObject.cpp
@@ -438,7 +448,9 @@ SET(TARGET_SRC
 
     ${OPENSCENEGRAPH_VERSIONINFO_RC}
 )
-
+if (WIN32)
+   INCLUDE_DIRECTORIES( ${MSVCCONVIS_INCLUDE_DIR} )
+endif(WIN32)
 
 SET(TARGET_LIBRARIES OpenThreads)
 

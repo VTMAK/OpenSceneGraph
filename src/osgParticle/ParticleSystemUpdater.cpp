@@ -9,6 +9,7 @@ osgParticle::ParticleSystemUpdater::ParticleSystemUpdater()
 : osg::Node(), _t0(-1), _frameNumber(0)
 {
     setCullingActive(false);
+    setNumChildrenRequiringUpdateTraversal(1);
 }
 
 osgParticle::ParticleSystemUpdater::ParticleSystemUpdater(const ParticleSystemUpdater& copy, const osg::CopyOp& copyop)
@@ -18,32 +19,38 @@ osgParticle::ParticleSystemUpdater::ParticleSystemUpdater(const ParticleSystemUp
     for (i=copy._psv.begin(); i!=copy._psv.end(); ++i) {
         _psv.push_back(static_cast<ParticleSystem* >(copyop(i->get())));
     }
+    setCullingActive(false);
+    setNumChildrenRequiringUpdateTraversal(1);
 }
 
 void osgParticle::ParticleSystemUpdater::traverse(osg::NodeVisitor& nv)
 {
-    if (nv.getVisitorType() == osg::NodeVisitor::CULL_VISITOR)
+    // TDG: Mak Patch to syncronize particle systems. Moved particle updates to Update from Cull
+    // update only if the visitor actually is an update visitor
+    if (nv.getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR) 
     {
-        if (nv.getFrameStamp())
+        // (although ScopedWriteLock is probably the expensive part)
+        const FrameStamp* frameStamp = nv.getFrameStamp();
+        if (frameStamp)
         {
-            if( _frameNumber < nv.getFrameStamp()->getFrameNumber())
+           const unsigned int frameNumber = frameStamp->getFrameNumber();
+            if( _frameNumber < frameNumber)
             {
-                _frameNumber = nv.getFrameStamp()->getFrameNumber();
+                _frameNumber = frameNumber;
 
-                double t = nv.getFrameStamp()->getSimulationTime();
+                double t = frameStamp->getSimulationTime();
                 if (_t0 != -1.0)
                 {
                     ParticleSystem_Vector::iterator i;
-                    for (i=_psv.begin(); i!=_psv.end(); ++i)
+
+                    ParticleSystem_Vector::const_iterator partEnd = _psv.end();
+                    for (i=_psv.begin(); i!= partEnd; ++i)
                     {
                         ParticleSystem* ps = i->get();
 
                         ParticleSystem::ScopedWriteLock lock(*(ps->getReadWriteMutex()));
 
-                        // We need to allow at least 2 frames difference, because the particle system's lastFrameNumber
-                        // is updated in the draw thread which may not have completed yet.
-                        if (!ps->isFrozen() &&
-                            (!ps->getFreezeOnCull() || ((nv.getFrameStamp()->getFrameNumber()-ps->getLastFrameNumber()) <= 2)) )
+                        if (!ps->isFrozen() && (ps->getLastFrameNumber() >= (frameNumber - 1) || !ps->getFreezeOnCull()))
                         {
                             ps->update(t - _t0, nv);
                         }

@@ -30,6 +30,7 @@ namespace osgAnimation
 
         void update(float t = 0.0);
         const osg::Matrix& getMatrix() const;
+        void setMatrix(osg::Matrix& matrix) { _matrix = matrix; };
 
     protected:
         osg::Matrix _matrix;

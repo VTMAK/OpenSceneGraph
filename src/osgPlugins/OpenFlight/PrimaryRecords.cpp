@@ -38,6 +38,8 @@
 #include "Registry.h"
 #include "Document.h"
 #include "RecordInputStream.h"
+#include "DtCDBSigSize.h"
+#include "DtCDBSigSizeTable.h"
 
 namespace flt {
 
@@ -192,6 +194,8 @@ public:
     META_setComment(_group)
     META_setMultitexture(_group)
     META_addChild(_group)
+    META_getNumChildren(_group)
+    META_getChild(_group)
 
     bool hasAnimation() const { return _forwardAnim || _backwardAnim; }
 
@@ -202,13 +206,15 @@ protected:
         std::string id = in.readString(8);
         OSG_DEBUG << "ID: " << id << std::endl;
 
-        /*int16 relativePriority =*/ in.readInt16();
+        // VRV_PATCH BEGIN - For correctly rendering ST CDB airport
+        int16 relativePriority = in.readInt16();
         in.forward(2);
+        // VRV_PATCH END
         _flags = in.readUInt32(0);
         /*uint16 specialId0 =*/ in.readUInt16();
         /*uint16 specialId1 =*/ in.readUInt16();
         /*uint16 significance =*/ in.readUInt16();
-        /*int8 layer =*/ in.readInt8();
+        int8 layer = in.readInt8();
         in.forward(5);
         // version >= VERSION_15_8
         _loopCount = in.readInt32(0);
@@ -228,11 +234,48 @@ protected:
             ((_flags & BACKWARD_ANIM) != 0) );
 
         if (_forwardAnim || _backwardAnim)
+        {
             _group = new osg::Sequence;
+            _group->setName(id);
+        }
         else
             _group = new osg::Group;
+        if (layer !=0 )
+        {
+            // VRV_PATCH BEGIN
+            if (document.getUseReverseZBuffer())
+            {
+                // reverse depth buffer
+                _group->getOrCreateStateSet()->setAttributeAndModes(document.getSubSurfacePolygonOffset(-layer), osg::StateAttribute::ON);
+            }
+            else
+            {
+                // normal depth buffer
+                _group->getOrCreateStateSet()->setAttributeAndModes(document.getSubSurfacePolygonOffset(layer), osg::StateAttribute::ON);
+            }
+            // VRV_PATCH END
+           _group->getOrCreateStateSet()->setRenderBinDetails(layer, "RenderBin");
+        }
 
-        _group->setName(id);
+        // VRV_PATCH BEGIN - For correctly rendering ST CDB airport
+        // 
+        // Only pay attention to the relative priority flag if you are in a CDB terrain
+        // the relative priority flag is for a 'fixed list' render order defined by Creator
+        // 
+        if (document.getCdb() && relativePriority > 0)
+        {
+            if (document.getUseReverseZBuffer())
+            {
+                // reverse depth buffer - this might need to be osg::StateAttribute::PROTECTED
+                _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(1, 1), osg::StateAttribute::ON);
+            }
+            else
+            {
+                // normal depth buffer
+                _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(-1, -1), osg::StateAttribute::ON);
+            }            
+        }
+        // VRV_PATCH END
 
         // Add this implementation to parent implementation.
         if (_parent.valid())
@@ -266,7 +309,15 @@ protected:
             if (document.version() >= VERSION_15_8)
             {
                 // Set frame duration.
-                float frameDuration = _loopDuration / float(sequence->getNumChildren());
+                float frameDuration;
+                if ( _loopDuration == 0.0f )
+                {
+                   frameDuration = 0.1f;     // 10Hz
+                }
+                else
+                {
+                   frameDuration = _loopDuration / float(sequence->getNumChildren());
+                }
                 for (unsigned int i=0; i < sequence->getNumChildren(); i++)
                     sequence->setTime(i, frameDuration);
 
@@ -460,8 +511,6 @@ protected:
 
 REGISTER_FLTRECORD(DegreeOfFreedom, DOF_OP)
 
-
-
 /** LevelOfDetail - To recreate the LevelOfDetail record in OSG we have to create a LOD node with one Group node under it.
  *  OSG representation Children of the LevelOfDetail record will be added to
 */
@@ -485,6 +534,46 @@ public:
 protected:
 
     virtual ~LevelOfDetail() {}
+
+    static float64 getSwitchInDistance(float64 _significantSize)
+    {
+        // CDB is always in meter
+        if (_significantSize > 55659.5f)          return  14000.0f ;  // LOD -10
+        else if (_significantSize > 27829.75f)    return  13000.0f ;  // LOD -9 
+        else if (_significantSize > 13914.875f)   return  12500.0f ;  // LOD -8 
+        else if (_significantSize > 6957.4375f)   return  12000.0f ;  // LOD -7 
+        else if (_significantSize > 3478.71875f)  return  11500.0f ;  // LOD -6
+        else if (_significantSize > 1739.359375f) return  11000.0f ;  // LOD -5
+        else if (_significantSize > 869.6796875f) return  10500.0f ;  // LOD -4
+        else if (_significantSize > 434.8398438f) return  10000.0f ;  // LOD -3
+        else if (_significantSize > 217.4199219f) return  9000.0f ;  // LOD -2
+        else if (_significantSize > 108.7099609f) return  8000.0f ;  // LOD -1
+        else if (_significantSize > 54.3549805f)  return  7000.0f ;  // LOD 0
+        else if (_significantSize > 27.17740902f) return  6000.0f ;  // LOD 1
+        else if (_significantSize > 13.5887451f)  return  5000.0f ;  // LOD 2
+        else if (_significantSize > 6.7943726f)   return  4000.0f ;  // LOD 3
+        else if (_significantSize > 3.3971863f)   return  2000.0f ;  // LOD 4
+        else if (_significantSize > 1.6985931f)   return  1500.0f ;  // LOD 5
+        else if (_significantSize > 0.8492966f)   return  1000.0f ;  // LOD 6
+        else if (_significantSize > 0.4246483f)   return  800.0f ;  // LOD 7
+        else if (_significantSize > 0.2123241f)   return  600.0f ;  // LOD 8
+        else if (_significantSize > 0.1061621f)   return  400.0f ;  // LOD 9
+        else if (_significantSize > 0.0530810f)   return  250.0f ;  // LOD 10
+        else if (_significantSize > 0.0265405f)   return  200.0f ;  // LOD 11
+        else if (_significantSize > 0.0132703f)   return  150.0f ;  // LOD 12
+        else if (_significantSize > 0.0066351f)   return  100.0f ;  // LOD 13
+        else if (_significantSize > 0.0033176f)   return  80.0f ;  // LOD 14
+        else if (_significantSize > 0.0016588f)   return  50.0f ;  // LOD 15
+        else if (_significantSize > 0.0008294f)   return  20.0f ;  // LOD 16
+        else if (_significantSize > 0.0004147f)   return  10.0f ;  // LOD 17
+        else if (_significantSize > 0.0002073f)   return  5.0f ;  // LOD 18
+        else if (_significantSize > 0.0001037f)   return  0.8f ;  // LOD 19
+        else if (_significantSize > 0.0000518f)   return  0.6f ;  // LOD 20
+        else if (_significantSize > 0.0000259f)   return  0.4f ;  // LOD 21
+        else if (_significantSize > 0.0000130f)   return  0.2f ;  // LOD 22
+        else return 0.1f ;  // LOD 23    
+    }
+
     virtual void readRecord(RecordInputStream& in, Document& document)
     {
         std::string id = in.readString(8);
@@ -495,22 +584,90 @@ protected:
         /*int16 specialEffectID2 =*/ in.readInt16();
         /*uint32 flags =*/ in.readUInt32();
         osg::Vec3d center = in.readVec3d();
+        float64 significantSize = 0.0f;
+        bool gotSigSize = false;
+        // new in from FLT 16.0 +
+        if (document.version() >= VERSION_16_0)
+        {
+           /*float64 transitionRange =*/ in.readFloat64();
+           significantSize = in.readFloat64();
+           if (!osg::equivalent(significantSize,0.0))
+               gotSigSize = true;
+        }
 
         _lod = new osg::LOD;
         _lod->setName(id);
         _lod->setCenter(center*document.unitScale());
 
+        // VRV_PATCH BEGIN
+        // ST airport tiles have bad bounding spheres
+        // They are reporting the center as the 'frozen' center
+        // in the flt file which is most likely in model coordinates (not geocentric)
+        if (document.getCdb() && gotSigSize)
+        {
+            // have OSG calculate the center of the bounding sphere
+            _lod->setCenterMode(osg::LOD::USE_BOUNDING_SPHERE_CENTER);
+        }
+        // VRV_PATCH END
+
         _impChild0 = new osg::Group;
         _impChild0->setName("LOD child0");
 
         // Add child to lod.
-        _lod->addChild(_impChild0.get(),
-             (float)switchOutDistance * document.unitScale(),
-             (float)switchInDistance * document.unitScale());
+        // CDB FLT file use Significant Size instead of switch (and the switch are set to 0.0 and geometry is not visible in OSGViewer
+        // If a Sig Size is found the switch in / switch out values will be overwritten the value from the table or the function
+        // getSwitchInDistance() even if some values exist in the FLT file
+        if (gotSigSize)
+        {
+           // Customizable Significant Size to Switch distance via XML file (../appData/cdb/SignificantSize_SwitchDistance.xml) 
+           // or eventually modify OSG to support SIG size directly (see CDB spec 3.2)
+           switchOutDistance = 0.0f;           
+           const makVrv::oe::CDB::CDBSigSizeTable* sigSizeTable = document.getSigSizeTable();
+           if (sigSizeTable && sigSizeTable->isValid())
+           {
+              switchInDistance = sigSizeTable->getSwitchInDistance(significantSize);
+           }
+           else
+           {
+              //OSG_INFO << "Warning: No Significant Size table pass to the FLT plugin, using default value." << std::endl;
+              switchInDistance = getSwitchInDistance(significantSize);
+           }
+          
+           // Modify previous LOD switchOutDistance if there is a previous LOD           
+           unsigned int nbChild = _parent->getNumChildren();
+           if (nbChild > 0)
+           {
+              // get previous LOD
+              osg::LOD* previousLod = dynamic_cast<osg::LOD*>(_parent->getChild(nbChild - 1));
+              
+              if(previousLod)
+              {
+                  //inline float getMinRange(unsigned int childNo) const { return _rangeList[childNo].first; }
+                  //inline float getMaxRange(unsigned int childNo) const { return _rangeList[childNo].second; }
+                 float previous_maxRange = previousLod->getMaxRange(0);
+                 if (switchInDistance < previous_maxRange)
+                 {
+                     // set the previous lod switchOutDistance to the new switchInDistance 
+                     // (This assume coarse LOD are before fine LOD (coarsest -> coarse -> fine))
+                     previousLod->setRange(0, switchInDistance * document.unitScale(), previous_maxRange);
+                 }
+                 else
+                 {
+                     // set the current lod switchinDistance to the previous switchOutDistance 
+                     // (This assume fine LOD are before coarse LOD (fine -> coarse -> coarsest))
+                     switchOutDistance = previous_maxRange;
+                 }
+              }
+           }
+        }
 
+        _lod->addChild(_impChild0.get(),
+            (float)switchOutDistance * document.unitScale(),
+            (float)switchInDistance * document.unitScale());
+        
         // Add this implementation to parent implementation.
         if (_parent.valid())
-            _parent->addChild(*_lod);
+            _parent->addChild(*_lod);                
     }
 
 };
@@ -724,10 +881,21 @@ protected:
                 parentPools->setMaterialPool(document.getMaterialPool());
 
             if ((mask & TEXTURE_PALETTE_OVERRIDE) == 0)
+            {
                 parentPools->setTexturePool(document.getTexturePool());
+                parentPools->setMultiTexturePool(document.getMultiTexturePool());
+            }
 
-            if ((document.version() >= VERSION_15_1) && ((mask & LIGHT_SOURCE_PALETTE_OVERRIDE) == 0))
-                parentPools->setLightSourcePool(document.getLightSourcePool());
+            // In creator, the light source palette override bit cannot be set for an external reference.
+            // (There is no checkbox in the gui.)  The flag is always written to the OpenFlight file as false.
+            // This means every external reference uses its parent's light source palette instead of its own.
+            // (Other override bits are editable and serialize correctly.)
+            //
+            // Instead ignore ignore the override bit and assume it is true allowing the use
+            // of light source palettes in eternal references.  [MM 09 / 22 / 17]
+            
+            // if ((document.version() >= VERSION_15_1) && ((mask & LIGHT_SOURCE_PALETTE_OVERRIDE) == 0))
+            //    parentPools->setLightSourcePool(document.getLightSourcePool());
 
             if ((document.version() >= VERSION_15_8) && ((mask & LIGHT_POINT_PALETTE_OVERRIDE) == 0))
                 parentPools->setLPAppearancePool(document.getLightPointAppearancePool());
@@ -901,7 +1069,7 @@ protected:
         std::string id = in.readString(8);
 
         _object = new osg::Group;
-        _object->setName(id);
+        //_object->setName(id);
 
         if (document.getReadObjectRecordData())
         {
@@ -955,15 +1123,14 @@ protected:
         if (_parent.valid())
         {
             // LODs adds an empty child group so it is safe to remove this object record.
-            PrimaryRecord* parent = _parent.get();
-            if (typeid(parent)==typeid(flt::LevelOfDetail))
+            if (typeid(*_parent)==typeid(flt::LevelOfDetail))
                 return true;
 
-            if (typeid(parent)==typeid(flt::OldLevelOfDetail))
+            if (typeid(*_parent)==typeid(flt::OldLevelOfDetail))
                 return true;
 
             // If parent is a Group record we have to check for animation.
-            Group* parentGroup = dynamic_cast<flt::Group*>(parent);
+            Group* parentGroup = dynamic_cast<flt::Group*>(_parent.get());
             if (parentGroup && !parentGroup->hasAnimation())
                 return true;
         }

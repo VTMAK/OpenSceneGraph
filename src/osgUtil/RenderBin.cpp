@@ -43,6 +43,10 @@ class RenderBinPrototypeList : osg::depends_on<OpenThreads::Mutex*, osg::Referen
         void add(const std::string& name, RenderBin* bin)
         {
             (*this)[name] = bin;
+            //VRV_PATCH
+            if (bin->getName().length() == 0) {
+               bin->setName(name);
+            }
         }
 
         ~RenderBinPrototypeList() {}
@@ -166,14 +170,15 @@ RenderBin::RenderBin(SortMode mode)
         _stateset->setThreadSafeRefUnref(true);
 
          // set up an alphafunc by default to speed up blending operations.
-#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
+//#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
         osg::AlphaFunc* alphafunc = new osg::AlphaFunc;
         alphafunc->setFunction(osg::AlphaFunc::GREATER,0.0f);
         alphafunc->setThreadSafeRefUnref(true);
 
         _stateset->setAttributeAndModes(alphafunc, osg::StateAttribute::ON);
-#endif
-    }
+//#endif
+
+	 }
 #endif
 }
 
@@ -422,12 +427,25 @@ RenderBin* RenderBin::find_or_insert(int binNum,const std::string& binName)
 void RenderBin::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
 {
     renderInfo.pushRenderBin(this);
+	//VRV_PATCH
+    osg::State& state = *renderInfo.getState();
+    osg::GLExtensions* ext = state.get<osg::GLExtensions>();
+    if (_name.length()) {
+       ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, _name.c_str());
+    }
+    else {
+       ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "unknown renderbin");
+    }
 
     if (_drawCallback.valid())
     {
         _drawCallback->drawImplementation(this,renderInfo,previous);
     }
-    else drawImplementation(renderInfo,previous);
+    else {
+        drawImplementation(renderInfo,previous);
+    }
+    //VRV_PATCH
+    ext->glPopDebugGroup();
 
     renderInfo.popRenderBin();
 }
@@ -541,24 +559,33 @@ bool RenderBin::getStats(Statistics& stats) const
         ++dw_itr)
     {
         const RenderLeaf* rl = *dw_itr;
-        const Drawable* dw= rl->getDrawable();
-        stats.addDrawable(); // number of geosets
-
-        const Geometry* geom = dw->asGeometry();
-        if (geom)
+        if (rl) //check for a valid render leaf
         {
-            stats.addFastDrawable();
+
+           const Drawable* dw = rl->getDrawable();
+           if (dw) //check for a valid drawable
+           {
+              stats.addDrawable(); // number of geosets
+
+              const Geometry* geom = dw->asGeometry();
+              if (geom)
+              {
+                 stats.addFastDrawable();
+              }
+           }
+
+           if (rl->_modelview.get())
+           {
+              stats.addMatrix(); // number of matrices
+           }
+
+           if (dw)
+           {
+              // then tot up the primitive types and no vertices.
+              dw->accept(stats); // use sub-class to find the stats for each drawable
+           }
+           statsCollected = true;
         }
-
-        if (rl->_modelview.get())
-        {
-            stats.addMatrix(); // number of matrices
-        }
-
-        // then tot up the primitive types and no vertices.
-        dw->accept(stats); // use sub-class to find the stats for each drawable
-
-        statsCollected = true;
     }
     stats.addStateGraphs(_stateGraphList.size());
     for(StateGraphList::const_iterator oitr=_stateGraphList.begin();

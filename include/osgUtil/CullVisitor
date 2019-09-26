@@ -326,6 +326,10 @@ class OSGUTIL_EXPORT CullVisitor : public osg::NodeVisitor, public osg::CullStac
         osg::RenderInfo& getRenderInfo() { return _renderInfo; }
         const osg::RenderInfo& getRenderInfo() const { return _renderInfo; }
 
+        osg::StateSet* popTextureToApply();
+        void pushTextureToApply(osg::StateSet* state);
+
+        unsigned int getTraversalOrderNumber() {return _traversalOrderNumber;}
     protected:
 
         virtual ~CullVisitor();
@@ -359,6 +363,8 @@ class OSGUTIL_EXPORT CullVisitor : public osg::NodeVisitor, public osg::CullStac
 
         unsigned int              _traversalOrderNumber;
 
+        //VRV_PATCH to not overlap with node _traversalNumber, matches osg TOT;
+        unsigned int             _traversalOrderNumber;
 
         typedef std::vector< osg::ref_ptr<RenderLeaf> > RenderLeafList;
         RenderLeafList _reuseRenderLeafList;
@@ -370,6 +376,10 @@ class OSGUTIL_EXPORT CullVisitor : public osg::NodeVisitor, public osg::CullStac
 
         osg::RenderInfo         _renderInfo;
 
+     
+
+        OpenThreads::Mutex _textureToApplyMutex;
+        std::vector<osg::StateSet*> _textureToApplyArray;
 
         struct MatrixPlanesDrawables
         {

@@ -79,10 +79,13 @@ void LightModel::apply(State& state) const
 }
 
 #else
-
-void LightModel::apply(State&) const
-{
-    OSG_NOTICE<<"Warning: LightModel::apply(State&) - not supported."<<std::endl;
+	static int i = 1;
+	if (i)
+	{
+		i = 0;
+		OSG_INFO<<"Warning: LightModel::apply(State&) - not supported."<<std::endl;
+	}
+#endif
 }
 
 #endif

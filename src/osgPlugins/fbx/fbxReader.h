@@ -1,16 +1,27 @@
+/******************************************************************************
+** Copyright(c) 2019 MAK Technologies, Inc.
+** All rights reserved.
+******************************************************************************/
+
 #ifndef FBXRANIMATION_H
 #define FBXRANIMATION_H
 
 #include <fbxsdk.h>
 #include <osgDB/ReaderWriter>
 #include <osgAnimation/BasicAnimationManager>
+#include <osgSim/MultiSwitch>
+#include <osgSim/DOFTransform>
+
 #include "fbxMaterialToOsgStateSet.h"
+#include "fbxUtil.h"
+#include "fbxTextureUnitMap.h"
 
 namespace osgAnimation
 {
     class AnimationManagerBase;
     class RigGeometry;
     class Skeleton;
+    class Animation;
 }
 
 typedef std::map< osg::Matrix, std::set<osgAnimation::RigGeometry*> > BindMatrixGeometryMap;
@@ -28,6 +39,7 @@ public:
     const std::set<const FbxNode*>& fbxSkeletons;
     std::map<FbxNode*, osgAnimation::Skeleton*> skeletonMap;
     const osgDB::Options& options;
+    const std::string& currentFilePath;
     bool lightmapTextures, tessellatePolygons;
 
     enum AuthoringTool
@@ -45,7 +57,8 @@ public:
         const osgDB::Options& options1,
         AuthoringTool authoringTool1,
         bool lightmapTextures1,
-        bool tessellatePolygons1)
+        bool tessellatePolygons1,
+        const std::string& currentFilePath1)
         : pSdkManager(pSdkManager1),
         fbxScene(fbxScene1),
         fbxMaterialToOsgStateSet(fbxMaterialToOsgStateSet1),
@@ -53,33 +66,107 @@ public:
         options(options1),
         lightmapTextures(lightmapTextures1),
         tessellatePolygons(tessellatePolygons1),
-        authoringTool(authoringTool1)
+        authoringTool(authoringTool1),
+        currentFilePath(currentFilePath1)
     {}
 
     osgDB::ReaderWriter::ReadResult readFbxNode(
-        FbxNode*, bool& bIsBone, int& nLightCount);
+        FbxNode*, bool& bIsBone, int& nLightCount,
+       textureUnitMap& textureMap, const FbxString& appName);
 
     std::string readFbxAnimation(
-        FbxNode*, const char* targetName);
+        FbxNode*, const char* targetName, osgAnimation::Animation*& animation);
 
     osgDB::ReaderWriter::ReadResult readFbxCamera(
         FbxNode* pNode);
-
+    
+    //! Read the FBX light and convert to OSG
     osgDB::ReaderWriter::ReadResult readFbxLight(
         FbxNode* pNode, int& nLightCount);
 
     osgDB::ReaderWriter::ReadResult readMesh(
         FbxNode* pNode, FbxMesh* fbxMesh,
         std::vector<StateSetContent>& stateSetList,
-        const char* szName);
+        const char* szName,
+        textureUnitMap& textureMap);
 
     osgDB::ReaderWriter::ReadResult readFbxMesh(
         FbxNode* pNode,
-        std::vector<StateSetContent>&);
+        std::vector<StateSetContent>&,
+        textureUnitMap& textureMap);
+
+protected:
+
+    //! Read the Light but based on the node comment create
+    //! create a Vantage light point
+    osgDB::ReaderWriter::ReadResult readFbxLightPoint(
+       FbxNode* pNode, const std::string& lightType);
+
+    //! Read the FBX light and create a dynamic light
+    osgDB::ReaderWriter::ReadResult readFbxDynamicLight(
+       FbxNode* pNode, int& nLightCount);
+
+    //! Read the @dis frame information from the node comment
+    //! and add the child node to the group
+    void addFlipbookAnimationFrame(osg::NodeList::iterator& itNodeList,
+       osg::Group* pGroup, const FbxString& pComment);
+
+    //! Read the _LOD node name and @dis comment from the node 
+    //! to add the child node to the group
+    void readLodInformation(osg::Node* childNode, osg::Group* pGroup, 
+       const std::string& pNodeName, const std::string& nodeComment,
+       bool& pAddLod, int& pChildId, osg::ref_ptr<osg::LOD>& pLod);
+
+    //! Find if the LOD contain different comments use for LOD settings
+    //! @dis lod 1
+    //! @dis switch_in 50
+    //! @dis switch_out 0
+    //! @dis transition 0
+    //! @dis significant_size 0
+    //! @dis lod_center 0, 0, 0
+    bool findLodComments(const std::string& pComment, int& cLod,
+       float& switch_in, float& switch_out, float& transition,
+       float& significant_size, osg::BoundingSphere::vec_type& lod_center);
+
+    //! Get the next token position from a parameter string
+    size_t getTokenPosition(const std::string& strcomment, size_t offset);
+
+    //! Get the next x,y,z position from a parameter string
+    size_t getXYZPosition(const std::string& strcomment, size_t offset);
+
+    //! Return the 5 last character of the node name
+    std::string returnEndNodeName(const std::string& nodeName);
+
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
     const std::set<const FbxNode*>& fbxSkeletons,
     std::map<FbxNode*, osgAnimation::Skeleton*>&);
+
+//! Add Switch to the group 
+osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment);
+
+//! Add DIS state
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment);
+
+//! Add articulation part 
+osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof);
+
+//! Add FlipBook animation 
+osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children);
+
+//! Add Bone 
+osgAnimation::Bone* addBone(FbxNode* pNode, const std::string& animName, FbxScene& fbxScene, std::map<FbxNode*, osg::Node*>& nodeMap);
+
+//! Add Group
+osg::Group* addGroup(FbxNode* pNode, const FbxString& pComment);
+
+//! Add Transform
+osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment,
+   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated);
+
+//! Add an external reference (read another FBX model an add it to current one)
+osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, const osg::Matrix& localMatrix, 
+   const osgDB::Options& options, const std::string& currentModelPath);
 
 #endif

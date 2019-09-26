@@ -94,6 +94,7 @@ class OSGDB_EXPORT Options : public osg::Object
             BUILD_KDTREES
         };
 
+        typedef std::map<std::string, void*> PluginDataMap;
 
         Options();
 
@@ -173,6 +174,10 @@ class OSGDB_EXPORT Options : public osg::Object
         /** Get number of PluginData values */
         unsigned int getNumPluginData() const { return static_cast<unsigned int>(_pluginData.size()); }
 
+        const PluginDataMap* getPluginDataMap() const
+        {
+           return &_pluginData;
+        }
 
         /** Sets a plugindata value PluginData with a string */
         void setPluginStringData(const std::string& s, const std::string& v) const { _pluginStringData[s] = v; }
@@ -259,8 +264,7 @@ class OSGDB_EXPORT Options : public osg::Object
         PrecisionHint                   _precisionHint;
         BuildKdTreesHint                _buildKdTreesHint;
         osg::ref_ptr<AuthenticationMap> _authenticationMap;
-
-        typedef std::map<std::string,void*> PluginDataMap;
+        
         mutable PluginDataMap _pluginData;
         typedef std::map<std::string,std::string> PluginStringDataMap;
         mutable PluginStringDataMap _pluginStringData;

@@ -119,9 +119,14 @@ class OSGVIEWER_EXPORT CompositeViewer : public ViewerBase
 
         virtual void getViews(Views& views, bool onlyValid=true);
 
-
         /** Get the keyboard and mouse usage of this viewer.*/
         virtual void getUsage(osg::ApplicationUsage& usage) const;
+
+        // VRV_PATCH BEGIN
+        /** Release cache, necessary if there are any other OpenGL contexts not
+        Managed by the CompositeViewer.*/
+        virtual void prepare();
+        // VRV_PATCH END
 
     protected:
 
@@ -136,7 +141,10 @@ class OSGVIEWER_EXPORT CompositeViewer : public ViewerBase
         typedef std::vector< osg::ref_ptr<osgViewer::View> > RefViews;
         RefViews _views;
 
-        bool _firstFrame;
+        // OSG_PATCH BEGIN
+        // already in ViewerBase
+        //bool _firstFrame; 
+        // OSG_PATCH END
 
         osg::ref_ptr<osg::Stats>            _stats;
 

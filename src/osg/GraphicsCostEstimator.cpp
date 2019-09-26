@@ -36,6 +36,13 @@ void GeometryCostEstimator::setDefaults()
     double transfer_bandwidth = 10000000000.0; // 1GB/sec
     double gpu_bandwidth = 50000000000.0; // 50 GB/second
     double min_time = 0.00001; // 10 nano seconds.
+    
+    // BEGIN VRV_PATCH - Gedalia ICO cost update
+    // GNP vantage change these are really high 
+    transfer_bandwidth = 1000000000.0; // .1GB/sec
+    gpu_bandwidth = 5000000000.0; // 5 GB/second
+    // END VRV_PATCH
+
     _arrayCompileCost.set(min_time, 1.0/transfer_bandwidth, 256); // min time 1/10th of millisecond, min size 256
     _primtiveSetCompileCost.set(min_time, 1.0/transfer_bandwidth, 256); // min time 1/10th of millisecond, min size 256
     _arrayDrawCost.set(min_time, 1.0/gpu_bandwidth, 256); // min time 1/10th of millisecond, min size 256;
@@ -82,7 +89,12 @@ CostPair GeometryCostEstimator::estimateCompileCost(const osg::Geometry* geometr
         {
             cost.first = _displayListCompileConstant + _displayListCompileFactor * cost.first ;
         }
-
+        // BEGIN VRV_PATCH - Gedalia ICO cost update
+        else{
+           // GNP vantage change 
+           cost.first *= 5.0;
+        }
+        // END VRV_PATCH
         return cost;
     }
     else
@@ -109,6 +121,13 @@ void TextureCostEstimator::setDefaults()
 {
     double transfer_bandwidth = 10000000000.0; // 1GB/sec
     double gpu_bandwidth = 50000000000.0; // 50 GB/second
+    // BEGIN VRV_PATCH - Gedalia ICO cost update
+    // GNP vantage change these are really high 
+    // this system is really not finished
+    transfer_bandwidth = 1000000000.0; // .1GB/sec
+    gpu_bandwidth = 5000000000.0; // 5 GB/second
+    // END VRV_PATCH
+
     double min_time = 0.00001; // 10 nano seconds.
     _compileCost.set(min_time, 1.0/transfer_bandwidth, 256); // min time 1/10th of millisecond, min size 256
     _drawCost.set(min_time, 1.0/gpu_bandwidth, 256); // min time 1/10th of millisecond, min size 256
@@ -124,9 +143,18 @@ CostPair TextureCostEstimator::estimateCompileCost(const osg::Texture* texture) 
     for(unsigned int i=0; i<texture->getNumImages(); ++i)
     {
         const osg::Image* image = texture->getImage(i);
-        if (image) cost.first += _compileCost(image->getTotalDataSize());
+        if (image) {
+    // BEGIN VRV_PATCH - Gedalia ICO cost update
+           double base = _compileCost(image->getTotalDataSize());
+           // mip-mapping takes a while
+           if (image->getNumMipmapLevels() == 0){
+              base *= 10.0;
+           }
+           cost.first += base;
+        }
     }
-    OSG_NOTICE<<"TextureCostEstimator::estimateCompileCost(), size="<<cost.first<<std::endl;
+    //OSG_NOTICE<<"TextureCostEstimator::estimateCompileCost(), size="<<cost.first<<std::endl;
+    // END VRV_PATCH
     return cost;
 }
 

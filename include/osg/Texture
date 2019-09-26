@@ -64,6 +64,25 @@
     #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT        0x83F3
 #endif
 
+#ifndef GL_EXT_texture_sRGB
+	#define GL_SRGB_EXT								0x8C40
+	#define GL_SRGB8_EXT							0x8C41
+	#define GL_SRGB_ALPHA_EXT						0x8C42
+	#define GL_SRGB8_ALPHA8_EXT						0x8C43
+	#define GL_SLUMINANCE_ALPHA_EXT					0x8C44
+	#define GL_SLUMINANCE8_ALPHA8_EXT				0x8C45
+	#define GL_SLUMINANCE_EXT						0x8C46
+	#define GL_SLUMINANCE8_EXT						0x8C47
+	#define GL_COMPRESSED_SRGB_EXT					0x8C48
+	#define GL_COMPRESSED_SRGB_ALPHA_EXT			0x8C49
+	#define GL_COMPRESSED_SLUMINANCE_EXT			0x8C4A
+	#define GL_COMPRESSED_SLUMINANCE_ALPHA_EXT		0x8C4B
+	#define GL_COMPRESSED_SRGB_S3TC_DXT1_EXT		0x8C4C
+	#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT	0x8C4D
+	#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT	0x8C4E
+	#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT	0x8C4F
+#endif
+
 #ifndef GL_EXT_texture_compression_rgtc
   #define GL_COMPRESSED_RED_RGTC1_EXT                0x8DBB
   #define GL_COMPRESSED_SIGNED_RED_RGTC1_EXT         0x8DBC
@@ -867,7 +886,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         float           _minlod;
         float           _maxlod;
         float           _lodbias;
-        Vec4i           _swizzle;
+        mutable Vec4i   _swizzle;
         bool            _useHardwareMipMapGeneration;
         bool            _unrefImageDataAfterApply;
         bool            _clientStorageHint;
@@ -1001,8 +1020,20 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
-                _frameLastUsed(0),
-                _timeStamp(0) {}
+                _timeStamp(0),
+                //vrv_patch
+               _currentMipMapToApply(-1),
+               _subCurrentMipMapToApply(0),
+               // VRV PATCH
+               // OSG can delete this texture (it is not current being
+               // used by VRV indirect rendering)
+               _canDelete(true),
+               // It is not orphaned - an orphaned texture is one that
+               // OSG says is OK to delete
+               _isOrphaned(false),
+               // END VRV PATCH
+               _frameLastUsed(0)
+            {}
 
             inline TextureObject(Texture* texture, GLuint id, const TextureProfile& profile):
                 _id(id),
@@ -1012,8 +1043,18 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
-                _frameLastUsed(0),
-                _timeStamp(0) {}
+                _timeStamp(0),
+                //vrv_patch
+                _currentMipMapToApply(-1),
+               _subCurrentMipMapToApply(0),
+               // OSG can delete this texture (it is not current being
+               // used by VRV indirect rendering)
+               _canDelete(true),
+               // It is not orphaned - an orphaned texture is one that
+               // OSG says is OK to delete
+               _isOrphaned(false),
+               _frameLastUsed(0)
+            {}
 
             inline TextureObject(Texture* texture,
                           GLuint    id,
@@ -1031,8 +1072,17 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
-                _frameLastUsed(0),
-                _timeStamp(0) {}
+                _timeStamp(0),
+               _currentMipMapToApply(-1),
+               _subCurrentMipMapToApply(0),
+               // OSG can delete this texture (it is not current being
+               // used by VRV indirect rendering)
+               _canDelete(true),
+               // It is not orphaned - an orphaned texture is one that
+               // OSG says is OK to delete
+               _isOrphaned(false),
+               _frameLastUsed(0)
+            {}
 
             inline bool match(GLenum    target,
                        GLint     numMipmapLevels,
@@ -1070,11 +1120,25 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                               GLint     border);
 
             inline bool isAllocated() const { return _allocated; }
-
             inline bool isReusable() const { return _allocated && _profile._width!=0; }
 
             /** release TextureObject to the orphan list to be reused or deleted.*/
             void release();
+
+            bool isDownloaded() const; 
+
+            // These are used for indirect textures which are deleted in the
+            // DtGLDeleteObjectManager via the DtIndirectTextureProcessor
+            // _canDelete is for VRV to tell OSG that it is done with a texture object
+            // (i.e. made the texture object non-resident)
+            // NOTE: Orphaned textures object can be re-used in new textures
+            inline void setCanDelete(bool deleteTexObj ) { _canDelete = deleteTexObj; }
+            inline bool getCanDelete() { return _canDelete; }
+
+            // When a texture is added to the _orphanedTextureObjects then _isOrphaned is true
+            // This means that OSG is done with this texture (but not necessarily VRV)
+            inline void setIsOrphaned(bool orphaned)  { _isOrphaned = orphaned; }
+            inline bool isOrphaned()  { return _isOrphaned; }
 
             GLuint              _id;
             TextureProfile      _profile;
@@ -1085,7 +1149,12 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             bool                _allocated;
             unsigned int        _frameLastUsed;
             double              _timeStamp;
-
+            // VRV PATCH
+            int                 _currentMipMapToApply;
+            int                 _subCurrentMipMapToApply;
+            bool                _canDelete;
+            bool                _isOrphaned;
+            // ENV VRV PATCH
         protected:
             virtual ~TextureObject();
 
@@ -1095,6 +1164,15 @@ class OSG_EXPORT Texture : public osg::StateAttribute
 
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture, unsigned int contextID,GLenum target);
+
+        // VRV PATH
+        // So remove(TextureObject* to) just removes the texture object from a 
+        // linked list of texture objects. We need to remove the texture from 
+        // the _orphanedTextureObjects so 
+        void removeOrphan(TextureObject* to);
+        // END VRV PATCH
+
+        unsigned int size() const { return _profile._size * _numOfTextureObjects; }
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture,
                                                      unsigned int contextID,
@@ -1197,6 +1275,18 @@ public:
     unsigned int& getCurrTexturePoolSize() { return _currTexturePoolSize; }
     unsigned int getCurrTexturePoolSize() const { return _currTexturePoolSize; }
 
+    bool getTimeManagementActive() { return _timeManagementActive; }
+    void setTimeManagementActive(bool tma) { _timeManagementActive = tma; }
+
+    void setElapsedTimeBudget(double time) { _elapsedTimeBudget = time; }
+    double getElapsedTimeBudget() { return _elapsedTimeBudget; }
+    void resetCurrentTimeElapsed() { _currentTimeElapsed = 0; }
+    double getCurrentTimeElapsed() { return _currentTimeElapsed; }
+    void incrementTimeElapsed(double time) { _currentTimeElapsed += time; }
+
+    bool getTextureStreamingActive() { return _textureStreamingActive; }
+    void setTextureStreamingActive(bool active) { _textureStreamingActive = active; }
+
     void setMaxTexturePoolSize(unsigned int size);
     unsigned int getMaxTexturePoolSize() const { return _maxTexturePoolSize; }
 
@@ -1257,6 +1347,12 @@ protected:
 
     unsigned int        _numGenerated;
     double              _generateTime;
+
+    bool                _timeManagementActive; 
+    double              _currentTimeElapsed; 
+    double              _elapsedTimeBudget;
+    bool                _textureStreamingActive; 
+
 };
 }
 

@@ -201,6 +201,9 @@ class OSG_EXPORT GLExtensions : public osg::Referenced
         bool isCubeMapSupported;
         bool isClipControlSupported;
 
+        //
+        bool isNsightCompatable; 
+
         void (GL_APIENTRY * glDrawBuffers)(GLsizei n, const GLenum *bufs);
         void (GL_APIENTRY * glAttachShader)(GLuint program, GLuint shader);
         void (GL_APIENTRY * glBindAttribLocation)(GLuint program, GLuint index, const GLchar *name);
@@ -296,8 +299,9 @@ class OSG_EXPORT GLExtensions : public osg::Referenced
         void (GL_APIENTRY * glVertexAttribIPointer) (unsigned int, GLint, GLenum, GLsizei stride, const GLvoid *pointer);
         void (GL_APIENTRY * glVertexAttribLPointer) (unsigned int, GLint, GLenum, GLsizei stride, const GLvoid *pointer);
         void (GL_APIENTRY * glVertexAttribDivisor)(GLuint index, GLuint divisor);
-
-        void (GL_APIENTRY * glUniformMatrix2x3fv)( GLint location, GLsizei count, GLboolean transpose, const GLfloat* value );
+        void (GL_APIENTRY * glViewportIndexedf)(GLuint index, GLfloat x, GLfloat y, GLfloat w, GLfloat h);
+        void (GL_APIENTRY * glViewportIndexedfv)(GLuint index, const GLfloat *v);
+        void (GL_APIENTRY * glUniformMatrix2x3fv)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
         void (GL_APIENTRY * glUniformMatrix3x2fv)( GLint location, GLsizei count, GLboolean transpose, const GLfloat* value );
         void (GL_APIENTRY * glUniformMatrix2x4fv)( GLint location, GLsizei count, GLboolean transpose, const GLfloat* value );
         void (GL_APIENTRY * glUniformMatrix4x2fv)( GLint location, GLsizei count, GLboolean transpose, const GLfloat* value );
@@ -816,6 +820,10 @@ class OSG_EXPORT GLExtensions : public osg::Referenced
 
     protected:
         virtual ~GLExtensions();
+        void (GL_APIENTRY * glObjectLabel) (GLenum identifier, GLuint name, GLsizei length, const GLchar* label);
+        void (GL_APIENTRY * glGetObjectLabel) (GLenum identifier, GLuint name, GLsizei bifSize, GLsizei * length, const GLchar* label);
+        void (GL_APIENTRY * glPushDebugGroup)(GLenum source, GLuint id, GLsizei length, const char * message);
+        void (GL_APIENTRY * glPopDebugGroup) (void);
 };
 
 

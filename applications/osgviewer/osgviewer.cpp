@@ -11,6 +11,7 @@
 
 #include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
+#include <osgUtil/ShaderGen>
 #include <osg/CoordinateSystemNode>
 
 #include <osg/Switch>
@@ -179,12 +180,15 @@ int main(int argc, char** argv)
         return 1;
     }
 
-
     // optimize the scene graph, remove redundant nodes and state etc.
     osgUtil::Optimizer optimizer;
     optimizer.optimize(loadedModel);
 
-    viewer.setSceneData(loadedModel);
+    osgUtil::ShaderGenVisitor sgv;
+    loadedModel.get()->getOrCreateStateSet();
+    loadedModel.get()->accept(sgv);
+
+    viewer.setSceneData(loadedModel.get());
 
     viewer.realize();
 

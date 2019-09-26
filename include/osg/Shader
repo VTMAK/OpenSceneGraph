@@ -206,6 +206,9 @@ class OSG_EXPORT Shader : public osg::Object
 
         static Shader::Type getTypeId( const std::string& tname );
 
+        static std::string insertLineNumbers(const std::string& source);
+
+
     public:
         /** PerContextShader (PCS) is an OSG-internal encapsulation of glShader per-GL context. */
         class OSG_EXPORT PerContextShader : public osg::Referenced
@@ -263,7 +266,8 @@ class OSG_EXPORT Shader : public osg::Object
 
         struct OSG_EXPORT ShaderObjects : public osg::Referenced
         {
-            typedef std::vector< osg::ref_ptr<PerContextShader> > PerContextShaders;
+            //VRVantage Patch, switched to map for much better performance
+            typedef std::map< std::string, osg::ref_ptr<PerContextShader> > PerContextShaders;
 
             ShaderObjects(const Shader* shader, unsigned int contextID);
 
@@ -294,6 +298,7 @@ class OSG_EXPORT Shader : public osg::Object
         Type                            _type;
         std::string                     _shaderFileName;
         std::string                     _shaderSource;
+        mutable std::string             _shaderSourcePostTransform;
         osg::ref_ptr<ShaderBinary>      _shaderBinary;
 
         CodeInjectionMap                _codeInjectionMap;

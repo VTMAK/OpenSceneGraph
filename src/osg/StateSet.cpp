@@ -199,6 +199,7 @@ StateSet::StateSet():
 
     _numChildrenRequiringUpdateTraversal = 0;
     _numChildrenRequiringEventTraversal = 0;
+    _currentTextureUnitIteratorIndex = 0;
 
     setRenderBinToInherit();
 }
@@ -207,6 +208,8 @@ StateSet::StateSet(const StateSet& rhs,const CopyOp& copyop):Object(rhs,copyop),
     _nestRenderBins(rhs._nestRenderBins)
 {
     _modeList = rhs._modeList;
+    
+    _currentTextureUnitIteratorIndex = 0;
 
     for(AttributeList::const_iterator itr=rhs._attributeList.begin();
         itr!=rhs._attributeList.end();
@@ -983,7 +986,20 @@ void StateSet::merge(const StateSet& rhs)
 
 void StateSet::setMode(StateAttribute::GLMode mode, StateAttribute::GLModeValue value)
 {
-    if (getTextureGLModeSet().isTextureMode(mode))
+   // FIXME if (mode == GL_LIGHT0){
+   //}
+
+#ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
+   // flt files can have this flag coming out of ive files
+   if (mode == GL_NORMALIZE){
+      return;
+   }
+   else if (mode == GL_RESCALE_NORMAL){
+      return;
+   }
+#endif
+
+   if (getTextureGLModeSet().isTextureMode(mode))
     {
         OSG_NOTICE<<"Warning: texture mode '"<<mode<<"'passed to setMode(mode,value), "<<std::endl;
         OSG_NOTICE<<"         assuming setTextureMode(unit=0,mode,value) instead."<<std::endl;
@@ -1922,6 +1938,8 @@ void StateSet::runUpdateCallbacks(osg::NodeVisitor* nv)
         // run texture attribute callbacks.
         for(unsigned int i=0;i<_textureAttributeList.size();++i)
         {
+           _currentTextureUnitIteratorIndex = i;
+
             AttributeList& attributeList = _textureAttributeList[i];
             for(AttributeList::iterator itr=attributeList.begin();
                 itr!=attributeList.end();

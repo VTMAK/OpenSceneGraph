@@ -66,9 +66,9 @@ class OSG_EXPORT Object : public Referenced
             and therefore cannot be constructed on its own, only derived
             classes which override the clone and className methods are
             concrete classes and can be constructed.*/
-        inline Object():Referenced(),_dataVariance(UNSPECIFIED), _userDataContainer(0) {}
+        inline Object():Referenced(),_dataVariance(UNSPECIFIED), _userDataContainer(0), _dataMutex(0) {}
 
-        inline explicit Object(bool threadSafeRefUnref):Referenced(threadSafeRefUnref),_dataVariance(UNSPECIFIED),_userDataContainer(0) {}
+        inline explicit Object(bool threadSafeRefUnref):Referenced(threadSafeRefUnref),_dataVariance(UNSPECIFIED),_userDataContainer(0), _dataMutex(0) {}
 
         /** Copy constructor, optional CopyOp object can be used to control
           * shallow vs deep copying of dynamic data.*/
@@ -288,6 +288,9 @@ class OSG_EXPORT Object : public Referenced
            * for all graphics contexts. */
         virtual void releaseGLObjects(osg::State* = 0) const {}
 
+        // VRV_PATCH
+        /** mutex available to allow thread safe modification of objects */
+        OpenThreads::Mutex& getDataMutex(); 
 
     protected:
 
@@ -304,6 +307,8 @@ class OSG_EXPORT Object : public Referenced
         DataVariance _dataVariance;
 
         osg::UserDataContainer* _userDataContainer;
+        // VRV_PATCH
+        OpenThreads::Mutex  * _dataMutex;
 
     private:
 
