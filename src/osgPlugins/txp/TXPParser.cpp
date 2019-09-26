@@ -84,7 +84,12 @@ TXPParser::TXPParser():
     _realMinRange(0.0),
     _realMaxRange(0.0),
     _usedMaxRange(0.0),
-    _childRefCB(0)
+    _childRefCB(0),
+    // VRV_PATCH BEGIN
+    _currentNode(0),
+    _materialMap(0),
+    _models(0)
+    // VRV_PATCH END
 {
     AddCallback(TRPG_ATTACH,    new attachRead(this));
     AddCallback(TRPG_CHILDREF,  new childRefRead(this));
@@ -160,8 +165,8 @@ osg::Group *TXPParser::parseScene(
        //modified by Brad Anderegg May-27-08
        //running the optimizer on the terrain fixes some major preformance issues, unfortunately the texture atlas builder seems to get messed up
        //on some of the textures (usually around buildings) and the tri stripper seems to occasionally crash and also mess up the indices on certain buildings.
-       osgUtil::Optimizer opt;
-       opt.optimize(_root.get(), (osgUtil::Optimizer::ALL_OPTIMIZATIONS ^ osgUtil::Optimizer::TEXTURE_ATLAS_BUILDER) ^ osgUtil::Optimizer::TRISTRIP_GEOMETRY);
+       //osgUtil::Optimizer opt;
+       //opt.optimize(_root.get(), (osgUtil::Optimizer::ALL_OPTIMIZATIONS ^ osgUtil::Optimizer::TEXTURE_ATLAS_BUILDER) ^ osgUtil::Optimizer::TRISTRIP_GEOMETRY);
     }
     catch (...)
     {
@@ -1002,7 +1007,9 @@ void* labelRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
 
     }
     if (lb.length()) os << lb;
-    text->setText(os.str());
+    std::string temp;
+    temp = os.str();
+    text->setText(temp);
 
     // Position
     text->setPosition(pos);
@@ -1148,7 +1155,12 @@ void* labelRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
 
                 osg::Vec4 supLineColor(1.f,1.f,1.f,1.f);
                  _parse->loadMaterial(matId);
-                osg::ref_ptr<osg::StateSet>  sset = (*_parse->getMaterials())[matId];
+                //MAK Patch TDG: Don't pass the actual stateset down to node.
+                // this avoids the material stateset owned by the TXPParser from
+                // begin modified by someone else down the road. Fixes a crash.
+                osg::ref_ptr<osg::StateSet>  sset = osg::clone(
+                   (*_parse->getMaterials())[matId].get(), 
+                   osg::CopyOp::DEEP_COPY_USERDATA);
 
                 if (cube.get())
                 {
@@ -1474,8 +1486,13 @@ void* geomRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
                 }
 //                sset->merge(*tmp_ss.get());
             }
-            else
-                sset = tmp_ss;
+            else 
+            {
+               //MAK Patch TDG: Don't pass the actual stateset down to node.
+               // this avoids the material stateset owned by the TXPParser from
+               // begin modified by someone else down the road. Fixes a crash.
+               sset = osg::clone(tmp_ss.get(), osg::CopyOp::DEEP_COPY_USERDATA);
+            }
         }
 
         if (!tex_coords.empty())
@@ -1585,6 +1602,7 @@ void* geomRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
         else
 #else
         {
+            sset->setMode( GL_LIGHTING, osg::StateAttribute::ON );
             geometry->setStateSet(sset.get());
             if (geodeTop)
             {
@@ -1619,11 +1637,23 @@ namespace
         switch(type)
         {
         case trpgTexture::trpg_RGB8:
-            internalFormat = GL_RGB;
+            // VRV_PATCH BEGIN
+            // GL_RGB -> GL_RGB8 for OSG 3.4.0 so Texture.cpp isSizedInternalFormat 
+            // returns true
+            // Otherwise assumeSizedInternalFormat is called which can return the 
+            // wrong format (GL_SRGB8 instead of GL_RGB8 for mip maps)
+            internalFormat = GL_RGB8;  
+            // VRV_PATCH END
             pixelFormat    = GL_RGB;
             break;
         case trpgTexture::trpg_RGBA8:
-            internalFormat = GL_RGBA;
+            // VRV_PATCH BEGIN 
+            // GL_RGBA -> GL_RGBA8 for OSG 3.4.0 so Texture.cpp isSizedInternalFormat 
+            // returns true
+            // Otherwise assumeSizedInternalFormat is called which can return the 
+            // wrong format (GL_SRGB8_ALPHA8 instead of GL_RGBA8 for mip maps)
+            internalFormat = GL_RGBA8; 
+            // VRV_PATCH END
             pixelFormat    = GL_RGBA;
             break;
         case trpgTexture::trpg_INT8:

@@ -243,7 +243,10 @@ public:
         if (top)
             top->AddChild(geom);
         else
+        {
             delete geom;
+            return NULL; // VRV_PATCH
+        }
 
         return geom;
     }
@@ -272,7 +275,11 @@ public:
         if (top)
             top->AddChild(group);
         else
-            delete group;
+        {
+           delete group;
+           return NULL; // VRV_PATCH
+        }
+
         // Add to the group map
         int id;
         data->GetID(id);
@@ -297,7 +304,11 @@ public:
         if (top)
             top->AddChild(group);
         else
-            delete group;
+        {
+           delete group;
+           return NULL; // VRV_PATCH
+        }
+
         // Add to the group map
         int id;
         data->GetID(id);
@@ -322,7 +333,11 @@ public:
         if (top)
             top->AddChild(attach);
         else
-            delete attach;
+        {
+           delete attach;
+           return NULL;
+        }
+
         // Add to the group map
         int id;
         data->GetID(id);
@@ -350,7 +365,10 @@ public:
       if (top)
             top->AddChild(childRef);
         else
+        {
             delete childRef;
+            return NULL;  // VRV_PATCH
+        }
 
         return childRef;
     }
@@ -371,7 +389,11 @@ public:
         if (top)
             top->AddChild(lod);
         else
-            delete lod;
+        {
+           delete lod;
+           return NULL; // VRV_PATCH
+        }
+
         // Add to the group map
         int id;
         data->GetID(id);
@@ -396,7 +418,10 @@ public:
         if (top)
             top->AddChild(mod);
         else
+        {
             delete mod;
+            return NULL;  // VRV_PATCH
+        }
         return mod;
     }
 protected:
@@ -434,6 +459,7 @@ protected:
 trpgSceneGraphParser::trpgSceneGraphParser()
 {
     top = currTop = NULL;
+    gmap = NULL; // VRV_PATCH
 
     // Register the readers
     AddCallback(TRPG_GEOMETRY,new trpgReadGeometryHelper(this));

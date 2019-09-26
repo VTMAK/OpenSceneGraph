@@ -496,6 +496,10 @@ class OSG_EXPORT Image : public BufferData
         void addDimensionsChangedCallback(DimensionsChangedCallback* cb);
         void removeDimensionsChangedCallback(DimensionsChangedCallback* cb);
 
+        //VRV PATCH - Added a meif convertion in-proccess flag
+	bool getBeingProcessed() {return _beingProcessed;}
+        void setBeingProcessed(bool val) { _beingProcessed = val;}
+
     protected :
 
         virtual ~Image();
@@ -533,6 +537,12 @@ class OSG_EXPORT Image : public BufferData
         MipmapDataType _mipmapData;
 
         DimensionsChangedCallbackVector _dimensionsChangedCallbacks;
+
+        //VRV PATCH - Added a isTranslucent cached result and meif conversion flag
+        mutable unsigned int _translucentCheckModCount;
+        mutable bool _isTranslucent;
+        bool _beingProcessed;
+        //END VRV PATCH
 };
 
 class Geode;

@@ -154,7 +154,7 @@ protected:
  */
 TX_EXDECL class TX_CLDECL trpgwImageHelper {
 public:
-    trpgwImageHelper() {;};
+   trpgwImageHelper() : ness(LittleEndian), texTable(NULL), texFile(NULL), geotypFile(NULL), separateGeoTypical(false), maxTexFileLen(-1) { ; }; // VRV_PATCH
     trpgwImageHelper(trpgEndian ness,char *dir,trpgTexTable &,bool separateGeoTypical);
     // construction is really here
     virtual void Init(trpgEndian ness,char *dir,trpgTexTable &,bool separateGeoTypical);

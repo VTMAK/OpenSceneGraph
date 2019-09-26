@@ -1,13 +1,13 @@
-/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield
+/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield 
  *
- * This library is open source and may be redistributed and/or modified under
- * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
+ * This library is open source and may be redistributed and/or modified under  
+ * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or 
  * (at your option) any later version.  The full license is in LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
  * OpenSceneGraph Public License for more details.
 */
 
@@ -25,15 +25,20 @@
 #include <osg/ref_ptr>
 #include "Opcodes.h"
 #include "Record.h"
+#include <map>
+#include <OpenThreads/ReadWriteMutex>
 
 namespace flt {
 
 class Registry : public osg::Referenced
 {
     public:
-
+        
         ~Registry();
-        static Registry* instance();
+
+        static Registry* protoTypeInstance();
+        
+        static Registry* instance(bool initalizeOnly = false);
 
         // Record prototypes
         void addPrototype(int opcode, Record* prototype);
@@ -56,6 +61,9 @@ class Registry : public osg::Referenced
     protected:
 
         Registry();
+
+        Registry(const Registry& other);        
+
 
         typedef std::map<int, osg::ref_ptr<Record> > RecordProtoMap;
         RecordProtoMap     _recordProtoMap;
@@ -116,7 +124,7 @@ class RegisterRecordProxy
 
         explicit RegisterRecordProxy(int opcode)
         {
-            Registry::instance()->addPrototype(opcode,new T);
+            Registry::protoTypeInstance()->addPrototype(opcode,new T);
         }
 
         ~RegisterRecordProxy() {}

@@ -642,7 +642,7 @@ void OutputStream::writeObjectFields( const osg::Object* obj, const std::string&
     ObjectWrapper* wrapper = Registry::instance()->getObjectWrapperManager()->findWrapper( name );
     if ( !wrapper )
     {
-        OSG_WARN << "OutputStream::writeObject(): Unsupported wrapper class "
+        OSG_INFO << "OutputStream::writeObject(): Unsupported wrapper class "
                                 << name << std::endl;
         return;
     }

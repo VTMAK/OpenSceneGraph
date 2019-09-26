@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <limits>
 /* trpage_nodes.cpp
    The methods for all the hierarchy nodes (e.g. groups, transforms, etc...)
    is here.
@@ -822,6 +822,10 @@ void trpgChildRef::Reset()
     lod = -1;
     addr.file = -1;
     addr.offset = -1;
+    // VRV_PATCH BEGIN
+    zmin = std::numeric_limits<float>::max();
+    zmax = std::numeric_limits<float>::min();
+    // VRV_PATCH END
 }
 
 void trpgChildRef::SetTileLoc(int gx,int gy,int glod)

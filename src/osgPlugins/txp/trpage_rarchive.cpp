@@ -34,6 +34,10 @@ trpgr_Archive::trpgr_Archive()
     ness = LittleEndian;
     strcpy(dir,".");
     tileCache = NULL;
+    //VRV_PATCH BEGIN
+    headerRead = false;
+    fid = 0;
+    //VRV_PATCH END
 }
 
 // Destructor

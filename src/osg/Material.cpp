@@ -13,10 +13,95 @@
 #include <osg/Material>
 #include <osg/BoundsChecking>
 #include <osg/Notify>
+#include <osg/State>
+#include <osg/GLExtensions>
 
 using namespace osg;
 
+/**
+* StateAttributeCallback that will update osg::Material properties as Uniforms
+*/
+/*
+class MaterialCallback : public osg::StateAttributeCallback
+{
+public:
+   MaterialCallback();
+   ~MaterialCallback();
+   virtual void operator() (osg::StateAttribute* attr, osg::NodeVisitor* nv);
+private:
+  unsigned int _lastNumParentsForMaterial;
+};
+
+MaterialCallback::MaterialCallback()
+   : _lastNumParentsForMaterial(0)
+{
+
+}
+MaterialCallback::~MaterialCallback()
+{
+
+}
+
+//............................................................................
+void MaterialCallback::operator() (osg::StateAttribute* attr, osg::NodeVisitor* nv)
+{
+ 
+   osg::Material* material = static_cast<osg::Material*>(attr);
+
+   bool updateNeeded = material->isDirty() || _lastNumParentsForMaterial != material->getNumParents();
+
+   if (updateNeeded==false)
+   {
+      return;
+   }
+   
+   for (unsigned int i = 0; i < attr->getNumParents(); i++)
+   {
+      osg::StateSet* stateSet = attr->getParent(i);
+
+      stateSet->getOrCreateUniform("osg_FrontMaterial.ambient", osg::Uniform::FLOAT_VEC4)->set(material->getAmbient(osg::Material::FRONT));
+      stateSet->getOrCreateUniform("osg_FrontMaterial.diffuse", osg::Uniform::FLOAT_VEC4)->set(material->getDiffuse(osg::Material::FRONT));
+      stateSet->getOrCreateUniform("osg_FrontMaterial.specular", osg::Uniform::FLOAT_VEC4)->set(material->getSpecular(osg::Material::FRONT));
+      stateSet->getOrCreateUniform("osg_FrontMaterial.emission", osg::Uniform::FLOAT_VEC4)->set(material->getEmission(osg::Material::FRONT));
+      stateSet->getOrCreateUniform("osg_FrontMaterial.shininess", osg::Uniform::FLOAT)->set(material->getShininess(osg::Material::FRONT));
+
+      //TODO: back-face 
+   }
+   _lastNumParentsForMaterial = material->getNumParents();
+   material->setDirty(false);
+}
+
+*/
+
+//VRV PATCH handles the deletion of the material ubo buffer so that it is 
+// guaranteed to happen in the main thread when we have a valid context
+//static int n_buffers = 0;
+MaterialManager osg::MaterialManager::theMaterialManager;
+
+void MaterialManager::pushMaterialBufferToDelete(unsigned int bufferToDelete)
+{
+   OpenThreads::ScopedLock<OpenThreads::Mutex> lock(myMutex);
+   myMaterialsToDelete.push_back(bufferToDelete);
+}
+
+void MaterialManager::cleanupMaterialBuffers(osg::ref_ptr<GLExtensions> extentions)
+{
+   OpenThreads::ScopedLock<OpenThreads::Mutex> lock(myMutex);
+   std::vector<unsigned int>::iterator it = myMaterialsToDelete.begin();
+   for (; it != myMaterialsToDelete.end(); it++)
+   {
+      if (extentions){
+         extentions->glDeleteBuffers(1, &(*it));
+      }
+   }
+   myMaterialsToDelete.clear();
+}
+//End VRV Patch
+
+
 Material::Material()
+   : _dirty(true),
+   _ubo_index(0)
 {
     _colorMode = OFF;
 
@@ -39,11 +124,41 @@ Material::Material()
     _shininessFrontAndBack = true;
     _shininessFront = 0.0f;
     _shininessBack = 0.0f;
+    
+#ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
+    //setUpdateCallback(new MaterialCallback());
+#endif
 }
+
 
 
 Material::~Material()
 {
+   if (_ubo_index){
+      MaterialManager::theMaterialManager.pushMaterialBufferToDelete(_ubo_index);
+      _ubo_index = 0;
+   }
+}
+
+//! Destroy the openGL objects.
+void Material::releaseGLObjects(osg::State* state) const
+{
+   if (_ubo_index )
+   {
+      if (state) {
+         //OSG_WARN << "Material freeing " << _ubo_index << std::endl;
+         GLExtensions * _extensions = GLExtensions::Get(state->getContextID(), false);
+         if (_extensions) {
+            _extensions->glDeleteBuffers(1, &_ubo_index);
+//            n_buffers--;
+//            printf("nbuffers %i\n", n_buffers);
+         }
+      }
+      else {
+         MaterialManager::theMaterialManager.pushMaterialBufferToDelete(_ubo_index);
+      }
+      _ubo_index = 0;
+   }
 }
 
 Material& Material:: operator = (const Material& rhs)
@@ -71,6 +186,15 @@ Material& Material:: operator = (const Material& rhs)
 }
 
 
+bool Material::isDirty(void) const
+{
+   return _dirty;
+}
+void Material::setDirty(bool dirty)
+{
+   _dirty = dirty;
+}
+
 void Material::setAmbient(Face face, const Vec4& ambient )
 {
     switch(face)
@@ -94,6 +218,7 @@ void Material::setAmbient(Face face, const Vec4& ambient )
         default:
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setAmbient()."<<std::endl;
     }
+    setDirty(true);
 }
 
 
@@ -142,6 +267,7 @@ void Material::setDiffuse(Face face, const Vec4& diffuse )
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setDiffuse()."<< std::endl;
             break;
     }
+    setDirty(true);
 }
 
 
@@ -190,6 +316,7 @@ void Material::setSpecular(Face face, const Vec4& specular )
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setSpecular()."<< std::endl;
             break;
     }
+    setDirty(true);
 }
 
 
@@ -238,6 +365,7 @@ void Material::setEmission(Face face, const Vec4& emission )
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setEmission()."<< std::endl;
             break;
     }
+    setDirty(true);
 }
 
 
@@ -285,6 +413,7 @@ void Material::setShininess(Face face, float shininess )
             OSG_NOTICE<<"Notice: invalid Face passed to Material::setShininess()."<< std::endl;
             break;
     }
+    setDirty(true);
 }
 
 
@@ -327,6 +456,7 @@ void Material::setTransparency(Face face,float transparency)
         _specularBack[3] = 1.0f-transparency;
         _emissionBack[3] = 1.0f-transparency;
     }
+    setDirty(true);
 }
 
 void Material::setAlpha(Face face,float alpha)
@@ -348,9 +478,19 @@ void Material::setAlpha(Face face,float alpha)
         _specularBack[3] = alpha;
         _emissionBack[3] = alpha;
     }
+    setDirty(true);
 }
 
-void Material::apply(State&) const
+struct osgOglUboMaterial
+{
+   osg::Vec4f ambient;
+   osg::Vec4f diffuse;
+   osg::Vec4f emissivity;
+   osg::Vec4f specular;
+   float shininess;
+};
+
+void Material::apply(State& state) const
 {
 #ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
 
@@ -439,6 +579,47 @@ void Material::apply(State&) const
         glMaterialf( GL_BACK, GL_SHININESS, _shininessBack );
     }
 #else
-    OSG_NOTICE<<"Warning: Material::apply(State&) - not supported."<<std::endl;
+
+//   static int warn = 1;
+
+//   if (warn){
+//      warn = 0;
+//      OSG_NOTICE << "Material interface uses uniforms & modern OpenGL. Fixed Function pipeline is disabled" << std::endl;
+//   }
+   
+
+   GLExtensions * _extensions = GLExtensions::Get(state.getContextID(), true);
+   if (_ubo_index == 0)
+   {
+      _extensions->glGenBuffers(1, &_ubo_index);
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
+      //OSG_NOTICE << "Material allocating " << _ubo_index << std::endl;
+      if (_extensions->glObjectLabel) {
+         _extensions->glObjectLabel(GL_BUFFER, _ubo_index, -1, "material_uniforms");
+      }
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+      // make sure it happens if the UBO is recreated.
+      _dirty = true;
+   }
+
+   if (isDirty())
+   {
+      _dirty = false;
+      osgOglUboMaterial material_ubo;
+      material_ubo.diffuse = _diffuseFront;
+      material_ubo.emissivity = _emissionFront;
+      material_ubo.ambient = _ambientFront;
+      material_ubo.specular = _specularFront;
+      material_ubo.shininess = _shininessFront;
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
+      _extensions->glBufferData(GL_UNIFORM_BUFFER, sizeof(osgOglUboMaterial), &material_ubo, GL_DYNAMIC_DRAW);
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+   }
+
+   // FIXME matches hard code in program.cpp
+   const int MATERIAL_INDEX = 0;
+	_extensions->glBindBufferBase(GL_UNIFORM_BUFFER, MATERIAL_INDEX, _ubo_index);
+   
 #endif
+
 }

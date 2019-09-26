@@ -48,7 +48,7 @@ CullVisitor::CullVisitor():
     osg::NodeVisitor(CULL_VISITOR,TRAVERSE_ACTIVE_CHILDREN),
     _currentStateGraph(NULL),
     _currentRenderBin(NULL),
-    _traversalNumber(0),
+    _traversalOrderNumber(0),
     _computed_znear(FLT_MAX),
     _computed_zfar(-FLT_MAX),
     _currentReuseRenderLeafIndex(0),
@@ -62,7 +62,7 @@ CullVisitor::CullVisitor(const CullVisitor& rhs):
     CullStack(rhs),
     _currentStateGraph(NULL),
     _currentRenderBin(NULL),
-    _traversalNumber(0),
+    _traversalOrderNumber(0),
     _computed_znear(FLT_MAX),
     _computed_zfar(-FLT_MAX),
     _currentReuseRenderLeafIndex(0),
@@ -103,7 +103,7 @@ void CullVisitor::reset()
     _numberOfEncloseOverrideRenderBinDetails = 0;
 
     // reset the traversal number
-    _traversalNumber = 0;
+    _traversalOrderNumber = 0;
 
     // reset the calculated near far planes.
     _computed_znear = FLT_MAX;
@@ -132,6 +132,8 @@ void CullVisitor::reset()
 
     _nearPlaneCandidateMap.clear();
     _farPlaneCandidateMap.clear();
+
+    _textureToApplyArray.clear();
 }
 
 float CullVisitor::getDistanceToEyePoint(const Vec3& pos, bool withLODScale) const
@@ -966,8 +968,34 @@ void CullVisitor::apply(Geode& node)
 
     // push the node's state.
     StateSet* node_state = node.getStateSet();
-    if (node_state) pushStateSet(node_state);
+    if (node_state) 
+    {
+       pushStateSet(node_state);
+       
+       // VRV_HACK IC0
+       if (0 && node_state ) 
+       {
+          const osg::StateSet::TextureAttributeList& tal = node_state->getTextureAttributeList();
 
+          for (osg::StateSet::TextureAttributeList::const_iterator itr = tal.begin();
+             itr != tal.end();
+             ++itr)
+          {
+             const osg::StateSet::AttributeList& al = *itr;
+             osg::StateAttribute::TypeMemberPair tmp(osg::StateAttribute::TEXTURE, 0);
+             osg::StateSet::AttributeList::const_iterator texItr = al.find(tmp);
+             if (texItr != al.end())
+             {
+                osg::Texture* texture = dynamic_cast<osg::Texture*>(texItr->second.first.get());
+                if (texture && !texture->areAllTextureObjectsLoaded())
+                {
+                   pushTextureToApply(node_state);
+                   break;
+                }
+             }
+          }
+       }
+    }
     handle_cull_callbacks_and_traverse(node);
 
     // pop the node's state off the geostate stack.
@@ -1043,6 +1071,7 @@ void CullVisitor::apply(osg::Drawable& drawable)
     else
     {
         addDrawableAndDepth(&drawable,&matrix,depth);
+        // GNP how can we send this to the ico
     }
 
     for(unsigned int i=0;i< numPopStateSetRequired; ++i)
@@ -1772,3 +1801,19 @@ void CullVisitor::apply(osg::OcclusionQueryNode& node)
     popCurrentMask();
 }
 
+osg::StateSet* CullVisitor::popTextureToApply()
+{
+   OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_textureToApplyMutex);
+   if (_textureToApplyArray.size() > 0) {
+      osg::StateSet* val = _textureToApplyArray.back();
+      _textureToApplyArray.pop_back();
+      return val;
+   }
+   return NULL;
+}
+
+void CullVisitor::pushTextureToApply(osg::StateSet* state)
+{
+   OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_textureToApplyMutex);
+   _textureToApplyArray.push_back(state);
+}

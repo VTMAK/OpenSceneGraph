@@ -289,7 +289,12 @@ osgAnimation::Animation* addChannels(
         pRotationChannels[2] ||
         pScaleChannel)
     {
-        if (!pAnimManager) pAnimManager = new osgAnimation::BasicAnimationManager;
+       osgAnimation::BasicAnimationManager* basicAnimationManager = 0;
+       if (!pAnimManager)
+       {
+          basicAnimationManager = new osgAnimation::BasicAnimationManager;
+          pAnimManager = basicAnimationManager;
+       }
 
         osgAnimation::Animation* pAnimation = 0;
         const osgAnimation::AnimationList& anims = pAnimManager->getAnimationList();
@@ -305,6 +310,9 @@ osgAnimation::Animation* addChannels(
         {
             pAnimation = new osgAnimation::Animation;
             pAnimation->setName(pTakeName);
+            // We still want to register the animation for now even if we don't 
+            // use this manager in Vantage, they will be unregistered when the model is 
+            // done reading
             pAnimManager->registerAnimation(pAnimation);
         }
 
@@ -313,7 +321,6 @@ osgAnimation::Animation* addChannels(
         if (pRotationChannels[1]) pAnimation->addChannel(pRotationChannels[1]);
         if (pRotationChannels[2]) pAnimation->addChannel(pRotationChannels[2]);
         if (pScaleChannel) pAnimation->addChannel(pScaleChannel);
-
 
         return pAnimation;
     }
@@ -454,7 +461,7 @@ osgAnimation::Animation* readFbxAnimation(FbxNode* pNode,
     return addChannels(pTranslationChannel, pRotationChannels, pScaleChannel, pAnimManager, pTakeName);
 }
 
-std::string OsgFbxReader::readFbxAnimation(FbxNode* pNode, const char* targetName)
+std::string OsgFbxReader::readFbxAnimation(FbxNode* pNode, const char* targetName, osgAnimation::Animation*& animation)
 {
     std::string result;
     for (int i = 0; i < fbxScene.GetSrcObjectCount<FbxAnimStack>(); ++i)
@@ -474,6 +481,7 @@ std::string OsgFbxReader::readFbxAnimation(FbxNode* pNode, const char* targetNam
             osgAnimation::Animation* pAnimation = ::readFbxAnimation(pNode, pAnimLayer, pTakeName, targetName, pAnimationManager);
             if (pAnimation)
             {
+                animation = pAnimation;
                 result = targetName;
             }
         }

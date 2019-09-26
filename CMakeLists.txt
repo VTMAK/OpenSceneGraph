@@ -46,8 +46,15 @@ if(COMMAND cmake_policy)
     #if("${CMAKE_VERSION}" VERSION_GREATER 2.8.10)
     # or even easier (available in cmake-2.6)
     #if(POLICY CMPxyzw)
-
 endif()
+
+if(UNIX)
+   if(64BIT_BUILD)
+     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
+   else()
+     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
+   endif(64BIT_BUILD)
+endif(UNIX)
 
 PROJECT(OpenSceneGraph)
 
@@ -444,25 +451,35 @@ OPTION(OSG_GL_LIBRARY_STATIC "Set to ON to statically link with OpenGL/GLES libr
 SET(OPENGL_egl_LIBRARY CACHE STRING "Set the OpenGL egl library.")
 
 # Map the OSG_GL*_AVAILABLE settings to OSG_GL_* settings
-IF (OSG_GLES2_AVAILABLE OR OSG_GL3_AVAILABLE)
-    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." OFF)
-    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." OFF)
-    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." OFF)
-    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." OFF)
-    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." OFF)
-ELSEIF (OSG_GLES1_AVAILABLE)
-    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." OFF)
-    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." ON)
-    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." ON)
-    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." ON)
-    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." ON)
-ELSE()
-    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." ON)
-    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." ON)
-    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." ON)
-    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." ON)
-    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." ON)
-ENDIF()
+# done manually now
+#IF (OSG_GLES2_AVAILABLE OR OSG_GL3_AVAILABLE)
+#    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." OFF)
+#    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." OFF)
+#    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." OFF)
+#    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." OFF)
+#    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." OFF)
+#ELSEIF (OSG_GLES1_AVAILABLE)
+#    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." OFF)
+#    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." ON)
+#    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." ON)
+#    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." ON)
+#    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." ON)
+#ELSE()
+#    OPTION(OSG_GL_DISPLAYLISTS_AVAILABLE "Set to OFF to disable use of OpenGL display lists." ON)
+#    OPTION(OSG_GL_MATRICES_AVAILABLE "Set to OFF to disable use of OpenGL built-in matrices." ON)
+#    OPTION(OSG_GL_VERTEX_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertex/glColor etc." ON)
+#    OPTION(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE "Set to OFF to disable use of OpenGL vertex functions such as glVertexPointer/glColorPointer etc." ON)
+#    OPTION(OSG_GL_FIXED_FUNCTION_AVAILABLE "Set to OFF to disable use of OpenGL fixed function pipeline." ON)
+#ENDIF()
+
+SET(OSG_GL3_AVAILABLE ON)
+#turn this on till performance of vbo's improve
+SET(OSG_GL_DISPLAYLISTS_AVAILABLE ON)
+
+SET(OSG_GL_FIXED_FUNCTION_AVAILABLE OFF)
+SET(OSG_GL_MATRICES_AVAILABLE OFF)
+SET(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE OFF)
+SET(OSG_GL_VERTEX_FUNCS_AVAILABLE OFF)
 
 IF (OSG_GLES1_AVAILABLE OR OSG_GLES2_AVAILABLE)
     OPTION(OSG_CPP_EXCEPTIONS_AVAILABLE "Set to OFF to disable compile of OSG components that use C++ exceptions." OFF)
@@ -602,8 +619,9 @@ check_cxx_source_compiles(
 )
 
 SET(OPENSCENEGRAPH_OPENGL_HEADER "${PROJECT_BINARY_DIR}/include/osg/GL")
-CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/osg/GL.in"
-               "${OPENSCENEGRAPH_OPENGL_HEADER}")
+#We have a GL header checked into patches.  Don't allow OSG to configure one here.
+# CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/osg/GL.in"
+               # "${OPENSCENEGRAPH_OPENGL_HEADER}")
 
 # INSTALL_FILES(/include/osg/ FILES "${OPENSCENEGRAPH_CONFIG_HEADER}")
 
@@ -632,7 +650,7 @@ ENDIF()
 OPTION(BUILD_OSG_APPLICATIONS "Enable to build OSG Applications (e.g. osgviewer)" ON)
 
 # OSG Examples
-OPTION(BUILD_OSG_EXAMPLES "Enable to build OSG Examples" OFF)
+OPTION(BUILD_OSG_EXAMPLES "Enable to build OSG Examples" ON)
 
 ################################################################################
 # 3rd Party Dependency Stuff
@@ -696,6 +714,10 @@ ELSE()
     # FIND_PACKAGE(PythonLibs)
 ENDIF()
 
+if(UNIX)
+  set(SDL_FOUND FALSE)
+endif(UNIX)
+
 IF(CMAKE_MAJOR_VERSION EQUAL 2 AND CMAKE_MINOR_VERSION LESS 8)
     FIND_PACKAGE(ITK)
 ENDIF()
@@ -703,7 +725,7 @@ ENDIF()
 # Include macro utilities here
 INCLUDE(OsgMacroUtils)
 
-OPTION(OSG_USE_QT "Enable to use Qt (build Qt-dependent libraries, plugins and examples)" ON)
+OPTION(OSG_USE_QT "Enable to use Qt (build Qt-dependent libraries, plugins and examples)" OFF)
 
 IF(OSG_USE_QT AND NOT ANDROID)
 # To select a specific version of QT define DESIRED_QT_VERSION
@@ -820,9 +842,13 @@ ENDIF()
 ################################################################################
 # Installation stuff
 
-SET(CMAKE_DEBUG_POSTFIX "d" CACHE STRING "add a postfix, usually d on windows")
+IF (WIN32)
+   SET(CMAKE_DEBUG_POSTFIX "d" CACHE STRING "add a postfix, usually d on windows")
+ELSE (WIN32)
+   SET(CMAKE_DEBUG_POSTFIX "" CACHE STRING "add a postfix, usually d on windows")
+ENDIF (WIN32)
 SET(CMAKE_RELEASE_POSTFIX "" CACHE STRING "add a postfix, usually empty on windows")
-SET(CMAKE_RELWITHDEBINFO_POSTFIX "rd" CACHE STRING "add a postfix, usually empty on windows")
+SET(CMAKE_RELWITHDEBINFO_POSTFIX "" CACHE STRING "add a postfix, usually empty on windows")
 SET(CMAKE_MINSIZEREL_POSTFIX "s" CACHE STRING "add a postfix, usually empty on windows")
 
 # Set the build postfix extension according to what configuration is being built.
@@ -855,7 +881,11 @@ IF(UNIX AND NOT WIN32 AND NOT APPLE)
   ENDIF()
 ENDIF()
 IF(NOT DEFINED LIB_POSTFIX)
-    SET(LIB_POSTFIX "")
+    if(64BIT_BUILD)
+       SET(LIB_POSTFIX "64")
+    else()
+       SET(LIB_POSTFIX "")
+    endif(64BIT_BUILD)
 ENDIF()
 
 # Here we apparantly do some funky stuff with making the bin/ and lib/

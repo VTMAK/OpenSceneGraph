@@ -48,6 +48,10 @@ void TexEnv::apply(State& state) const
         }
     }
 #else
-    OSG_NOTICE<<"Warning: TexEnv::apply(State&) - not supported."<<std::endl;
+	static int warn = 1;
+	if (warn){
+		warn = 0;
+      OSG_INFO << "Warning: TexEnv::apply(State&) - disabled. Fixed Function Pipeline disabled" << std::endl;
+	}
 #endif
 }

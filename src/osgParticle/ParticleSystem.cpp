@@ -54,7 +54,13 @@ osgParticle::ParticleSystem::ParticleSystem()
     _detail(1),
     _sortMode(NO_SORT),
     _visibilityDistance(-1.0),
-    _draw_count(0)
+    _draw_count(0),
+    // BEGIN VRV_PATCH
+    _xAxis(1.0f,0.0f,0.0f),
+    _yAxis(0.0f,1.0f,0.0f),
+    _zAxis(0.0f,0.0f,1.0f),
+    _userShape(Particle::USER)
+    // END VRV_PATCH
 {
     // we don't support display lists because particle systems
     // are dynamic, and they always changes between frames
@@ -86,7 +92,13 @@ osgParticle::ParticleSystem::ParticleSystem(const ParticleSystem& copy, const os
     _detail(copy._detail),
     _sortMode(copy._sortMode),
     _visibilityDistance(copy._visibilityDistance),
-    _draw_count(0)
+    _draw_count(0),
+    // BEGIN VRV_PATCH
+    _xAxis(copy._xAxis),
+    _yAxis(copy._yAxis),
+    _zAxis(copy._zAxis),
+    _userShape(copy._userShape)
+    // END VRV_PATCH
 {
 }
 
@@ -96,6 +108,16 @@ osgParticle::ParticleSystem::~ParticleSystem()
 
 void osgParticle::ParticleSystem::update(double dt, osg::NodeVisitor& nv)
 {
+    // BEGIN VRV_PATCH
+    // No particles to update? Skip!
+    const int particlesSize = _particles.size();
+    if (particlesSize == 0) return;
+
+    // Hmm, so all the particles are dead? Then skip.
+    const int deadparticlesSize = _deadparts.size();
+    if (particlesSize == deadparticlesSize) return;
+    // END VRV_PATCH
+
     // reset bounds
     _reset_bounds_flag = true;
 
@@ -116,7 +138,9 @@ void osgParticle::ParticleSystem::update(double dt, osg::NodeVisitor& nv)
         }
     }
 
-    for(unsigned int i=0; i<_particles.size(); ++i)
+    // BEGIN VRV_PATCH
+    for(int i=0; i<particlesSize; ++i)
+    // END VRV_PATCH
     {
         Particle& particle = _particles[i];
         if (particle.isAlive())
@@ -226,11 +250,15 @@ void osgParticle::ParticleSystem::drawImplementation(osg::RenderInfo& renderInfo
         // restore color mask settings
         glPopAttrib();
 #endif
+        state.haveAppliedAttribute(osg::StateAttribute::COLORMASK);
+
     }
 
 #if defined(OSG_GLES1_AVAILABLE) || defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GL3_AVAILABLE)
     OSG_NOTICE<<"Warning: ParticleSystem::drawImplementation(..) not fully implemented."<<std::endl;
 #endif
+
+    state.haveAppliedAttribute(osg::StateAttribute::DEPTH);
 
 }
 
@@ -364,12 +392,34 @@ void osgParticle::ParticleSystem::setDefaultAttributesUsingShaders(const std::st
 }
 
 
-void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo, const osg::Matrix& modelview) const
+void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo, const osg::Matrix& inModelview) const
 {
     _draw_count = 0;
-    if (_particles.size() <= 0) return;
+    // BEGIN VRV_PATCH
+    int particlesSize = _particles.size();
+    if (particlesSize <= 0) return;
+
+    // Hmm, so all the particles are dead? Then skip.
+    int deadparticlesSize = _deadparts.size();
+    if (particlesSize == deadparticlesSize) return;
+
+    // For VR, orient particles based on eye<->particle position
+    // only (particle does not change based on the viewer orientation)
+
+    osg::Matrix modelview = inModelview;
+    osg::Matrix lookAtMat;
+
+    // get the position of the camera relative to the particle system
+    modelview = osg::Matrix::inverse(inModelview);
+    // END VRV_PATCH
 
     osg::GLBeginEndAdapter* gl = &(renderInfo.getState()->getGLBeginEndAdapter());
+
+    // Nearly always, we are using quads which have 4 verts
+    // do this *before* startParticle->beginRender so that beginRender can
+    // resize the arrays
+    // + 1 because we are usually adding one vert, color, normal, etc.
+    gl->setNumElementsHint((particlesSize+1) * 4);
 
     float scale = sqrtf(static_cast<float>(_detail));
 
@@ -410,8 +460,11 @@ void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo
 
     bool requiresEndRender = false;
     const Particle* startParticle = &_particles[0];
-    if (startParticle->getShape() != Particle::USER)
+    // BEGIN VRV_PATCH
+    const Particle::Shape& startShape = startParticle->getShape();
+    if (startShape != _userShape)
     {
+    // END VRV_PATCH
         startParticle->beginRender(gl);
         requiresEndRender = true;
     }
@@ -421,21 +474,39 @@ void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo
         glDepthMask(GL_TRUE);
     }
 
-    for(unsigned int i=0; i<_particles.size(); i+=_detail)
+    // BEGIN VRV_PATCH
+    // Don't recreate matrix each time
+    osg::Matrix R;
+
+    for(int i=0; i<particlesSize; i+=_detail)
+    // END VRV_PATCH
     {
         const Particle* currentParticle = &_particles[i];
+        // BEGIN VRV_PATCH
+        const double particleDepth = currentParticle->getDepth();
+        const bool isAlive = currentParticle->isAlive();
+        // END VRV_PATCH
 
         bool insideDistance = true;
         if (_sortMode != NO_SORT && _visibilityDistance>0.0)
-            insideDistance = (currentParticle->getDepth()>=0.0 && currentParticle->getDepth()<=_visibilityDistance);
+            insideDistance = (particleDepth >=0.0 && particleDepth <=_visibilityDistance); // VRV_PATCH
 
-        if (currentParticle->isAlive() && insideDistance)
+        if (isAlive && insideDistance) // VRV_PATCH
         {
-            if (currentParticle->getShape() != startParticle->getShape())
+            // BEGIN VRV_PATCH - don't get these unless we needed to
+            const Particle::Shape& currShape = currentParticle->getShape();
+            const osg::Vec3& pos = currentParticle->getPosition();
+            const osg::Vec3& angle = currentParticle->getAngle();
+            const float& xAngle = angle[0];
+            const float& yAngle = angle[1];
+            const float& zAngle = angle[2];
+            // END VRV_PATCH
+
+            if (currShape != startShape) // VRV_PATCH
             {
                 startParticle->endRender(gl);
                 startParticle = currentParticle;
-                if (currentParticle->getShape() != Particle::USER)
+                if (currShape != _userShape)
                 {
                     currentParticle->beginRender(gl);
                     requiresEndRender = true;
@@ -446,54 +517,69 @@ void osgParticle::ParticleSystem::single_pass_render(osg::RenderInfo& renderInfo
             }
             ++_draw_count;
 
-            if (currentParticle->getShape() == Particle::USER)
+            if (currShape == _userShape)
             {
                 if (requiresEndRender)
                 {
                     startParticle->endRender(gl);
                     requiresEndRender = false;
                 }
-                currentParticle->render(renderInfo, currentParticle->getPosition(), currentParticle->getAngle());
+                currentParticle->render(renderInfo, pos, angle); // VRV_PATCH
                 continue;
             }
 
-            const osg::Vec3& angle = currentParticle->getAngle();
-            bool requiresRotation = (angle.x()!=0.0f || angle.y()!=0.0f || angle.z()!=0.0f);
+
+            bool requiresRotation = (xAngle !=0.0f || yAngle!=0.0f || zAngle!=0.0f); // VRV_PATCH
+
+            if (_alignment == BILLBOARD)
+            {
+               //Begin VRV_PATCH
+               // We need to orient every particle towards the camera so that the particle look good that are near
+               // the edges of the screen.
+               lookAtMat.makeLookAt(modelview.getTrans() - currentParticle->_position, osg::Vec3d(0, 0, 0), osg::Vec3d(0, 0, 1));
+               //End VRV_PATCH
+            }
+
             if (requiresRotation)
             {
-                osg::Matrix R;
                 R.makeRotate(
-                    angle.x(), osg::Vec3(1, 0, 0),
-                    angle.y(), osg::Vec3(0, 1, 0),
-                    angle.z(), osg::Vec3(0, 0, 1));
+                    // BEGIN VRV_PATCH
+                    xAngle, _xAxis,
+                    yAngle, _yAxis,
+                    zAngle, _zAxis);
+                    // END VRV_PATCH
 
                 if (_alignment==BILLBOARD)
                 {
                     xAxis = osg::Matrix::transform3x3(R,scaled_aligned_xAxis);
-                    xAxis = osg::Matrix::transform3x3(modelview,xAxis);
+                    xAxis = osg::Matrix::transform3x3(lookAtMat, xAxis);
 
                     yAxis = osg::Matrix::transform3x3(R,scaled_aligned_yAxis);
-                    yAxis = osg::Matrix::transform3x3(modelview,yAxis);
+                    yAxis = osg::Matrix::transform3x3(lookAtMat, yAxis);
 
-                    currentParticle->render(gl,currentParticle->getPosition(), xAxis, yAxis, scale);
+                    currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
                 }
                 else
                 {
                     xAxis = osg::Matrix::transform3x3(R, scaled_aligned_xAxis);
                     yAxis = osg::Matrix::transform3x3(R, scaled_aligned_yAxis);
 
-                    currentParticle->render(gl,currentParticle->getPosition(), xAxis, yAxis, scale);
+                    currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
                 }
             }
             else
             {
-                currentParticle->render(gl,currentParticle->getPosition(), xAxis, yAxis, scale);
+                xAxis = osg::Matrix::transform3x3(lookAtMat, scaled_aligned_xAxis);
+                yAxis = osg::Matrix::transform3x3(lookAtMat, scaled_aligned_yAxis);
+                currentParticle->render(gl, pos, xAxis, yAxis, scale); // VRV_PATCH
             }
         }
     }
 
     if (requiresEndRender)
         startParticle->endRender(gl);
+
+    renderInfo.getState()->haveAppliedAttribute(osg::StateAttribute::DEPTH);
 }
 
 void osgParticle::ParticleSystem::render_vertex_array(osg::RenderInfo& renderInfo) const
@@ -539,3 +625,12 @@ osg::BoundingBox osgParticle::ParticleSystem::computeBoundingBox() const
     }
 }
 
+// BEGIN VRV_PATCH
+// Give a hint as to how many particles we are going to create in an emitter
+// so that it does not trigger a resize when particles are pushed back
+void osgParticle::ParticleSystem::setNumParticlesToCreateHint(unsigned int numParticles)
+{
+    // does this need ScopedReadLock lock(_readWriteMutex); ?
+    if (numParticles > _particles.size()) { _particles.reserve(numParticles); }
+}
+// END VRV_PATCH

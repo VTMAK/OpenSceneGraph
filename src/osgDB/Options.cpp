@@ -34,6 +34,10 @@ Options::Options(const Options& options,const osg::CopyOp& copyop):
     _terrain(options._terrain),
     _parentGroup(options._parentGroup) {}
 
+Options::~Options()
+{
+}
+
 void Options::parsePluginStringData(const std::string& str, char separator1, char separator2)
 {
     StringList valueList;

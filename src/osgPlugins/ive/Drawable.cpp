@@ -124,13 +124,16 @@ void Drawable::read(DataInputStream* in)
         }
 
         // Read support display list
-        setSupportsDisplayList(in->readBool());
+        // VANTAGE CHANGE 
+        in->readBool();//setSupportsDisplayList(in->readBool());
+
+        // VANTAGE CHANGE we want to control these procedurally regardless of how it 
+        //was serialized, read the values in to keep us binary compatable
+        // Read use display list
+        in->readBool(); //setUseDisplayList(in->readBool());
 
         // Read use display list
-        setUseDisplayList(in->readBool());
-
-        // Read use display list
-        setUseVertexBufferObjects(in->readBool());
+        in->readBool(); // setUseVertexBufferObjects(in->readBool());
 
     }
     else{

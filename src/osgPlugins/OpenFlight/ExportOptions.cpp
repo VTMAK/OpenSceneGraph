@@ -1,9 +1,9 @@
-/*
+/* 
  * This library is open source and may be redistributed and/or modified under
  * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or (at
  * your option) any later version. The full license is in the LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -41,19 +41,19 @@ namespace flt
  *  include 15.7, 15.8, and 16.1. Default is 16.1. Example:
  *  "version=15.8".
  */
-std::string ExportOptions::_versionOption( "version" );
+const std::string ExportOptions::_versionOption( "version" );
 /** Value: "units".
  *  Specifies the contents of the \c Units field of the OpenFliht header record.
  *  Valid values include INCHES, FEET, METERS, KILOMETERS, and NATICAL_MILES.
  *  Default is METERS. Example: "units=METERS".
  */
-std::string ExportOptions::_unitsOption( "units" );
+const std::string ExportOptions::_unitsOption( "units" );
 /** Value: "validate".
  *  If present in the Options string, the plugin does not write an OpenFlight file.
  *  Instead, it returns an indication of the scene graph's suitability for
  *  OpenFlight export.
  */
-std::string ExportOptions::_validateOption( "validate" );
+const std::string ExportOptions::_validateOption( "validate" );
 /** Value: "tempDir".
  *  Specifies the directory to use for creation of temporary files. If not
  *  specified, the directory is taken from the file name. If the file doesn't
@@ -63,15 +63,15 @@ std::string ExportOptions::_validateOption( "validate" );
  *  "tempDir=/tmp".
  *  "tempDir=\"C:\\My Temp Dir\"".
  */
-std::string ExportOptions::_tempDirOption( "tempDir" );
+const std::string ExportOptions::_tempDirOption( "tempDir" );
 /** Value: "lighting".
- *  Specifies a default enable/disable state for lighting, for Nodes in the
+ *  Specifies a default enable/disable state for lighting, for Nodes in the 
  *  exported scene graph that don't set it explicitly. By default, the
  *  exporter assumes lighting is enabled (GL_LIGHTING ON). Set this to
  *  either ON or OFF. Example:
  *  "lighting=OFF".
  */
-std::string ExportOptions::_lightingOption( "lighting" );
+const std::string ExportOptions::_lightingOption( "lighting" );
 /** Value: "stripTextureFilePath".
  *  If present in the Options string, the exporter strips the path from
  *  texture file names, and writes only the texture file name to the FLT
@@ -79,7 +79,7 @@ std::string ExportOptions::_lightingOption( "lighting" );
  *  and the name written to the Texture Palette is taken directly from
  *  the osg::Image object referenced by the osg::Texture2D StateAttribute.
  */
-std::string ExportOptions::_stripTextureFilePathOption( "stripTextureFilePath" );
+const std::string ExportOptions::_stripTextureFilePathOption( "stripTextureFilePath" );
 //@}
 
 
@@ -107,7 +107,7 @@ ExportOptions::ExportOptions( const osgDB::ReaderWriter::Options* opt )
     _validate( false ),
     _lightingDefault( true ),
     _stripTextureFilePath( false )
-
+    
 {
     if (opt)
     {

@@ -15,6 +15,8 @@
 #define OSG_ALPHAFUNC 1
 
 #include <osg/StateAttribute>
+#include <osg/StateSet>
+#include <osg/Uniform>
 
 namespace osg {
 
@@ -38,15 +40,10 @@ class OSG_EXPORT AlphaFunc : public StateAttribute
 
         AlphaFunc();
 
-        AlphaFunc(ComparisonFunction func,float ref):
-            _comparisonFunc(func),
-            _referenceValue(ref) {}
+        AlphaFunc(ComparisonFunction func,float ref);
 
         /** Copy constructor using CopyOp to manage deep vs shallow copy. */
-        AlphaFunc(const AlphaFunc& af,const CopyOp& copyop=CopyOp::SHALLOW_COPY):
-            StateAttribute(af,copyop),
-            _comparisonFunc(af._comparisonFunc),
-            _referenceValue(af._referenceValue) {}
+        AlphaFunc(const AlphaFunc& af,const CopyOp& copyop=CopyOp::SHALLOW_COPY);
 
         META_StateAttribute(osg, AlphaFunc,ALPHAFUNC);
 
@@ -83,6 +80,9 @@ class OSG_EXPORT AlphaFunc : public StateAttribute
         inline float getReferenceValue() const { return _referenceValue; }
 
         virtual void apply(State& state) const;
+        
+        virtual void releaseGLObjects(osg::State* state = 0) const;
+        void static releaseUBO(osg::State* state);
 
     protected:
 

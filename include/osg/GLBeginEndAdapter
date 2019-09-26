@@ -129,6 +129,12 @@ class OSG_EXPORT GLBeginEndAdapter
 
         void reset();
 
+        // BEGIN VRV_PATCH
+        // give a hint to osgParticle::ParticleSystem::single_pass_render about how many
+        // particles are going to be created
+        void setNumElementsHint(unsigned int numElements);
+        // END VRV_PATCH
+
     protected:
 
         State*                              _state;
@@ -167,6 +173,8 @@ class OSG_EXPORT GLBeginEndAdapter
         osg::ref_ptr<osg::Vec4Array>        _colors;
         VertexArrayList                     _texCoordsList;
         VertexArrayList                     _vertexAttribsList;
+
+        unsigned int                        _numElementsHint;
 };
 
 }

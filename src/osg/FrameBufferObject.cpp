@@ -59,7 +59,7 @@ void RenderBuffer::flushDeletedRenderBuffers(unsigned int contextID,double /*cur
     // if no time available don't try to flush objects.
     if (availableTime<=0.0) return;
 
-    const GLExtensions* extensions = GLExtensions::Get(contextID,true);
+    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
     if(!extensions || !extensions->isFrameBufferObjectSupported ) return;
 
     const osg::Timer& timer = *osg::Timer::instance();
@@ -161,6 +161,11 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
     {
         // bind and configure
         ext->glBindRenderbuffer(GL_RENDERBUFFER_EXT, objectID);
+
+        //vrv_patch
+        if (ext->glObjectLabel && getName().length()){
+           ext->glObjectLabel(GL_RENDERBUFFER_EXT, objectID, -1, getName().c_str());
+        }
 
         // framebuffer_multisample_coverage specification requires that coverage
         // samples must be >= color samples.
@@ -435,8 +440,12 @@ FrameBufferAttachment::~FrameBufferAttachment()
 
 FrameBufferAttachment &FrameBufferAttachment::operator = (const FrameBufferAttachment &copy)
 {
-    delete _ximpl;
-    _ximpl = new Pimpl(*copy._ximpl);
+   if (this != &copy)
+   {
+      delete _ximpl;
+      _ximpl = new Pimpl(*copy._ximpl);
+   }
+
     return *this;
 }
 
@@ -641,7 +650,7 @@ void FrameBufferObject::flushDeletedFrameBufferObjects(unsigned int contextID,do
     // if no time available don't try to flush objects.
     if (availableTime<=0.0) return;
 
-    const GLExtensions* extensions = GLExtensions::Get(contextID,true);
+    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
     if(!extensions || !extensions->isFrameBufferObjectSupported ) return;
 
     const osg::Timer& timer = *osg::Timer::instance();
@@ -656,8 +665,10 @@ void FrameBufferObject::flushDeletedFrameBufferObjects(unsigned int contextID,do
             titr!=pList.end() && elapsedTime<availableTime;
             )
         {
-            extensions->glDeleteFramebuffers(1, &(*titr) );
-            titr = pList.erase( titr );
+           if (extensions->glDeleteFramebuffers){
+              extensions->glDeleteFramebuffers(1, &(*titr));
+           }
+           titr = pList.erase(titr);
             elapsedTime = timer.delta_s(start_tick,timer.tick());
         }
     }
@@ -725,11 +736,45 @@ void FrameBufferObject::releaseGLObjects(osg::State* state) const
         }
     }
 }
-
+// helper function in RenderStage
+static const char* getBufferComponentStr(Camera::BufferComponent buffer)
+{
+   switch (buffer)
+   {
+   case (osg::Camera::DEPTH_BUFFER): return "DEPTH_BUFFER";
+   case (osg::Camera::STENCIL_BUFFER): return "STENCIL_BUFFER";
+   case (osg::Camera::PACKED_DEPTH_STENCIL_BUFFER): return "PACKED_DEPTH_STENCIL_BUFFER";
+   case (osg::Camera::COLOR_BUFFER): return "COLOR_BUFFER";
+   case (osg::Camera::COLOR_BUFFER0): return "COLOR_BUFFER0";
+   case (osg::Camera::COLOR_BUFFER1): return "COLOR_BUFFER1";
+   case (osg::Camera::COLOR_BUFFER2): return "COLOR_BUFFER2";
+   case (osg::Camera::COLOR_BUFFER3): return "COLOR_BUFFER3";
+   case (osg::Camera::COLOR_BUFFER4): return "COLOR_BUFFER4";
+   case (osg::Camera::COLOR_BUFFER5): return "COLOR_BUFFER5";
+   case (osg::Camera::COLOR_BUFFER6): return "COLOR_BUFFER6";
+   case (osg::Camera::COLOR_BUFFER7): return "COLOR_BUFFER7";
+   case (osg::Camera::COLOR_BUFFER8): return "COLOR_BUFFER8";
+   case (osg::Camera::COLOR_BUFFER9): return "COLOR_BUFFER9";
+   case (osg::Camera::COLOR_BUFFER10): return "COLOR_BUFFER10";
+   case (osg::Camera::COLOR_BUFFER11): return "COLOR_BUFFER11";
+   case (osg::Camera::COLOR_BUFFER12): return "COLOR_BUFFER12";
+   case (osg::Camera::COLOR_BUFFER13): return "COLOR_BUFFER13";
+   case (osg::Camera::COLOR_BUFFER14): return "COLOR_BUFFER14";
+   case (osg::Camera::COLOR_BUFFER15): return "COLOR_BUFFER15";
+   default: return "UnknownBufferComponent";
+   }
+}
 void FrameBufferObject::setAttachment(BufferComponent attachment_point, const FrameBufferAttachment &attachment)
 {
     _attachments[attachment_point] = attachment;
-
+    //vrv_patch
+    FrameBufferAttachment & attach = _attachments[attachment_point];
+    if (attach.getTexture() && attach.getTexture()->getName().length() == 0){
+       attach.getTexture()->setName(getName() + getBufferComponentStr(attachment_point) + "_fbo");
+    }
+    if (attach.getRenderBuffer() && attach.getRenderBuffer()->getName().length() == 0){
+       attach.getRenderBuffer()->setName(getName() + getBufferComponentStr(attachment_point) + "_fbo_rb");
+    }
     updateDrawBuffers();
     dirtyAll();
 }
@@ -783,6 +828,7 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
     if (_attachments.empty())
     {
         ext->glBindFramebuffer(target, 0);
+        state.setLastAppliedFboId(0); //save off the current framebuffer in the state
         return;
     }
 
@@ -822,6 +868,16 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
 
 
     ext->glBindFramebuffer(target, fboID);
+    state.setLastAppliedFboId(fboID); //save off the current framebuffer in the state
+
+
+    //vrv_patch
+    if (dirtyAttachmentList){
+       if (ext->glObjectLabel && getName().length()){
+          ext->glObjectLabel(GL_FRAMEBUFFER_EXT, fboID, getName().length(), getName().c_str());
+       }
+    }
+
 
     // enable drawing buffers to render the result to fbo
     if ( (target == READ_DRAW_FRAMEBUFFER) || (target == DRAW_FRAMEBUFFER) )

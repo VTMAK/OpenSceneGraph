@@ -156,6 +156,7 @@ class OSGUTIL_EXPORT IncrementalCompileOperation : public osg::GraphicsOperation
 
 
         virtual void operator () (osg::GraphicsContext* context);
+        virtual void run (osg::GraphicsContext* context);
 
         struct OSGUTIL_EXPORT CompileInfo : public osg::RenderInfo
         {
@@ -165,6 +166,7 @@ class OSGUTIL_EXPORT IncrementalCompileOperation : public osg::GraphicsOperation
             {
                 if (compileAll) return true;
                 if (maxNumObjectsToCompile==0) return false;
+                if (incrementalCompileOperation->getStopCompiling()){ return false; }
                 return (allocatedTime - timer.elapsedTime()) >= estimatedTimeForCompile;
             }
 
@@ -172,6 +174,7 @@ class OSGUTIL_EXPORT IncrementalCompileOperation : public osg::GraphicsOperation
 
             bool                                compileAll;
             unsigned int                        maxNumObjectsToCompile;
+            unsigned int                        numObjectsCompiled;
             double                              allocatedTime;
             osg::ElapsedTime                    timer;
         };
@@ -294,6 +297,16 @@ class OSGUTIL_EXPORT IncrementalCompileOperation : public osg::GraphicsOperation
         void setMarkerObject(osg::Object* mo) { _markerObject = mo; }
         osg::Object* getMarkerObject() { return _markerObject.get(); }
         const osg::Object* getMarkerObject() const { return _markerObject.get(); }
+        
+        void setStartCompilingFlag(){ _stopCompiling = 0; }
+        void stopCompiling(){ _stopCompiling = 1; }
+        int getStopCompiling(){ return _stopCompiling; }
+
+        void setMaxCompileTime(float mct) { _vrvMaxCompileTime = mct;  }
+	//VRV_PATCH
+        void setWaitCondition(OpenThreads::Condition * condition) { _runThreadWaitCond = condition; }
+
+        unsigned int getNumJobs() { return _toCompile.size(); }
 
     protected:
 
@@ -321,7 +334,12 @@ class OSGUTIL_EXPORT IncrementalCompileOperation : public osg::GraphicsOperation
         ContextSet                          _contexts;
 
         osg::ref_ptr<osg::Object>           _markerObject;
+        int                                 _stopCompiling;
+        float                               _vrvMaxCompileTime;
 
+        // VRV_Patch
+        OpenThreads::Atomic                 _numJobs;
+        OpenThreads::Condition *             _runThreadWaitCond;
 };
 
 }

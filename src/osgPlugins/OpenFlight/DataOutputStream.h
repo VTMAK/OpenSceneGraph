@@ -1,9 +1,9 @@
-/*
+/* 
  * This library is open source and may be redistributed and/or modified under
  * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or (at
  * your option) any later version. The full license is in the LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -63,12 +63,12 @@ public:
     void writeFill( int sizeBytes, const char val='\0' );
 
 protected:
-    virtual std::ostream& vwrite( char_type* str, std::streamsize count );
+    virtual std::ostream& vwrite( const char_type* str, std::streamsize count );
 
     bool _byteswap;
     bool _validate;
 
-    static char _null;
+    static const char _null;
 };
 
 }

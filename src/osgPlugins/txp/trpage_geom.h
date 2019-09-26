@@ -540,7 +540,7 @@ public:
     ~trpgLightAttr(void);
 
     // Light Flags
-    enum
+    typedef enum  // VRV_PATCH
     {
         // Light flags
         trpg_Day =        0x0001,

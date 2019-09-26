@@ -32,7 +32,10 @@ DOFTransform::DOFTransform():
     _limitationFlags(0),
     _animationOn(false),
     _increasingFlags(0xffff),
-    _multOrder(PRH)
+    _multOrder(PRH),
+    // BEGIN VRV_PATCH - just using a new DOFTransform hides the object because scale (0,0,0)
+    _currentScale(1.0, 1.0, 1.0)
+    // END VRV_PATCH
 {
 }
 
@@ -73,7 +76,14 @@ void DOFTransform::traverse(osg::NodeVisitor& nv)
         {
             double newTime = nv.getFrameStamp()->getSimulationTime();
 
-            animate((float)(newTime-_previousTime));
+			// VRV-Patch: Only animate if previous and current traversal-numbers differ by one.
+			//            If difference is greater-than one, only update time-stamps.
+			//            This prevents large skips if DOFTransform had missed several updates
+			//            due to being switched off or removed/reinstalled into the scene-graph.
+			if (1 == nv.getTraversalNumber() - _previousTraversalNumber)
+			{
+				animate((float)(newTime-_previousTime));
+			}
 
             _previousTraversalNumber = nv.getTraversalNumber();
             _previousTime = newTime;
@@ -242,7 +252,7 @@ void DOFTransform::updateCurrentHPR(const osg::Vec3& hpr)
             {
                 _currentHPR[2] = _maxHPR[2];
                 //force increasing flag to 0
-                _increasingFlags &= ~this_flag;
+                // _increasingFlags &= ~this_flag;
             }
         }
     }
@@ -266,7 +276,7 @@ void DOFTransform::updateCurrentHPR(const osg::Vec3& hpr)
             else if(_currentHPR[1] > _maxHPR[1])
             {
                 _currentHPR[1] = _maxHPR[1];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -291,7 +301,7 @@ void DOFTransform::updateCurrentHPR(const osg::Vec3& hpr)
             else if(_currentHPR[0] > _maxHPR[0])
             {
                 _currentHPR[0] = _maxHPR[0];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -321,7 +331,7 @@ void DOFTransform::updateCurrentTranslate(const osg::Vec3& translate)
             else if(_currentTranslate[2] > _maxTranslate[2])
             {
                 _currentTranslate[2] = _maxTranslate[2];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -345,7 +355,7 @@ void DOFTransform::updateCurrentTranslate(const osg::Vec3& translate)
             else if(_currentTranslate[1] > _maxTranslate[1])
             {
                 _currentTranslate[1] = _maxTranslate[1];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -369,7 +379,7 @@ void DOFTransform::updateCurrentTranslate(const osg::Vec3& translate)
             else if(_currentTranslate[0] > _maxTranslate[0])
             {
                 _currentTranslate[0] = _maxTranslate[0];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -399,7 +409,7 @@ void DOFTransform::updateCurrentScale(const osg::Vec3& scale)
             else if(_currentScale[2] > _maxScale[2])
             {
                 _currentScale[2] = _maxScale[2];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -423,7 +433,7 @@ void DOFTransform::updateCurrentScale(const osg::Vec3& scale)
             else if(_currentScale[1] > _maxScale[1])
             {
                 _currentScale[1] = _maxScale[1];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -447,7 +457,7 @@ void DOFTransform::updateCurrentScale(const osg::Vec3& scale)
             else if(_currentScale[0] > _maxScale[0])
             {
                 _currentScale[0] = _maxScale[0];
-                _increasingFlags &= ~this_flag;
+                //_increasingFlags &= ~this_flag;
             }
         }
     }
@@ -500,9 +510,13 @@ void DOFTransform::animate(float deltaTime)
     new_value = _currentHPR;
 
     if(_increasingFlags & ((unsigned short)1<<3))
+    {
         new_value[1] += _incrementHPR[1]*deltaTime;
+    }
     else
+    {
         new_value[1] -= _incrementHPR[1]*deltaTime;
+    }
 
     if(_increasingFlags & ((unsigned short)1<<4))
         new_value[2] += _incrementHPR[2]*deltaTime;

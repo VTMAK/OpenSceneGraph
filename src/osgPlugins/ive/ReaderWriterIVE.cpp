@@ -98,8 +98,22 @@ class ReaderWriterIVE : public ReaderWriter
             {
                 return in.getException()->getError();
             }
+			//VRV Patch
+            ReadResult result = in.readNode();
 
-            return in.readNode();
+            // Unregister the animation here since they will be register in Vantage
+            osgAnimation::AnimationManagerBase* animationManager = in.animationManager();
+            if (animationManager)
+            {
+               const osgAnimation::AnimationList& anims = animationManager->getAnimationList();
+               for (size_t i = 0; i < anims.size(); ++i)
+               {
+                  osgAnimation::Animation* pAnimation = anims[i].get();
+                  animationManager->unregisterAnimation(pAnimation);
+               }
+            }
+            return result;
+			//End VRV Patch
         }
 
         virtual WriteResult writeObject(const Object& object,const std::string& fileName, const osgDB::ReaderWriter::Options* options) const

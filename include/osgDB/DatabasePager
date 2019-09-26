@@ -22,6 +22,7 @@
 #include <osg/FrameStamp>
 #include <osg/ObserverNodePath>
 #include <osg/observer_ptr>
+#include <osg/DatabaseRequestHandler>
 
 #include <OpenThreads/Thread>
 #include <OpenThreads/Mutex>
@@ -43,10 +44,9 @@
 namespace osgDB {
 
 
-
 /** Database paging class which manages the loading of files in a background thread,
   * and synchronizing of loaded models with the main scene graph.*/
-class OSGDB_EXPORT DatabasePager : public osg::NodeVisitor::DatabaseRequestHandler
+class OSGDB_EXPORT DatabasePager : public osg::DatabaseRequestHandler
 {
     public :
 
@@ -83,8 +83,14 @@ class OSGDB_EXPORT DatabasePager : public osg::NodeVisitor::DatabaseRequestHandl
 
         virtual bool isRunning() const;
 
+        //VRV_PATCH
+        virtual int getNumActiveDatabaseThreads() const;
+
         /** Clear all internally cached structures.*/
         virtual void clear();
+
+        virtual void setPagerCallback(osg::DatabaseRequestHandlerCallback* callback);
+        virtual const osg::DatabaseRequestHandlerCallback* getPagerCallback(void) const;
 
         class OSGDB_EXPORT DatabaseThread : public osg::Referenced, public OpenThreads::Thread
         {
@@ -280,7 +286,7 @@ class OSGDB_EXPORT DatabasePager : public osg::NodeVisitor::DatabaseRequestHandl
             virtual PagedLODList* clone() = 0;
             virtual void clear() = 0;
             virtual unsigned int size() = 0;
-            virtual void removeExpiredChildren(int numberChildrenToRemove, double expiryTime, unsigned int expiryFrame, ObjectList& childrenRemoved, bool visitActive) = 0;
+            virtual void removeExpiredChildren(int numberChildrenToRemove, double expiryTime, unsigned int expiryFrame, ObjectList& childrenRemoved, bool visitActive, const DatabasePager* pager) = 0;
             virtual void removeNodes(osg::NodeList& nodesToRemove) = 0;
             virtual void insertPagedLOD(const osg::observer_ptr<osg::PagedLOD>& plod) = 0;
             virtual bool containsPagedLOD(const osg::observer_ptr<osg::PagedLOD>& plod) const = 0;
@@ -289,6 +295,8 @@ class OSGDB_EXPORT DatabasePager : public osg::NodeVisitor::DatabaseRequestHandl
         void setMarkerObject(osg::Object* mo) { _markerObject = mo; }
         osg::Object* getMarkerObject() { return _markerObject.get(); }
         const osg::Object* getMarkerObject() const { return _markerObject.get(); }
+        
+        int getActivePagedLODListSize() const { return _activePagedLODList->size(); }
 
     protected:
 
@@ -475,6 +483,14 @@ class OSGDB_EXPORT DatabasePager : public osg::NodeVisitor::DatabaseRequestHandl
         unsigned int                    _numTilesMerges;
 
         osg::ref_ptr<osg::Object>       _markerObject;
+
+        //Used to keep track of the refernce time and the frame number for the last rendered frame.
+        //This fixes a problem with paging when there are frames that update but don't render. 
+        //VR-Vantage RDE slaves do this if they get behind.
+        double _lastRenderReferenceTime;
+        unsigned int _lastRenderFrameNumber;
+
+        osg::ref_ptr<osg::DatabaseRequestHandlerCallback> _pagerCallback;
 };
 
 }

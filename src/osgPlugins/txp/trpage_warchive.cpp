@@ -64,6 +64,11 @@ void trpgwArchive::Init(trpgEndian inNess, trpgwArchive::TileMode inTileMode,int
     maxTileFileLen = -1;
 
     firstHeaderWrite = true;
+
+    // VRV_PATCH BEGIN
+    numLod = 0;
+    errMess[0] = '\0';
+    // VRV_PATCH END
 }
 
 // Constructor for regenerate
@@ -530,14 +535,16 @@ bool trpgwArchive::CheckpointHeader()
             {
 
                 // Set up the sizes
-                int32 numLod;
-                header.GetNumLods(numLod);
-                tileTable.SetNumLod(numLod);
-                for (int i=0;i<numLod;i++) {
+                // BEING VRV_PATCH - numLod matches member variable, use numLod*s*
+                int32 numLods;
+                header.GetNumLods(numLods);
+                tileTable.SetNumLod(numLods);
+                for (int i=0;i<numLods;i++) {
                     trpg2iPoint lodSize;
                     header.GetLodSize(i,lodSize);
                     tileTable.SetNumTiles(lodSize.x,lodSize.y,i);
                 }
+                // END VRV_PATCH
 
             }
             firstHeaderWrite = false;
@@ -939,6 +946,11 @@ trpgwGeomHelper::trpgwGeomHelper()
 {
     buf = NULL;
     mode = trpgGeometry::Triangles;
+    // VRV_PATCH BEGIN
+    dataType = 0;
+    zmin = 1e12;
+    zmax = -1e12;
+    // VRV_PATCH END
 }
 trpgwGeomHelper::~trpgwGeomHelper()
 {
@@ -958,6 +970,7 @@ void trpgwGeomHelper::init(trpgWriteBuffer *ibuf,int dtype)
     dataType = dtype;
     zmin = 1e12;
     zmax = -1e12;
+    mode = trpgGeometry::Triangles; // VRV_PATCH
 }
 // Reset back to a clean state (except for the buffer)
 void trpgwGeomHelper::Reset()
@@ -1234,6 +1247,9 @@ optVert::optVert(int numMat, int vid, std::vector<trpg3dPoint> &iv, std::vector<
     n=in[vid];
     tex.resize(0);
     for (unsigned int loop=0; loop < (unsigned int)numMat; loop++) tex.push_back(itex[vid*numMat+loop]);
+    //VRV_PATCH BEGIN
+    valid = true;
+    //VRV_PATCH END
 }
 void trpgwGeomHelper::Optimize()
 {

@@ -189,6 +189,12 @@ void Camera::setViewport(int x,int y,int width,int height)
     if (_viewport.valid()) _viewport->setViewport(x,y,width,height);
 }
 
+void Camera::setViewport(int viewport_index, float x, float y, float width, float height)
+{
+   if (!_viewport) setViewport(new osg::Viewport);
+   if (_viewport.valid()) _viewport->setViewport(viewport_index, x, y, width, height);
+}
+
 Matrixd Camera::getInverseViewMatrix() const
 {
     Matrixd inverse;

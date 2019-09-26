@@ -145,6 +145,12 @@ inline osg::Vec4 BlinkSequence::color(double time,double length) const
         if (itr==_pulseData.end()) itr = _pulseData.begin();
     }
 
+    //VRV patch to speed up this function when length is huge.
+    if(_pulsePeriod > 0.0)
+    {
+        length = length - floor(length/_pulsePeriod)*_pulsePeriod;
+    }
+
     // if time interval fits inside the current pulse
     // then simply return this pulses color value.
     if (lt+length<=itr->first)

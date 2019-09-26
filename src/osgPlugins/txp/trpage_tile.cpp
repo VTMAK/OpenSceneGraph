@@ -71,6 +71,12 @@ void trpgTileTable::SetNumLod(int numLod)
 
 void trpgTileTable::SetNumTiles(int nx,int ny,int lod)
 {
+    // OSG_PATCH BEGIN
+    // A good lod index should be the first check before
+    // we use it in the lodInfo array
+    if (nx <= 0 || ny <= 0 || lod < 0 || lod >= static_cast<int>(lodInfo.size()))
+        return;
+    // OSG_PATCH END
 
     if(localBlock) {
         LodInfo &li = lodInfo[lod];
@@ -82,8 +88,7 @@ void trpgTileTable::SetNumTiles(int nx,int ny,int lod)
         // no need to do anything else if we only have one block.
         return;
     }
-    if (nx <= 0 || ny <= 0 || lod < 0 || lod >= static_cast<int>(lodInfo.size()))
-        return;
+
 
     // Got a table we need to maintain
     if (mode == Local || mode == ExternalSaved) {
@@ -327,6 +332,9 @@ trpgTileHeader::trpgTileHeader()
 {
     col = -1;
     row = -1;
+    //VRV_PATCH START
+    date = -1;
+    //VRV_PATCH END
 }
 trpgTileHeader::~trpgTileHeader()
 {
@@ -339,6 +347,9 @@ void trpgTileHeader::Reset()
     locMats.resize(0);
     col = -1;
     row = -1;
+    //VRV_PATCH START
+    date = -1;
+    //VRV_PATCH END
 }
 
 // Set functions

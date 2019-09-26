@@ -6,6 +6,7 @@
 #include <iostream>        // for ofstream
 #include <string>
 #include <sstream>
+#include <vector>
 
 #include <osg/Vec2>
 #include <osg/Vec3>
@@ -20,7 +21,15 @@
 
 #include <osgTerrain/TerrainTile>
 #include <osgVolume/VolumeTile>
-
+//VRV Patch
+#include <osgAnimation/StackedQuaternionElement>
+#include <osgAnimation/StackedRotateAxisElement>
+#include <osgAnimation/StackedScaleElement>
+#include <osgAnimation/StackedTransformElement>
+#include <osgAnimation/StackedTranslateElement>
+#include <osgAnimation/StackedMatrixElement>
+#include <osgAnimation/Animation>
+//End VRV
 #include "IveVersion.h"
 #include "DataTypeSize.h"
 #include "Exception.h"
@@ -109,7 +118,67 @@ public:
     void writeVolumeProperty(const osgVolume::Property* propety);
 
     void writeObject(const osg::Object* object);
+	
+    //VRV Patch
+    // bellow are functions taken from 
+    // Serialization related functions osgDb::OutputStream
+    DataOutputStream& operator<<(bool b) { writeBool(b); return *this; }
+    DataOutputStream& operator<<(char c) { writeChar(c); return *this; }
+    DataOutputStream& operator<<(signed char c) { writeChar(c); return *this; }
+    DataOutputStream& operator<<(unsigned char c) { writeUChar(c); return *this; }
+    DataOutputStream& operator<<(short s) { writeShort(s); return *this; }
+    DataOutputStream& operator<<(unsigned short s) { writeUShort(s); return *this; }
+    DataOutputStream& operator<<(int i) { writeInt(i); return *this; }
+    DataOutputStream& operator<<(unsigned int i) { writeUInt(i); return *this; }
+    DataOutputStream& operator<<(long l) { writeLong(l); return *this; }
+    DataOutputStream& operator<<(unsigned long l) { writeULong(l); return *this; }
+    DataOutputStream& operator<<(float f) { writeFloat(f); return *this; }
+    DataOutputStream& operator<<(double d) { writeDouble(d); return *this; }
+    DataOutputStream& operator<<(const std::string& s) { writeString(s); return *this; }
+    DataOutputStream& operator<<(const char* s) { writeString(s); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2b& v)  { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3b& v)  { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4b& v)  { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2ub& v) { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3ub& v) { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4ub& v) { *this << v.r() << v.g() << v.b() << v.a(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2s& v)  { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3s& v)  { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4s& v)  { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2us& v) { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3us& v) { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4us& v) { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2i& v)  { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3i& v)  { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4i& v)  { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2ui& v) { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3ui& v) { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4ui& v) { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2f& v) { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3f& v) { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4f& v) { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec2d& v) { *this << v.x() << v.y(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec3d& v) { *this << v.x() << v.y() << v.z(); return *this; }
+    DataOutputStream& operator<<(const osg::Vec4d& v) { *this << v.x() << v.y() << v.z() << v.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Quat& q)  { *this << q.x() << q.y() << q.z() << q.w(); return *this; }
+    DataOutputStream& operator<<(const osg::Plane& p) { *this << (double)p[0] << (double)p[1] << (double)p[2] << (double)p[3]; return *this; }
+    DataOutputStream& operator<<(const osg::Matrixf& mat);
+    DataOutputStream& operator<<(const osg::Matrixd& mat);
+    DataOutputStream& operator<<(const osg::BoundingBoxf& bb) { *this << bb.xMin() << bb.yMin() << bb.zMin() << bb.xMax() << bb.yMax() << bb.zMax(); return *this; }
+    DataOutputStream& operator<<(const osg::BoundingBoxd& bb) { *this << bb.xMin() << bb.yMin() << bb.zMin() << bb.xMax() << bb.yMax() << bb.zMax(); return *this; }
+    DataOutputStream& operator<<(const osg::BoundingSpheref& bs) { *this << bs.center().x() << bs.center().y() << bs.center().z() << bs.radius(); return *this; }
+    DataOutputStream& operator<<(const osg::BoundingSphered& bs) { *this << bs.center().x() << bs.center().y() << bs.center().z() << bs.radius(); return *this; }
 
+    // method for converting all data structure sizes to unsigned int to ensure architecture portability.
+    template<typename T>
+    void writeSize(T size) { *this << static_cast<unsigned int>(size); }
+
+    void writeStackedTransformElement(const osgAnimation::StackedTransformElement* st);
+    // Keep a list of animation that are written to the file so we don't duplicate
+    std::vector<osgAnimation::Animation*> animationList;
+
+    // ******* 
+    //End VRV
     void setWriteDirectory(const std::string& directoryName) { _writeDirectory = directoryName; }
     const std::string& getWriteDirectory() const { return _writeDirectory; }
 

@@ -112,12 +112,29 @@ osg::StateSet *ShaderGenCache::getOrCreateStateSet(int stateMask)
 
 osg::StateSet *ShaderGenCache::createStateSet(int stateMask) const
 {
-    osg::StateSet *stateSet = new osg::StateSet;
-    osg::Program *program = new osg::Program;
-    stateSet->setAttribute(program);
+   osg::StateSet *stateSet = new osg::StateSet;
+   osg::Program *program = new osg::Program;
+   stateSet->setAttribute(program);
 
-    std::ostringstream vert;
-    std::ostringstream frag;
+   std::ostringstream vert;
+   std::ostringstream frag;
+   vert <<
+      "#version 150 compatibility \n"
+      "// Surface material:                                         \n"
+      "   struct osg_MaterialParameters                             \n"
+      "   {                                                         \n"
+      "      vec4 ambient;     // Acm                               \n"
+      "      vec4 diffuse;     // Dcm                               \n"
+      "      vec4 emission;    // Ecm                               \n"
+      "      vec4 specular;    // Scm                               \n"
+      "      float shininess;  // Srm                               \n"
+      "   };                                                        \n"
+      "                                                             \n"
+      "   layout(std140) uniform osg_material_uniform_block         \n"
+      "   {                                                         \n"
+      "      uniform osg_MaterialParameters osg_FrontMaterial;      \n"
+      "   };                                                        \n"
+      "                                                             \n";
 
     // write varyings
     if ((stateMask & LIGHTING) && !(stateMask & NORMAL_MAP))
@@ -236,14 +253,15 @@ osg::StateSet *ShaderGenCache::createStateSet(int stateMask) const
             "  vec3 vd = normalize(viewDir);\n"\
             "  vec4 color = gl_FrontLightModelProduct.sceneColor;\n"\
             "  color += gl_FrontLightProduct[0].ambient;\n"\
-            "  float diff = max(dot(ld, nd), 0.0);\n"\
+           "  color += vec4(.1,.1,.1,0);\n"\
+           "  float diff = max(dot(ld, nd), 0.0);\n"\
             "  color += gl_FrontLightProduct[0].diffuse * diff;\n"\
             "  color *= base;\n"\
             "  if (diff > 0.0)\n"\
             "  {\n"\
             "    vec3 halfDir = normalize(ld+vd);\n"\
             "    color.rgb += base.a * gl_FrontLightProduct[0].specular.rgb * \n"\
-            "      pow(max(dot(halfDir, nd), 0.0), gl_FrontMaterial.shininess);\n"\
+            "      pow(max(dot(halfDir, nd), 0.0), osg_FrontMaterial.shininess);\n"\
             "  }\n";
     }
     else

@@ -34,6 +34,9 @@
 #include <algorithm>
 #include <iterator>
 
+//VRV_PATCH#
+#include <osg/ConcurrencyViewerMacros>
+
 using namespace osg;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -647,6 +650,10 @@ bool GraphicsContext::releaseContext()
 
 void GraphicsContext::swapBuffers()
 {
+   //VRV_PATCH
+   osg::CVMarkerSeries series("Main High");
+   osg::CVSpan swapSpan(series, 4, "swapBuffers");
+
     if (isCurrent())
     {
         swapBuffersCallbackOrImplemenation();

@@ -1,0 +1,52 @@
+#pragma once
+
+#include <osg/Export>
+
+namespace  Concurrency
+{
+   namespace diagnostic {
+      class marker_series;
+      class span;
+   };
+};
+
+using namespace Concurrency::diagnostic;
+
+namespace osg
+{
+   class OSG_EXPORT CVMarkerSeries
+   {
+   public:
+      //! default marker series
+      CVMarkerSeries();
+
+      //! named marker series
+      CVMarkerSeries(const char * name, bool add_thread_id = true);
+      void write_flag(const char * flag, ...);
+      void write_message(const char * message, ...);
+      void write_alert(const char * alert, ...);
+
+      //! 
+      ~CVMarkerSeries();
+      friend class CVSpan;
+      static bool sMarkersActive;
+
+   private:
+      marker_series * myMarkerSeries;
+   };
+
+   class OSG_EXPORT CVSpan
+   {
+   public:
+      CVSpan(CVMarkerSeries & marker, int level, const char * name);
+      ~CVSpan();
+
+      //! deletes the span early to allow instrumentation without too much scope abuse
+      void reset_span();
+
+   private:
+      span * mySpan;
+   };
+
+};
+

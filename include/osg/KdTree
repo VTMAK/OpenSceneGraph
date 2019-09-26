@@ -164,7 +164,6 @@ class OSG_EXPORT KdTree : public osg::Shape
         osg::ref_ptr<osg::Vec3Array>        _vertices;
         KdNodeList                          _kdNodes;
         TriangleList                        _triangles;
-
 };
 
 class OSG_EXPORT KdTreeBuilder : public osg::NodeVisitor
@@ -190,7 +189,6 @@ class OSG_EXPORT KdTreeBuilder : public osg::NodeVisitor
     protected:
 
         virtual ~KdTreeBuilder() {}
-
 };
 
 }

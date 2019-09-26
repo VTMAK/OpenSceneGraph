@@ -267,7 +267,19 @@ class OSG_EXPORT Program : public osg::StateAttribute
         typedef std::map<std::string, UniformBlockInfo> UniformBlockMap;
 
         //const UniformBlockMap& getUniformBlocks(unsigned contextID) const;
-    public:
+
+     // Vantage Change
+	enum FFTShader_Type
+	{
+		   Normal_Drawing = 0,
+      	LightPoint_Drawing,
+      	LightPointSprite_Drawing,
+		NUM_SHADERS
+	};
+
+     static osg::ref_ptr<osg::Program> getFixedFunctionProgram(osg::Program::FFTShader_Type shader_type);
+
+     public:
 
         // make PerContextProgram a friend to allow it access Program's protected
         // methods and member variables.
@@ -319,20 +331,22 @@ class OSG_EXPORT Program : public osg::StateAttribute
                     GLint location = getUniformLocation(uniform.getNameID());
                     if (location>=0)
                     {
-                        const Uniform* lastAppliedUniform = _lastAppliedUniformList[location].first.get();
+                       UniformModifiedCountPair & upair = _lastAppliedUniformList[location];
+
+                       const Uniform* lastAppliedUniform = upair.first.get();
                         if (lastAppliedUniform != &uniform)
                         {
                             // new attribute
                             uniform.apply(_extensions.get(),location);
-                            _lastAppliedUniformList[location].first = &uniform;
-                            _lastAppliedUniformList[location].second = uniform.getModifiedCount();
+                            upair.first = &uniform;
+                            upair.second = uniform.getModifiedCount();
                         }
-                        else if (_lastAppliedUniformList[location].second != uniform.getModifiedCount())
+                        else if (upair.second != uniform.getModifiedCount())
                         {
                             // existing attribute has been modified
                             uniform.apply(_extensions.get(),location);
-                            _lastAppliedUniformList[location].first = &uniform;
-                            _lastAppliedUniformList[location].second = uniform.getModifiedCount();
+                            upair.first = &uniform;
+                            upair.second = uniform.getModifiedCount();
                         }
                     }
                 }
@@ -411,7 +425,8 @@ class OSG_EXPORT Program : public osg::StateAttribute
 
         struct OSG_EXPORT ProgramObjects : public osg::Referenced
         {
-            typedef std::vector< osg::ref_ptr<PerContextProgram> > PerContextPrograms;
+            //VRVantage Patch, switched to map for much better performance
+            typedef std::map< std::string, osg::ref_ptr<PerContextProgram> > PerContextPrograms;
 
             ProgramObjects(const Program* program, unsigned int contextID);
 
@@ -466,6 +481,8 @@ class OSG_EXPORT Program : public osg::StateAttribute
     private:
         Program& operator=(const Program&);        // disallowed
 
+    // Vantage Change
+    static osg::ref_ptr<osg::Program> _fftProgram[NUM_SHADERS];
 };
 
 }

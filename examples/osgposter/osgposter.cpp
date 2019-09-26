@@ -117,12 +117,12 @@ public:
     
     void setCullOnly(bool on) { _cullOnly = on; }
 
-    virtual void operator ()( osg::GraphicsContext* )
+    virtual void operator ()( osg::GraphicsContext* context)
     {
         if ( _graphicsThreadDoesCull )
         {
             if (_cullOnly) cull();
-            else cull_draw();
+            else cull_draw(context);
         }
     }
     

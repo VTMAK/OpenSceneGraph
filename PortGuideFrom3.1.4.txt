@@ -1,0 +1,78 @@
+Patches 3.1.4 to 3.4.0
+
+include/osg/StateAttribute - Yes - REMERGE - implement virtual destructor in .cpp file
+include/osg/Texture - Yes - REMERGE - SRGB support
+? include/osg/GL2Extensions - (NEW) - workaround conflicts with GLEW
+
+include/osgDB/DatabasePager - Yes - REMERGE - accessor used by our expanded stats page
+include/osgDB/Options - Yes - implement virtual destructor in .cpp file
+include/osgDB/Registry -  Yes - REMERGE Header file still missing
+
+src/osg/Image.cpp - Yes - REMERGE - SRGB support and computeNumberOfMipmapLevels still broken
+src/osg/LineSegment.cpp - Yes - support for faster / higher precision line intersect
+src/osg/ProxyNode.cpp - Yes - REMERGE
+src/osg/Sequence.cpp - Yes - REMERGE
+src/osg/State.cpp - Yes - REMERGE - remove debugging in release mode
+src/osg/StateAttribute.cpp - Yes - implement virtual destructor in .cpp file
+src/osg/Texture.cpp - Yes - REMERGE - SRGB support
+src/osgDB/DynamicLibrary.cpp - Yes
+src/osgDB/FileUtils.cpp - Yes - REMERGE - Added 64bit precompiler definition
+src/osgDB/Options.cpp - Yes - REMERGE - implement virtual destructor in .cpp file
+src/osgSim/DOFTransform.cpp - Yes - Fix for art parts with specified limits
+src/osgText/Font.cpp - Yes - Change default font path
+src/osgUtil/DelaunayTriangulator.cpp - Yes - REMERGE - Remove spam warning
+src/osgUtil/IntersectVisitor.cpp - Yes - intersector improvements
+src/osgUtil/LineSegmentIntersector.cpp - Yes - intersector improvements
+src/osgViewer/StatsHandler.cpp - Yes - Carry pager LOD stats forward
+src/osgWrappers/Serializers/osg/HeightField.cpp - Yes - Fix leak and correct return type
+src/osgPlugins/freetype/CMakeLists.txt - Yes - Fix to build on RH6
+
+? src/osgPlugins/geo/osgGeoAnimation.h - Yes - fix to support cloning
+? src/osgPlugins/geo/osgGeoNodes.h - Yes - fix to support cloning
+
+src/osgPlugins/ive/ProxyNode.cpp - Yes - propagate options on write
+src/osgPlugins/ogr/ReaderWriterOGR.cpp - Yes - Fix ODBC compatibility issue
+src/osgPlugins/OpenFlight/AncillaryRecords.cpp - Yes - multitexture optimizations
+src/osgPlugins/OpenFlight/DataOutputStream.cpp - Yes - thread safety
+src/osgPlugins/OpenFlight/DataOutputStream.h - Yes - thread safety
+src/osgPlugins/OpenFlight/Document.cpp - Yes - Multitexture optimizations
+src/osgPlugins/OpenFlight/Document.h - Yes - Multitexture optimizations
+src/osgPlugins/OpenFlight/ExportOptions.cpp - Yes - thread safety
+src/osgPlugins/OpenFlight/ExportOptions.h - Yes - thread safety
+src/osgPlugins/OpenFlight/GeometryRecords.cpp - Yes - REMERGE - thread safety, forceOpaque
+src/osgPlugins/OpenFlight/LightSourcePaletteManager.cpp - No - fixed in 3.4.0
+src/osgPlugins/OpenFlight/PaletteRecords.cpp - Yes - REMERGE - thread safety
+src/osgPlugins/OpenFlight/Pools.h - Yes - thread safety, RH6, multitexture opts
+src/osgPlugins/OpenFlight/PrimaryRecords.cpp - Yes - multitexture opts, light fixes
+src/osgPlugins/OpenFlight/ReaderWriterFLT.cpp - Yes - Optimizations
+src/osgPlugins/OpenFlight/RecordInputStream.cpp - Yes - thread safety
+src/osgPlugins/OpenFlight/Registry.cpp - Yes - thread safety
+src/osgPlugins/OpenFlight/Registry.h - Yes - thread safety
+src/osgPlugins/OpenFlight/VertexPaletteManager.cpp - Yes - thread safety
+src/osgPlugins/OpenFlight/VertexPaletteManager.h - Yes - thread safety
+src/osgPlugins/osc/osc/OscOutputStream.h - No - fixed in 3.4.0
+src/osgPlugins/txp/ReaderWriterTXP.cpp - Yes - REMERGE - propagate loader options
+src/osgPlugins/txp/ReaderWriterTXP.h - Yes - propagate loader options
+src/osgPlugins/txp/TileMapper.cpp - Yes - zoom
+src/osgPlugins/txp/TileMapper.h - Yes - zoom
+src/osgPlugins/txp/TXPArchive.cpp - Yes - propagate loader options
+src/osgPlugins/txp/TXPArchive.h - Yes - propagate loader options
+src/osgPlugins/txp/TXPNode.cpp - Yes - zoom, propagate loader options
+src/osgPlugins/txp/TXPPagedLOD.cpp - Yes - zoom, propagate loader options
+src/osgPlugins/txp/TXPParser.cpp - Yes - zoom, lighting
+src/osgPlugins/CMakeLists.txt - Yes - Remove vnc and qFont
+
+
+Notes:
+src/osgPlugins/geo doesn't exist in 3.4.0
+include/osg/BufferObject
+include/osg/FrameBufferObject
+include/osg/GL2Extensions
+include/osg/TextureBuffer
+src/osg/BufferObject.cpp
+
+Check:
+src/osgUtil/LineSegmentIntersector.cpp
+src/osg/LineSegment.cpp - r2 = (float)((e-_s).length()*inv_len);
+                        - LineSegment::intersect() changed to LineSegment::intersectAndComputeRatios
+src/Image.cpp - computeImageSizeInBytes()

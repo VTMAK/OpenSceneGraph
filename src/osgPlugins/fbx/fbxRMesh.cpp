@@ -8,6 +8,7 @@
 #include <osg/TexMat>
 #include <osg/TexGen>
 #include <osg/TexEnvCombine>
+#include <osg/Billboard>
 
 #include <osgUtil/TriStripVisitor>
 #include <osgUtil/Tessellator>
@@ -18,6 +19,12 @@
 #include <osgAnimation/MorphGeometry>
 #include <osgAnimation/BasicAnimationManager>
 
+#include <string>
+
+static const std::string disBillboardPoint = "@dis billboard point";
+static const std::string disBillboardAxis = "@dis billboard axis";
+
+
 #if defined(_MSC_VER)
 #pragma warning( disable : 4505 )
 #pragma warning( default : 4996 )
@@ -25,6 +32,7 @@
 #include <fbxsdk.h>
 
 #include "fbxReader.h"
+#include "fbxUtil.h"
 
 enum GeometryType
 {
@@ -158,7 +166,11 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
     // more here...
     bool bColor,
     const osgDB::Options& options,
-    bool lightmapTextures)
+    bool lightmapTextures,
+    bool bColorProperty,
+    FbxColor& colorProperty,
+    FbxNode::ECullingType cullingType,
+    textureUnitMap& textureMap)
 {
     GeometryMap::iterator it = geometryMap.find(mti);
 
@@ -184,16 +196,29 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
 
     // create as much textures coordinates as needed...
     if (useDiffuseMap)
-        pGeometry->setTexCoordArray(StateSetContent::DIFFUSE_TEXTURE_UNIT, createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
+        pGeometry->setTexCoordArray(textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index(), createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
     if (useOpacityMap)
-        pGeometry->setTexCoordArray(StateSetContent::OPACITY_TEXTURE_UNIT, createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
+        pGeometry->setTexCoordArray(textureMap.getOrCreate(kOPACITY_TEXTURE_UNIT).index(), createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
     if (useEmissiveMap)
-        pGeometry->setTexCoordArray(StateSetContent::EMISSIVE_TEXTURE_UNIT, createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
+        pGeometry->setTexCoordArray(textureMap.getOrCreate(kEMISSIVE_TEXTURE_UNIT).index(), createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
     if (useAmbientMap)
-        pGeometry->setTexCoordArray(StateSetContent::AMBIENT_TEXTURE_UNIT, createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
+        pGeometry->setTexCoordArray(textureMap.getOrCreate(kAMBIENT_TEXTURE_UNIT).index(), createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
     // create more textures coordinates here...
 
-    if (bColor) pGeometry->setColorArray(createVec4Array((precision & osgDB::Options::DOUBLE_PRECISION_COLOR) != 0), osg::Array::BIND_PER_VERTEX);
+    if (bColor)
+    { 
+       // Vertex Color
+       pGeometry->setColorArray(createVec4Array((precision & osgDB::Options::DOUBLE_PRECISION_COLOR) != 0), osg::Array::BIND_PER_VERTEX);
+    } 
+    else if (bColorProperty)
+    {
+       // Property Color
+       osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array((precision & osgDB::Options::DOUBLE_PRECISION_COLOR) != 0);
+       colors->push_back(osg::Vec4(colorProperty.mRed, colorProperty.mGreen, colorProperty.mBlue, colorProperty.mAlpha));
+       pGeometry->setColorArray(colors.get());
+       pGeometry->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+    }
+
 
     if (mti < stateSetList.size())
     {
@@ -201,6 +226,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
 
         bool transparent = false;
         const StateSetContent& ssc = stateSetList[mti];
+        bool addExtendedMaterial = false;
 
         // set material...
         if (osg::Material* pMaterial = ssc.material.get())
@@ -212,7 +238,8 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         // diffuse texture map...
         if (ssc.diffuseTexture)
         {
-            stateSet->setTextureAttributeAndModes(StateSetContent::DIFFUSE_TEXTURE_UNIT, ssc.diffuseTexture.get());
+            unsigned int textureUnit = textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index();
+            stateSet->setTextureAttributeAndModes(textureUnit, ssc.diffuseTexture.get());
 
             if (ssc.diffuseScaleU != 1.0 || ssc.diffuseScaleV != 1.0)
             {
@@ -221,7 +248,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
                 osg::Matrix uvScaling;
                 uvScaling.makeScale(osg::Vec3(ssc.diffuseScaleU, ssc.diffuseScaleV, 1.0));
                 texmat->setMatrix(uvScaling);
-                stateSet->setTextureAttributeAndModes(StateSetContent::DIFFUSE_TEXTURE_UNIT, texmat.get(), osg::StateAttribute::ON);
+                stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
             }
 
             if (lightmapTextures)
@@ -233,7 +260,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
                 texenv->setSource1_RGB(osg::TexEnvCombine::PREVIOUS);
                 texenv->setSource2_RGB(osg::TexEnvCombine::CONSTANT);
                 texenv->setConstantColor(osg::Vec4(factor, factor, factor, factor));
-                stateSet->setTextureAttributeAndModes(StateSetContent::DIFFUSE_TEXTURE_UNIT, texenv.get(), osg::StateAttribute::ON);
+                stateSet->setTextureAttributeAndModes(textureUnit, texenv.get(), osg::StateAttribute::ON);
             }
 
             // setup transparency
@@ -244,7 +271,8 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         // opacity texture map...
         if (ssc.opacityTexture)
         {
-            stateSet->setTextureAttributeAndModes(StateSetContent::OPACITY_TEXTURE_UNIT, ssc.opacityTexture.get());
+            unsigned int textureUnit = textureMap.getOrCreate(kOPACITY_TEXTURE_UNIT).index();
+            stateSet->setTextureAttributeAndModes(textureUnit, ssc.opacityTexture.get());
 
             if (ssc.opacityScaleU != 1.0 || ssc.opacityScaleV != 1.0)
             {
@@ -253,14 +281,14 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
                 osg::Matrix uvScaling;
                 uvScaling.makeScale(osg::Vec3(ssc.opacityScaleU, ssc.opacityScaleV, 1.0));
                 texmat->setMatrix(uvScaling);
-                stateSet->setTextureAttributeAndModes(StateSetContent::OPACITY_TEXTURE_UNIT, texmat.get(), osg::StateAttribute::ON);
+                stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
             }
 
             // setup combiner to ignore RGB...
             osg::ref_ptr<osg::TexEnvCombine> texenv = new osg::TexEnvCombine();
             texenv->setCombine_RGB(osg::TexEnvCombine::REPLACE);
             texenv->setSource0_RGB(osg::TexEnvCombine::PREVIOUS);
-            stateSet->setTextureAttributeAndModes(StateSetContent::OPACITY_TEXTURE_UNIT, texenv.get(), osg::StateAttribute::ON);
+            stateSet->setTextureAttributeAndModes(textureUnit, texenv.get(), osg::StateAttribute::ON);
 
             // setup transparency...
             if (!transparent && ssc.opacityTexture->getImage())
@@ -270,27 +298,21 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         // reflection texture map...
         if (ssc.reflectionTexture)
         {
-            stateSet->setTextureAttributeAndModes(StateSetContent::REFLECTION_TEXTURE_UNIT, ssc.reflectionTexture.get());
+            unsigned int textureUnit = textureMap.getOrCreate(kREFLECTION_TEXTURE_UNIT).index();
+            stateSet->setTextureAttributeAndModes(textureUnit, ssc.reflectionTexture.get());
 
             // setup spherical map...
             osg::ref_ptr<osg::TexGen> texgen = new osg::TexGen();
             texgen->setMode(osg::TexGen::SPHERE_MAP);
-            stateSet->setTextureAttributeAndModes(StateSetContent::REFLECTION_TEXTURE_UNIT, texgen.get(), osg::StateAttribute::ON);
-
-            // setup combiner for factor...
-            double factor = ssc.reflectionFactor;
-            osg::ref_ptr<osg::TexEnvCombine> texenv = new osg::TexEnvCombine();
-            texenv->setCombine_RGB(osg::TexEnvCombine::INTERPOLATE);
-            texenv->setSource0_RGB(osg::TexEnvCombine::TEXTURE);
-            texenv->setSource1_RGB(osg::TexEnvCombine::PREVIOUS);
-            texenv->setSource2_RGB(osg::TexEnvCombine::CONSTANT);
-            texenv->setConstantColor(osg::Vec4(factor, factor, factor, factor));
-            stateSet->setTextureAttributeAndModes(StateSetContent::REFLECTION_TEXTURE_UNIT, texenv.get(), osg::StateAttribute::ON);
+            stateSet->setTextureAttributeAndModes(textureUnit, texgen.get(), osg::StateAttribute::ON);
+            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+            addExtendedMaterial = true;
         }
 
         // emissive texture map
         if (ssc.emissiveTexture)
         {
+            unsigned int textureUnit = textureMap.getOrCreate(kEMISSIVE_TEXTURE_UNIT).index();
             if (ssc.emissiveScaleU != 1.0 || ssc.emissiveScaleV != 1.0)
             {
                 // set UV scaling...
@@ -298,15 +320,20 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
                 osg::Matrix uvScaling;
                 uvScaling.makeScale(osg::Vec3(ssc.emissiveScaleU, ssc.emissiveScaleV, 1.0));
                 texmat->setMatrix(uvScaling);
-                stateSet->setTextureAttributeAndModes(StateSetContent::EMISSIVE_TEXTURE_UNIT, texmat.get(), osg::StateAttribute::ON);
+                stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
             }
-
-            stateSet->setTextureAttributeAndModes(StateSetContent::EMISSIVE_TEXTURE_UNIT, ssc.emissiveTexture.get());
+            else
+            {
+               stateSet->setTextureAttributeAndModes(textureUnit, ssc.emissiveTexture.get());
+            }
+            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+            addExtendedMaterial = true;
         }
 
         // ambient texture map
         if (ssc.ambientTexture)
         {
+            unsigned int textureUnit = textureMap.getOrCreate(kAMBIENT_TEXTURE_UNIT).index();
             if (ssc.ambientScaleU != 1.0 || ssc.ambientScaleV != 1.0)
             {
                 // set UV scaling...
@@ -314,13 +341,124 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
                 osg::Matrix uvScaling;
                 uvScaling.makeScale(osg::Vec3(ssc.ambientScaleU, ssc.ambientScaleV, 1.0));
                 texmat->setMatrix(uvScaling);
-                stateSet->setTextureAttributeAndModes(StateSetContent::AMBIENT_TEXTURE_UNIT, texmat.get(), osg::StateAttribute::ON);
+                stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
             }
-
-            stateSet->setTextureAttributeAndModes(StateSetContent::AMBIENT_TEXTURE_UNIT, ssc.ambientTexture.get());
+            else
+            {
+               stateSet->setTextureAttributeAndModes(textureUnit, ssc.ambientTexture.get());
+            }
+            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+            addExtendedMaterial = true;
         }
 
-        // add more texture maps here...
+        // normal map
+        if (ssc.normalTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kNORMAL_TEXTURE_UNIT).index();
+           if (ssc.normalScaleU != 1.0 || ssc.normalScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.normalScaleU, ssc.normalScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.normalTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
+
+        // bump map
+        if (ssc.bumpTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kBUMP_TEXTURE_UNIT).index();
+           if (ssc.bumpScaleU != 1.0 || ssc.bumpScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.bumpScaleU, ssc.bumpScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.bumpTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
+
+        // specular map
+        if (ssc.specularTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kSPECULAR_TEXTURE_UNIT).index();
+           if (ssc.specularScaleU != 1.0 || ssc.specularScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.specularScaleU, ssc.specularScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.specularTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
+
+        // gloss/shininess map
+        if (ssc.glossTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kGLOSS_TEXTURE_UNIT).index();
+           if (ssc.glossScaleU != 1.0 || ssc.glossScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.glossScaleU, ssc.glossScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.glossTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
+
+        // Add extended material
+        if (ssc.extendedmaterial.get() && addExtendedMaterial)
+        {
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+        }
+
+        if (cullingType == FbxNode::eCullingOff)
+        {
+           // For double face polygon disable cull face
+           stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+        }
+        else if (cullingType == FbxNode::eCullingOnCCW)
+        {
+           // TODO Check if we need to do something
+//           stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+//           _shadowCastingStateSet->setAttribute(new osg::CullFace(osg::CullFace::FRONT),
+//              osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+        }
+        else if (cullingType == FbxNode::eCullingOnCW)
+        {
+           // TODO Check if we need to do something
+           // Default ?
+           //stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+        }
 
         if (transparent)
         {
@@ -331,7 +469,6 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
 
     geometryMap.insert(std::pair<unsigned, osg::ref_ptr<osg::Geometry> >(mti, pGeometry));
     pGeode->addDrawable(pGeometry.get());
-
     return pGeometry.get();
 }
 
@@ -505,9 +642,29 @@ std::string getUVChannelForTextureMap(std::vector<StateSetContent>& stateSetList
         if (0 == strcmp(pName, FbxSurfaceMaterial::sAmbient))
             return stateSetList[i].ambientChannel;
         // more here...
+        if (0 == strcmp(pName, FbxSurfaceMaterial::sNormalMap))
+           return stateSetList[i].normalChannel;
     }
 
     return "";
+}
+
+bool hasTexture(std::vector<StateSetContent>& stateSetList, const char* pName)
+{
+   // check if the stateset has a texture
+   // TODO: what if more than one channel for the same map type?
+   for (unsigned int i = 0; i < stateSetList.size(); i++)
+   {
+      if (0 == strcmp(pName, FbxSurfaceMaterial::sDiffuse))
+      {
+         if (stateSetList[i].diffuseTexture.get() != NULL)
+         {
+            return true;
+         }
+      }
+   }
+
+   return false;
 }
 
 // scans mesh layers looking for the UV element corresponding to the specified channel name...
@@ -566,7 +723,9 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
                       osg::Array* pTexCoords_opacity,
                       osg::Array* pTexCoords_emissive,
                       osg::Array* pTexCoords_ambient,
-                      osg::Array* pColors)
+                      osg::Array* pColors,
+                      bool bColorProperty,
+                      FbxColor& colorProperty)
 {
     int v0 = fbxMesh->GetPolygonVertex(i, posInPoly0),
         v1 = fbxMesh->GetPolygonVertex(i, posInPoly1),
@@ -625,11 +784,18 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
     }
     // add more texture maps here...
 
-    if (pColors)
+    if (pColors && bColorProperty == false)
     {
         addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly0, meshVertex0));
         addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly1, meshVertex1));
         addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly2, meshVertex2));
+    }
+    else if (bColorProperty)
+    {
+       // if we have a unique color
+       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty);
     }
 }
 
@@ -688,68 +854,110 @@ struct PolygonRef
 typedef std::vector<PolygonRef> PolygonRefList;
 
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
-    FbxNode* pNode,
-    FbxMesh* fbxMesh,
-    std::vector<StateSetContent>& stateSetList,
-    const char* szName)
+   FbxNode* pNode,
+   FbxMesh* fbxMesh,
+   std::vector<StateSetContent>& stateSetList,
+   const char* szName,
+   textureUnitMap& textureMap)
 {
-    GeometryMap geometryMap;
+   GeometryMap geometryMap;
+   osg::Billboard* pBillBoard = 0;
+   osg::Geode* pGeode = 0; 
 
-    osg::Geode* pGeode = new osg::Geode;
-    pGeode->setName(szName);
+   // Check comments in node 
+   FbxString pComment;
+   fbxUtil::getCommentProperty(pNode, pComment);
+   if (pComment.Find(disBillboardAxis.c_str()) != -1)
+   {
+      pBillBoard = new osg::Billboard;
+      pBillBoard->setMode(osg::Billboard::AXIAL_ROT);
+      pBillBoard->setAxis(osg::Vec3(0.0f, -1.0f, 0.0f));
+      pBillBoard->setNormal(osg::Vec3(0.0f, 0.0f, 1.0f));
+      pBillBoard->setDataVariance(osg::Object::STATIC);
+      pGeode = pBillBoard;
+   }
+   else if (pComment.Find(disBillboardPoint.c_str()) != -1)
+   {
+      pBillBoard = new osg::Billboard;
+      pBillBoard->setMode(osg::Billboard::POINT_ROT_WORLD);
+      pBillBoard->setAxis(osg::Vec3(0.0f, 0.0f, 1.0f));
+      pBillBoard->setNormal(osg::Vec3(0.0f, -1.0f, 0.0f));
+      pBillBoard->setDataVariance(osg::Object::STATIC);
+      pGeode = pBillBoard;
+   }
+   else
+   {
+      pGeode = new osg::Geode;
+   }
 
-    const FbxLayerElementNormal* pFbxNormals = 0;
-    const FbxLayerElementVertexColor* pFbxColors = 0;
-    const FbxLayerElementMaterial* pFbxMaterials = 0;
+   pGeode->setName(szName);   
+   if (pComment.Find("@dis") == -1)
+   {
+      // When a non Vantage comment is available add it 
+      pGeode->addDescription(pComment.Buffer());
+   }
+   const FbxLayerElementNormal* pFbxNormals = 0;
+   const FbxLayerElementVertexColor* pFbxColors = 0;
+   const FbxLayerElementMaterial* pFbxMaterials = 0;
 
-    const FbxVector4* pFbxVertices = fbxMesh->GetControlPoints();
+   const FbxVector4* pFbxVertices = fbxMesh->GetControlPoints();
 
-    // scan layers for Normals, Colors and Materials elements (this will get the first available elements)...
-    for (int cLayerIndex = 0; cLayerIndex < fbxMesh->GetLayerCount(); cLayerIndex++)
-    {
-        const FbxLayer* pFbxLayer = fbxMesh->GetLayer(cLayerIndex);
-        if (!pFbxLayer)
-            continue;
+   // scan layers for Normals, Colors and Materials elements (this will get the first available elements)...
+   for (int cLayerIndex = 0; cLayerIndex < fbxMesh->GetLayerCount(); cLayerIndex++)
+   {
+      const FbxLayer* pFbxLayer = fbxMesh->GetLayer(cLayerIndex);
+      if (!pFbxLayer)
+         continue;
 
-        // get normals, colors and materials...
-        if (!pFbxNormals)
-            pFbxNormals = pFbxLayer->GetNormals();
-        if (!pFbxColors)
-            pFbxColors = pFbxLayer->GetVertexColors();
-        if (!pFbxMaterials)
-            pFbxMaterials = pFbxLayer->GetMaterials();
-    }
+      // get normals, colors and materials...
+      if (!pFbxNormals)
+         pFbxNormals = pFbxLayer->GetNormals();
+      if (!pFbxColors)
+         pFbxColors = pFbxLayer->GetVertexColors();
+      if (!pFbxMaterials)
+         pFbxMaterials = pFbxLayer->GetMaterials();
+   }
 
-    // look for UV elements (diffuse, opacity, reflection, emissive, ...) and get their channels names...
-    std::string diffuseChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sDiffuse);
-    std::string opacityChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sTransparentColor);
-    std::string emissiveChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sEmissive);
-    std::string ambientChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sAmbient);
-    // look for more UV elements here...
+   // look for UV elements (diffuse, opacity, reflection, emissive, ...) and get their channels names...
+   std::string diffuseChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sDiffuse);
+   std::string opacityChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sTransparentColor);
+   std::string emissiveChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sEmissive);
+   std::string ambientChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sAmbient);
+   // look for more UV elements here...
 
-    // UV elements...
-    const FbxLayerElementUV* pFbxUVs_diffuse = getUVElementForChannel(diffuseChannel, FbxLayerElement::eTextureDiffuse, fbxMesh);
-    const FbxLayerElementUV* pFbxUVs_opacity = getUVElementForChannel(opacityChannel, FbxLayerElement::eTextureTransparency, fbxMesh);
-    const FbxLayerElementUV* pFbxUVs_emissive = getUVElementForChannel(emissiveChannel, FbxLayerElement::eTextureEmissive, fbxMesh);
-    const FbxLayerElementUV* pFbxUVs_ambient = getUVElementForChannel(ambientChannel, FbxLayerElement::eTextureAmbient, fbxMesh);
-    // more UV elements here...
+   // UV elements...
+   const FbxLayerElementUV* pFbxUVs_diffuse = getUVElementForChannel(diffuseChannel, FbxLayerElement::eTextureDiffuse, fbxMesh);
+   const FbxLayerElementUV* pFbxUVs_opacity = getUVElementForChannel(opacityChannel, FbxLayerElement::eTextureTransparency, fbxMesh);
+   const FbxLayerElementUV* pFbxUVs_emissive = getUVElementForChannel(emissiveChannel, FbxLayerElement::eTextureEmissive, fbxMesh);
+   const FbxLayerElementUV* pFbxUVs_ambient = getUVElementForChannel(ambientChannel, FbxLayerElement::eTextureAmbient, fbxMesh);
+   // more UV elements here...
 
-    // check elements validity...
-    if (!layerElementValid(pFbxNormals)) pFbxNormals = 0;
-    if (!layerElementValid(pFbxColors)) pFbxColors = 0;
+   // check elements validity...
+   if (!layerElementValid(pFbxNormals)) pFbxNormals = 0;
+   if (!layerElementValid(pFbxColors)) pFbxColors = 0;
 
-    if (!layerElementValid(pFbxUVs_diffuse)) pFbxUVs_diffuse = 0;
-    if (!layerElementValid(pFbxUVs_opacity)) pFbxUVs_opacity = 0;
-    if (!layerElementValid(pFbxUVs_emissive)) pFbxUVs_emissive = 0;
-    if (!layerElementValid(pFbxUVs_ambient)) pFbxUVs_ambient = 0;
-    // more here...
+   if (!layerElementValid(pFbxUVs_diffuse)) pFbxUVs_diffuse = 0;
+   if (!layerElementValid(pFbxUVs_opacity)) pFbxUVs_opacity = 0;
+   if (!layerElementValid(pFbxUVs_emissive)) pFbxUVs_emissive = 0;
+   if (!layerElementValid(pFbxUVs_ambient)) pFbxUVs_ambient = 0;
+   // more here...
 
-    int nPolys = fbxMesh->GetPolygonCount();
+   int nPolys = fbxMesh->GetPolygonCount();
 
-    int nDeformerCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
-    int nDeformerBlendShapeCount = fbxMesh->GetDeformerCount(FbxDeformer::eBlendShape);
+   int nDeformerCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
+   int nDeformerBlendShapeCount = fbxMesh->GetDeformerCount(FbxDeformer::eBlendShape);
 
-    GeometryType geomType = GEOMETRY_STATIC;
+   // Get the Mesh Property color if it exist
+   // This color is used if there is no texture or material on the geometry
+   FbxColor lColorProperty(1.0, 1.0, 1.0);
+   bool foundColorProperty = false;
+   bool textureAvailable = hasTexture(stateSetList, FbxSurfaceMaterial::sDiffuse);
+   if (pFbxMaterials == NULL && textureAvailable == false)
+   {
+      foundColorProperty = fbxUtil::getColorProperty(fbxMesh, lColorProperty);
+   }
+
+   GeometryType geomType = GEOMETRY_STATIC;
 
     //determine the type of geometry
     if (nDeformerCount)
@@ -769,12 +977,35 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
     // This is the reason we store polygons references:
 
     PolygonRefList polygonRefList;
+    int materialCount = pNode->GetMaterialCount();
 
     for (int i = 0, nVertex = 0; i < nPolys; ++i)
     {
         int lPolygonSize = fbxMesh->GetPolygonSize(i);
 
         int materialIndex = getPolygonIndex(pFbxMaterials, i);
+
+        // Get the diffuse color of the surface material
+        if (i < materialCount)
+        {
+           FbxSurfaceMaterial* lSurfaceMaterial = pNode->GetMaterial(i);
+           // Check if there is a material color to overwrite the global property color
+           // The material diffuse color is used if there is no texture (and overwrite the global color)
+           if (pFbxMaterials != NULL && lSurfaceMaterial != NULL && textureAvailable == false)
+           {
+              const FbxSurfaceLambert* pFbxLambert = FbxCast<FbxSurfaceLambert>(lSurfaceMaterial);
+              if (pFbxLambert)
+              {
+                 // May need to also use transparency color factor, if so check (FbxMaterialToOsgStateSet::convert())
+                 FbxDouble3 color = pFbxLambert->Diffuse.Get();
+                 lColorProperty.mRed = color[0];
+                 lColorProperty.mGreen = color[1];
+                 lColorProperty.mBlue = color[2];
+                 lColorProperty.mAlpha = 1.0;
+                 foundColorProperty = true;
+              }
+           }
+        }
 
         osg::Geometry* pGeometry = getGeometry(pGeode, geometryMap,
             stateSetList, geomType, materialIndex,
@@ -786,17 +1017,28 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
             // more UV elements here...
             pFbxColors != 0,
             options,
-            lightmapTextures);
+            lightmapTextures,
+            foundColorProperty,
+            lColorProperty,
+            pNode->mCullingType,
+            textureMap);
 
         osg::Array* pVertices = pGeometry->getVertexArray();
         osg::Array* pNormals = pGeometry->getNormalArray();
 
-        // get texture coordinates...
-        osg::Array* pTexCoords_diffuse = pGeometry->getTexCoordArray(StateSetContent::DIFFUSE_TEXTURE_UNIT);
-        osg::Array* pTexCoords_opacity = pGeometry->getTexCoordArray(StateSetContent::OPACITY_TEXTURE_UNIT);
-        osg::Array* pTexCoords_emissive = pGeometry->getTexCoordArray(StateSetContent::EMISSIVE_TEXTURE_UNIT);
-        osg::Array* pTexCoords_ambient = pGeometry->getTexCoordArray(StateSetContent::AMBIENT_TEXTURE_UNIT);
-        // more texture coordinates here...
+        osg::Array* pTexCoords_diffuse = NULL;
+        osg::Array* pTexCoords_opacity = NULL;
+        osg::Array* pTexCoords_emissive = NULL;
+        osg::Array* pTexCoords_ambient = NULL;
+        if (pFbxUVs_diffuse != 0)
+           pTexCoords_diffuse = pGeometry->getTexCoordArray(textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index());
+        if (pFbxUVs_opacity != 0)
+           pTexCoords_opacity = pGeometry->getTexCoordArray(textureMap.getOrCreate(kOPACITY_TEXTURE_UNIT).index());
+        if (pFbxUVs_emissive != 0)
+           pTexCoords_emissive = pGeometry->getTexCoordArray(textureMap.getOrCreate(kEMISSIVE_TEXTURE_UNIT).index());
+        if (pFbxUVs_ambient != 0)
+           pTexCoords_ambient = pGeometry->getTexCoordArray(textureMap.getOrCreate(kAMBIENT_TEXTURE_UNIT).index());
+           // more texture coordinates here...
 
         osg::Array* pColors = pGeometry->getColorArray();
 
@@ -809,7 +1051,8 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, pColors);
+               pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+               pColors, foundColorProperty, lColorProperty);
             nVertex += 3;
         }
         else if (lPolygonSize == 4)
@@ -826,14 +1069,16 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, pColors);
+                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+                pColors, foundColorProperty, lColorProperty);
             readMeshTriangle(fbxMesh, i,
                 p10, 2, 3,
                 nVertex+p10, nVertex+2, nVertex+3,
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, pColors);
+                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+               pColors, foundColorProperty, lColorProperty);
             nVertex += 4;
         }
         else if (tessellatePolygons)
@@ -855,7 +1100,8 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                     fbxToOsgVertMap, osgToFbxNormMap,
                     pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                     pGeometry,
-                    pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, pColors);
+                    pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+                    pColors, foundColorProperty, lColorProperty);
             }
         }
     }
@@ -871,7 +1117,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
     // Now add polygons - Convert to triangles
     // We put vertices in their own PrimitiveSet with Mode=POLYGON; then run the
     // Tessellator on the Geometry which should tessellate the polygons
-    // automagically.
+    // automatically.
     for (PolygonRefList::iterator it = polygonRefList.begin(), itEnd=polygonRefList.end();
         it != itEnd; ++it)
     {
@@ -882,10 +1128,18 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
 
         osg::Array* pVertices = pGeometry->getVertexArray();
         osg::Array* pNormals = pGeometry->getNormalArray();
-        osg::Array* pTexCoords_diffuse = pGeometry->getTexCoordArray(StateSetContent::DIFFUSE_TEXTURE_UNIT);
-        osg::Array* pTexCoords_opacity = pGeometry->getTexCoordArray(StateSetContent::OPACITY_TEXTURE_UNIT);
-        osg::Array* pTexCoords_emissive = pGeometry->getTexCoordArray(StateSetContent::EMISSIVE_TEXTURE_UNIT);
-        osg::Array* pTexCoords_ambient = pGeometry->getTexCoordArray(StateSetContent::AMBIENT_TEXTURE_UNIT);
+        osg::Array* pTexCoords_diffuse = NULL;
+        osg::Array* pTexCoords_opacity = NULL;
+        osg::Array* pTexCoords_emissive = NULL;
+        osg::Array* pTexCoords_ambient = NULL;
+        if (pFbxUVs_diffuse != 0)
+           pTexCoords_diffuse = pGeometry->getTexCoordArray(textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index());
+        if (pFbxUVs_opacity != 0)
+           pTexCoords_opacity = pGeometry->getTexCoordArray(textureMap.getOrCreate(kOPACITY_TEXTURE_UNIT).index());
+        if (pFbxUVs_emissive != 0)
+           pTexCoords_emissive = pGeometry->getTexCoordArray(textureMap.getOrCreate(kEMISSIVE_TEXTURE_UNIT).index());
+        if (pFbxUVs_ambient != 0)
+           pTexCoords_ambient = pGeometry->getTexCoordArray(textureMap.getOrCreate(kAMBIENT_TEXTURE_UNIT).index());
         osg::Array* pColors = pGeometry->getColorArray();
         // Index of the 1st vertex of the polygon in the geometry
         int osgVertex0 = pVertices->getNumElements();
@@ -1175,6 +1429,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
     if (!osgGeometricTransform.isIdentity())
     {
         osg::MatrixTransform* pMatTrans = new osg::MatrixTransform(osgGeometricTransform);
+        pMatTrans->setDataVariance(osg::Object::STATIC);
         pMatTrans->addChild(pGeode);
         pResult = pMatTrans;
     }
@@ -1196,7 +1451,8 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
 }
 
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxMesh(FbxNode* pNode,
-    std::vector<StateSetContent>& stateSetList)
+   std::vector<StateSetContent>& stateSetList,
+   textureUnitMap& textureMap)
 {
     FbxMesh* lMesh = FbxCast<FbxMesh>(pNode->GetNodeAttribute());
 
@@ -1206,5 +1462,5 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxMesh(FbxNode* pNode,
     }
 
     return readMesh(pNode, lMesh, stateSetList,
-        pNode->GetName());
+        pNode->GetName(), textureMap);
 }

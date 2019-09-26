@@ -10,7 +10,7 @@
  *    HISTORY:        Created 11.03.2003
  *                    Updated for 1D textures - Don Burns 27.1.2004
  *                    Updated for light model - Stan Blinov at 25 august 7512 from World Creation (7.09.2004)
- *
+ *                    Updated for Animation - VT MAK (30.07.2019)
  *    Copyright 2003 VR-C
  **********************************************************************/
 
@@ -25,6 +25,7 @@
 #include "BlendFunc.h"
 #include "BlendEquation.h"
 #include "Material.h"
+#include "ExtendedMaterial.h"
 #include "CullFace.h"
 #include "ColorMask.h"
 #include "Depth.h"
@@ -89,6 +90,9 @@
 #include "LightPointNode.h"
 #include "MultiSwitch.h"
 #include "VisibilityGroup.h"
+
+#include "AnimationMatrixTransform.h"
+#include "Animation.h"
 
 #include "MultiTextureControl.h"
 #include "ShapeAttributeList.h"
@@ -1020,8 +1024,16 @@ void DataOutputStream::writeStateAttribute(const osg::StateAttribute* attribute)
             ((ive::Scissor*)(attribute))->write(this);
         }
         // This is a Material
-        else if(dynamic_cast<const osg::Material*>(attribute)){
-            ((ive::Material*)(attribute))->write(this);
+        else if (dynamic_cast<const osg::Material*>(attribute)){
+           // This is a ExtendedMaterial
+           if (dynamic_cast<const osg::ExtendedMaterial*>(attribute))
+           {
+              ((ive::ExtendedMaterial*)(attribute))->write(this);
+           }
+           else
+           {
+              ((ive::Material*)(attribute))->write(this);
+           }
         }
         // This is a CullFace
         else if(dynamic_cast<const osg::CullFace*>(attribute)){
@@ -1301,9 +1313,17 @@ void DataOutputStream::writeNode(const osg::Node* node)
         writeInt(id);
 
         // this follow code *really* should use a NodeVisitor... Robert Osfield August 2003.
-
-        if(dynamic_cast<const osg::MatrixTransform*>(node)){
-            ((ive::MatrixTransform*)(node))->write(this);
+        if(dynamic_cast<const osg::MatrixTransform*>(node))
+        {
+           //VRV Patch
+           if (dynamic_cast<const osgAnimation::AnimationMatrixTransform*>(node)) 
+           {
+              ((ive::AnimationMatrixTransform*)(node))->write(this);
+           } //End VRV
+           else
+           {
+              ((ive::MatrixTransform*)(node))->write(this);
+           }
         }
         else if(dynamic_cast<const osg::Camera*>(node)){
             ((ive::Camera*)(node))->write(this);
@@ -1889,10 +1909,83 @@ void DataOutputStream::writeObject(const osg::Object* object)
         ((ive::ShapeAttributeList*)sal)->write(this);
         return;
     }
-
+    //VRV Patch
+    const osgAnimation::Animation* anim = dynamic_cast<const osgAnimation::Animation*>(object);
+    if (anim)
+    {
+       writeInt(IVEANIMATION);
+       ((ive::Animation*)anim)->write(this);
+       return;
+    }
+    //End VRV
     // fallback, osg::Object type not supported, so can't write out
     writeInt(-1);
 }
+//VRV Patch
+void DataOutputStream::writeStackedTransformElement(const osgAnimation::StackedTransformElement* st)
+{
+   const osgAnimation::StackedQuaternionElement*  sqe = dynamic_cast<const osgAnimation::StackedQuaternionElement*>(st);
+   if (sqe)
+   {
+      writeInt(IVESTACKEDQUATERNIONELEMENT);
+      writeQuat(sqe->getQuaternion());
+      return;
+   }
+   const osgAnimation::StackedRotateAxisElement*  sre = dynamic_cast<const osgAnimation::StackedRotateAxisElement*>(st);
+   if (sre)
+   {
+      writeInt(IVESTACKEDROTATEAXISELEMENT);
+      writeVec3d(sre->getAxis());
+      writeDouble(sre->getAngle());
+      return;
+   }
+   const osgAnimation::StackedScaleElement*  sse = dynamic_cast<const osgAnimation::StackedScaleElement*>(st);
+   if (sse)
+   {
+      writeInt(IVESTACKEDSCALEELEMENT);
+      writeVec3d(sse->getScale());
+      return;
+   }
+   const osgAnimation::StackedTranslateElement*  ste = dynamic_cast<const osgAnimation::StackedTranslateElement*>(st);
+   if (ste)
+   {
+      writeInt(IVESTACKEDTRANSLATEELEMENT);
+      writeVec3d(ste->getTranslate());
+      return;
+   }
+   const osgAnimation::StackedMatrixElement*  sme = dynamic_cast<const osgAnimation::StackedMatrixElement*>(st);
+   if (sme)
+   {
+      writeInt(IVESTACKEDMATRIXELEMENT);
+      writeMatrixd(sme->getMatrix());
+      return;
+   }
+   else
+   {
+      OSG_WARN << "unknown StackedTransformElement type" << std::endl;
+   }
+}
+
+DataOutputStream& DataOutputStream::operator<<(const osg::Matrixf& mat)
+{
+   for (int r = 0; r < 4; ++r)
+   {
+      *this << (double)mat(r, 0) << (double)mat(r, 1)
+         << (double)mat(r, 2) << (double)mat(r, 3);
+   }
+   return *this;
+}
+
+DataOutputStream& DataOutputStream::operator<<(const osg::Matrixd& mat)
+{
+   for (int r = 0; r < 4; ++r)
+   {
+      *this << mat(r, 0) << mat(r, 1)
+         << mat(r, 2) << mat(r, 3);
+   }
+   return *this;
+}
+//End VRV
 
 std::string DataOutputStream::getTextureFileNameForOutput()
 {

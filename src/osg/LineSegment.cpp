@@ -15,6 +15,18 @@
 #include <osg/io_utils>
 
 using namespace osg;
+#define EPSILON 0.000001
+#define CROSS(dest,v1,v2) \
+          dest[0]=v1[1]*v2[2]-v1[2]*v2[1]; \
+          dest[1]=v1[2]*v2[0]-v1[0]*v2[2]; \
+          dest[2]=v1[0]*v2[1]-v1[1]*v2[0];
+#define DOT(v1,v2) (v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2])
+
+
+#define SUB(dest,v1,v2) \
+          dest[0]=v1[0]-v2[0]; \
+          dest[1]=v1[1]-v2[1]; \
+          dest[2]=v1[2]-v2[2];
 
 LineSegment::~LineSegment()
 {
@@ -318,9 +330,88 @@ bool LineSegment::intersect(const BoundingSphere& bs) const
 
     return true;
 }
-
+/* Ray-Triangle Intersection Test Routines          */
+/* Different optimizations of my and Ben Trumbore's */
+/* code from journals of graphics tools (JGT)       */
+/* http://www.acm.org/jgt/                          */
+/* by Tomas Moller, May 2000                        */
+// http://www.cs.lth.se/home/Tomas_Akenine_Moller/raytri/raytri.c
+/* code rewritten to do tests on the sign of the determinant */
+/* the division is before the test of the sign of the det    */
+/* and one CROSS has been moved out from the if-else if-else */
+// Modified to version which only calculates if there is an intersection.
 bool LineSegment::intersect(const Vec3f& v1,const Vec3f& v2,const Vec3f& v3,float& r)
 {
+   if (v1==v2 || v2==v3 || v1==v3) return false;
+
+   double* orig = &_s[0];
+   float* vert0 = &(*(const_cast<osg::Vec3f*>(&v1)))[0];
+   float* vert1 = &(*(const_cast<osg::Vec3f*>(&v2)))[0];
+   float* vert2 = &(*(const_cast<osg::Vec3f*>(&v3)))[0];   
+  
+   vec_type d = _e - _s;
+   double* dir = &d[0];
+   double u;
+   double v;
+
+   double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
+   double det,inv_det;
+
+   /* find vectors for two edges sharing vert0 */
+   SUB(edge1, vert1, vert0);
+   SUB(edge2, vert2, vert0);
+
+   /* begin calculating determinant - also used to calculate U parameter */
+   CROSS(pvec, dir, edge2);
+
+   /* if determinant is near zero, ray lies in plane of triangle */
+   det = DOT(edge1, pvec);
+
+   /* calculate distance from vert0 to ray origin */
+   SUB(tvec, orig, vert0);
+
+   inv_det = 1.0 / det;
+
+   CROSS(qvec, tvec, edge1);
+      
+   if (det > EPSILON)
+   {
+      u = DOT(tvec, pvec);
+      if (u < 0.0 || u > det)
+         return false;
+            
+      /* calculate V parameter and test bounds */
+      v = DOT(dir, qvec);
+      if (v < 0.0 || u + v > det)
+         return false;
+      
+   }
+   else if(det < -EPSILON)
+   {
+      /* calculate U parameter and test bounds */
+      u = DOT(tvec, pvec);
+
+      if (u > 0.0 || u < det)
+         return false;
+      
+      /* calculate V parameter and test bounds */
+      v = DOT(dir, qvec) ;
+      if (v > 0.0 || u + v < det)
+         return false;
+   }
+   else return false;  /* ray is parallell to the plane of the triangle */
+
+   //Calculate the r
+   double dd = DOT(edge2, qvec) * inv_det; 
+
+   if ( dd < 0.0f ) return false;
+   value_type length = d.length();
+   if ( dd > length ) return false;
+
+   r = dd/length;
+   return true;
+
+/*
     if (v1==v2 || v2==v3 || v1==v3) return false;
 
     vec_type vse = _e-_s;
@@ -339,7 +430,6 @@ bool LineSegment::intersect(const Vec3f& v1,const Vec3f& v2,const Vec3f& v3,floa
         if (ds12>0.0) return false;
         if (ds12<d312) return false;
     }
-
     vec_type v23 = v3-v2;
     vec_type n23 = v23^vse;
     value_type ds23 = (_s-v2)*n23;
@@ -388,10 +478,82 @@ bool LineSegment::intersect(const Vec3f& v1,const Vec3f& v2,const Vec3f& v3,floa
     r = (float) d/length;
 
     return true;
+*/    
 }
 
 bool LineSegment::intersect(const Vec3d& v1,const Vec3d& v2,const Vec3d& v3,double& r)
 {
+   if (v1==v2 || v2==v3 || v1==v3) return false;
+
+   double* orig = &_s[0];
+   double* vert0 = &(*(const_cast<osg::Vec3d*>(&v1)))[0];
+   double* vert1 = &(*(const_cast<osg::Vec3d*>(&v2)))[0];
+   double* vert2 = &(*(const_cast<osg::Vec3d*>(&v3)))[0];   
+  
+   vec_type d = _e - _s;
+   double* dir = &d[0];
+   double u;
+   double v;
+
+   double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
+   double det,inv_det;
+
+   /* find vectors for two edges sharing vert0 */
+   SUB(edge1, vert1, vert0);
+   SUB(edge2, vert2, vert0);
+
+   /* begin calculating determinant - also used to calculate U parameter */
+   CROSS(pvec, dir, edge2);
+
+   /* if determinant is near zero, ray lies in plane of triangle */
+   det = DOT(edge1, pvec);
+
+   /* calculate distance from vert0 to ray origin */
+   SUB(tvec, orig, vert0);
+
+   inv_det = 1.0 / det;
+
+   CROSS(qvec, tvec, edge1);
+      
+   if (det > EPSILON)
+   {
+      u = DOT(tvec, pvec);
+      if (u < 0.0 || u > det)
+         return false;
+            
+      /* calculate V parameter and test bounds */
+      v = DOT(dir, qvec);
+      if (v < 0.0 || u + v > det)
+         return false;
+      
+   }
+   else if(det < -EPSILON)
+   {
+      /* calculate U parameter and test bounds */
+      u = DOT(tvec, pvec);
+
+
+      if (u > 0.0 || u < det)
+         return false;
+      
+      /* calculate V parameter and test bounds */
+      v = DOT(dir, qvec) ;
+      if (v > 0.0 || u + v < det)
+         return false;
+   }
+   else return false;  /* ray is parallell to the plane of the triangle */
+
+   //Calculate the r
+   double dd = DOT(edge2, qvec) * inv_det; 
+   
+   if ( dd < 0.0 ) return false;
+   value_type length = d.length();
+   if ( dd > length ) return false;
+
+   r = dd/length;
+   return true;
+
+   /*
     if (v1==v2 || v2==v3 || v1==v3) return false;
 
     vec_type vse = _e-_s;
@@ -410,7 +572,6 @@ bool LineSegment::intersect(const Vec3d& v1,const Vec3d& v2,const Vec3d& v3,doub
         if (ds12>0.0) return false;
         if (ds12<d312) return false;
     }
-
     vec_type v23 = v3-v2;
     vec_type n23 = v23^vse;
     value_type ds23 = (_s-v2)*n23;
@@ -459,4 +620,5 @@ bool LineSegment::intersect(const Vec3d& v1,const Vec3d& v2,const Vec3d& v3,doub
     r = d/length;
 
     return true;
+    */
 }

@@ -335,7 +335,8 @@ class OSG_EXPORT StateSet : public Object
         /** Get the const list of defines to pass on to shaders.*/
         const DefineList& getDefineList() const { return _defineList; }
 
-
+        //! Vantage change needed for appropriate setting of texture unit attribs
+        int getCurrentTextureUnitIteratorIndex(){return _currentTextureUnitIteratorIndex;}
 
         enum RenderingHint
         {
@@ -501,6 +502,7 @@ class OSG_EXPORT StateSet : public Object
 
         TextureModeList                     _textureModeList;
         TextureAttributeList                _textureAttributeList;
+        int                                 _currentTextureUnitIteratorIndex;
 
         UniformList                         _uniformList;
         DefineList                          _defineList;

@@ -16,20 +16,33 @@
 #define OSG_OCCLUSION_QUERY_NODE 1
 
 #include <osg/Export>
+
+
+#include <OpenThreads/Thread>
+
+
+#include <string>
+
+#include <OpenThreads/ScopedLock>
+
 #include <osg/CopyOp>
+
 #include <osg/Group>
 #include <osg/Geometry>
+#include <osg/BoundingBox>
+#include <osg/BoundingSphere>
+#include <osg/Depth>
+#include <osg/RenderInfo>
 
+#include <map>
+#include <vector>
+
+namespace osgUtil{
+   class CullVisitor;
+}
 
 namespace osg {
 
-// Create and return a StateSet appropriate for performing an occlusion
-//   query test (disable lighting, texture mapping, etc). Probably some
-//   room for improvement here. Could disable shaders, for example.
-osg::StateSet* initOQState();
-
-// Create and return a StateSet for rendering a debug representation of query geometry.
-osg::StateSet* initOQDebugState();
 
 // TestResult -- stores (per context) results of an occlusion query
 //   test performed by QueryGeometry. An OcclusionQueryNode has a
@@ -40,7 +53,8 @@ osg::StateSet* initOQDebugState();
 class TestResult : public osg::Referenced
 {
 public:
-    TestResult() : _init( false ), _id( 0 ), _contextID( 0 ), _active( false ), _numPixels( 0 ) {}
+    TestResult() : _init( false ), _id( 0 ), _contextID( 0 ), _active( false ), _numPixels( 0 ), _queryFrame(0), _numQueriesRun(0), _lastFinishedQueryFrame(0)
+	{setThreadSafeRefUnref(true);}
     ~TestResult() {}
 
     bool _init;
@@ -49,6 +63,10 @@ public:
     GLuint _id;
     // Context ID owning this query ID.
     unsigned int _contextID;
+    
+    //VRV_PATCH
+    unsigned int _queryFrame;
+    unsigned int _lastFinishedQueryFrame;
 
     // Set to true when a query gets issued and set to
     //   false when the result is retrieved.
@@ -56,88 +74,108 @@ public:
 
     // Result of last query.
     GLint _numPixels;
+    unsigned int _numQueriesRun;
 };
 
-// QueryGeometry -- A Drawable that performs an occlusion query,
-//   using its geometric data as the query geometry.
+   typedef std::pair<long long int, const osg::Camera*> NodePathAndCamera;
+
+
+   class OcclusionQueryNode;
+
+   // DtQueryGeometry -- A Drawable that performs an occlusion query,
+   //   using its geometric data as the query geometry.
+
 class OSG_EXPORT QueryGeometry : public osg::Geometry
 {
-public:
-    QueryGeometry( const std::string& oqnName=std::string("") );
-    ~QueryGeometry();
-
+   public:
+    QueryGeometry( OcclusionQueryNode & parent, const std::string& oqnName = std::string());
+    virtual ~QueryGeometry();
     void reset();
 
     // TBD implement copy constructor
 
-    virtual void drawImplementation( osg::RenderInfo& renderInfo ) const;
+    virtual void drawImplementation(osg::RenderInfo& renderInfo) const;
 
-    unsigned int getNumPixels( const osg::Camera* cam );
+    unsigned int getNumPixels(NodePathAndCamera & npandc, const int currentTraversalFrame, int & query_frame, bool & active);
 
-    virtual void releaseGLObjects( osg::State* state = 0 ) const;
+    virtual void releaseGLObjects(osg::State* state = 0) const;
 
-    static void deleteQueryObject( unsigned int contextID, GLuint handle );
-    static void flushDeletedQueryObjects( unsigned int contextID, double currentTime, double& availableTime );
-    static void discardDeletedQueryObjects( unsigned int contextID );
+    static void deleteQueryObject(unsigned int contextID, GLuint handle);
+    static void flushDeletedQueryObjects(unsigned int contextID, double currentTime, double& availableTime);
+    static void discardDeletedQueryObjects(unsigned int contextID);
+    virtual void addTraversalToNodepath(int traversal, long long int nppath) { _traversalToNodePathMap[traversal] = nppath; }
 
-protected:
-    typedef std::map< const osg::Camera*, TestResult > ResultMap;
-    mutable ResultMap _results;
+    typedef std::map< NodePathAndCamera, osg::ref_ptr<osg::TestResult> > ResultsMap;
+
+   protected:
+
+    mutable ResultsMap _results;
+    mutable std::map< int, long long int>  _traversalToNodePathMap;
+
     mutable OpenThreads::Mutex _mapMutex;
 
     // Needed for debug only
     std::string _oqnName;
-};
+    OcclusionQueryNode & _queryNode;
 
-// This Node performs occlusion query testing on its children.
-//   You can use it directly to occlusion query test a portion
-//   of your scene graph, or you can use it implicitly with an
-//   OcclusionQueryRoot, which places OcclusionQueryNodes where
-//   needed and acts as a master control.
+   public:
+    const ResultsMap & getResults() const { return _results; }
+    ResultsMap & getResults() { return _results; }
+   };
+
+//! This Node is a slight rewritten version of the OSG core version. It fixes a number of deficiencies
+//! *Able to work far from the origin. The original version saved values in world space which it then sent 
+//! to a VBO and directly rendered. This had a high degree of imprecision which lead to false negatives and 
+//! occlusion node rendering vibrations. The node now builds a matrix around the min AABB values and the 
+//! geometry as an offset from that location.
+//! *Support for instanced objects; The original code handled multiple cameras, but multiple objects that  
+//! were instanced, would wind up sharing the occlusion results between objects. This has been modified 
+//! to use the node path to make things unique. 
+//! *Other additions include stats and reverse z support.
 class OSG_EXPORT OcclusionQueryNode : public osg::Group
 {
 public:
     OcclusionQueryNode();
 
     // Copy constructor using CopyOp to manage deep vs shallow copy.
-    OcclusionQueryNode( const OcclusionQueryNode& oqn, const osg::CopyOp& copyop=osg::CopyOp::SHALLOW_COPY );
+    OcclusionQueryNode(const OcclusionQueryNode& oqn, const osg::CopyOp& copyop = osg::CopyOp::SHALLOW_COPY);
 
-    META_Node( osg, OcclusionQueryNode );
+    META_Node(osg, OcclusionQueryNode);
 
     virtual osg::BoundingSphere computeBound() const;
 
-    virtual void releaseGLObjects( osg::State* state = 0 ) const;
+    virtual void releaseGLObjects(osg::State* state = 0) const;
 
+    virtual void resetQueryCount(long long int nodepath, osg::Camera * camera);
 
     // When disabled, OQN doesn't perform occlusion queries, and simply
     //   renders its children.
-    void setQueriesEnabled( bool enable=true );
+    void setQueriesEnabled(bool enable = true);
     bool getQueriesEnabled() const { return _enabled; }
 
 
     // Sets/gets the visibility threshold. If the test indicates that
     //   the number of visible pixels is less than the specified
     //   threshold, don't draw the actual geometry.
-    void setVisibilityThreshold( unsigned int pixels ) { _visThreshold = pixels; }
+    void setVisibilityThreshold(unsigned int pixels) { _visThreshold = pixels; }
     unsigned int getVisibilityThreshold() const { return _visThreshold; }
 
     // Specifies how many frames to wait before issuing another query.
-    void setQueryFrameCount( unsigned int frames ) { _queryFrameCount = frames; }
+    void setQueryFrameCount(unsigned int frames) { _queryFrameCount = frames; }
     unsigned int getQueryFrameCount() const { return _queryFrameCount; }
 
     // Indicate whether or not the bounding box used in the occlusion query test
     //   should be rendered. Handy for debugging and development.
     // Should only be called outside of cull/draw. No thread issues.
-    void setDebugDisplay( bool enable );
+    void setDebugDisplay(bool enable);
     bool getDebugDisplay() const;
-
 
     // Set and get the StateSet used by the OcclusionQueryNode
     //   when rendering the query geometry. OQN creates its own by
     //   default, but if you use many OQNs you might want to use
     //   this method to set all OQNs to use the same StateSet
     //   for more efficient processing.
-    void setQueryStateSet( osg::StateSet* ss );
+    void setQueryStateSet(osg::StateSet* ss);
     osg::StateSet* getQueryStateSet();
     const osg::StateSet* getQueryStateSet() const;
 
@@ -147,60 +185,166 @@ public:
 
     // Set and get the StateSet used by the OcclusionQueryNode
     //   when rendering the debug query geometry (see setDebugDisplay).
-    void setDebugStateSet( osg::StateSet* ss );
+    void setDebugStateSet(osg::StateSet* ss);
     osg::StateSet* getDebugStateSet();
     const osg::StateSet* getDebugStateSet() const;
 
     // For statistics gathering, e.g., by a NodeVisitor.
     bool getPassed() const;
-
+    virtual size_t calcPathHash(osg::NodeVisitor& nv) { return 0; }
 
     // These methods are public so that osgUtil::CullVisitor can access them.
     // Not intended for application use.
-    virtual bool getPassed( const osg::Camera* camera, osg::NodeVisitor& nv );
-    void traverseQuery( const osg::Camera* camera, osg::NodeVisitor& nv );
-    void traverseDebug( osg::NodeVisitor& nv );
+    virtual bool getPassed( const osg::Camera* camera, osg::NodeVisitor& nv);
+    virtual void traverseQuery(const osg::Camera* camera, osgUtil::CullVisitor& cv);
+    virtual void traverseDebug( osgUtil::CullVisitor& cv);
 
+    //VRV_PATCH
+    void setBoundsPadding( const osg::Vec3d & padding) { _padding = padding; }
+    const osg::Vec3d & getBoundsPadding() const { return _padding; }
 
-    // Delete unused query IDs for this contextID.
-    static void flushDeletedQueryObjects( unsigned int contextID, double currentTime, double& availableTime );
+    virtual void setDebugBoxColor(const osg::Vec4 & color);
+    //! vrv_patch needed to deal with precision issues.
+    virtual void setBBoxTransform(const osg::Matrix & mat) { _bboxTransform = mat; }
+    virtual const osg::Matrix & getBBoxTransform() const { return _bboxTransform; }
 
-    // discard all the cached query objects which need to be deleted
-    // in the OpenGL context related to contextID.
-    // Note, unlike flush no OpenGL calls are made, instead the handles are all removed.
-    // this call is useful for when an OpenGL context has been destroyed.
-    static void discardDeletedQueryObjects( unsigned int contextID );
+    virtual const osg::BoundingBox & getWorldSpaceBoundingBox() const { return _worldSpaceBBox; }
+
+    //! Delete unused query IDs for this contextID.
+    static void flushDeletedQueryObjects(unsigned int contextID, double currentTime, double& availableTime);
+
+    //! discard all the cached query objects which need to be deleted
+    //! in the OpenGL context related to contextID.
+    //! Note, unlike flush no OpenGL calls are made, instead the handles are all removed.
+    //! this call is useful for when an OpenGL context has been destroyed.
+    static void discardDeletedQueryObjects(unsigned int contextID);
+
+    static void setUseOcclusionNodes(bool value) { theUseOcclusionNodes = value; }
+    static bool getUseOcclusionNodes() { return theUseOcclusionNodes; }
 
 protected:
     virtual ~OcclusionQueryNode();
 
-    virtual void createSupportNodes();
+    // Create and return a StateSet appropriate for performing an occlusion
+    //   query test (disable lighting, texture mapping, etc). Probably some
+    //   room for improvement here. Could disable shaders, for example.
+    // ! internal, called from constructor
+    osg::StateSet* initOQGeometryState(bool reverse_z);
+
+    // Create and return a StateSet for rendering a debug representation of query geometry.
+    // ! internal, called from constructor
+    osg::StateSet* initOQDebugState(bool reverse_z);
+
+    // ! internal, called from constructor
+    osg::StateSet* initOQState();
+
+    // ! internal, called from constructor
+    void createSupportNodes();
 
     osg::ref_ptr< osg::Geode > _queryGeode;
     osg::ref_ptr< osg::Geode > _debugGeode;
 
     bool _enabled;
 
-    // Tracks the last frame number that we performed a query.
-    // User can set how many times  (See setQueryFrameCount).
-    typedef std::map< const osg::Camera*, unsigned int > FrameCountMap;
+    //! Tracks the last frame number that we performed a query.
+    //! User can set how many times  (See setQueryFrameCount).
+    typedef std::map< std::pair<long long int, const osg::Camera*>, unsigned int > FrameCountMap;
     FrameCountMap _frameCountMap;
     mutable OpenThreads::Mutex _frameCountMutex;
 
-    // For statistics gathering
+    //! For statistics gathering
     bool _passed;
 
-    // User-settable variables
+    //! User-settable variables
     unsigned int _visThreshold;
     unsigned int _queryFrameCount;
     bool _debugBB;
-
-
     // Required to ensure that computeBound() is thread-safe.
     mutable OpenThreads::Mutex _computeBoundMutex;
+
+    // VRV_PATCH
+
+    osg::Vec3d _padding;
+    osg::Matrix _bboxTransform;
+    osg::BoundingBox _worldSpaceBBox;
+
+protected:
+    static OpenThreads::Mutex _initializationLock;
+    static OpenThreads::Mutex& initializationLock();
+
+    static osg::ref_ptr<osg::StateSet>  _gs_stateset;
+    static osg::ref_ptr<osg::StateSet>  _gs_debugStateset;
+    static osg::ref_ptr<osg::StateSet>  _gs_queryStateset;
+
+public:
+    static int _gs_num_passed;
+    static int _gs_num_culled;
+    static int _gs_debugBBOverridge;
+    static bool _gs_useReverseZ;
+
+    static bool theUseOcclusionNodes;
+
+   };
+
+   // VRV_PATCH moved so vantage can inherit
+   struct OSG_EXPORT RetrieveQueriesCallback : public osg::Camera::DrawCallback
+   {
+    typedef std::list<osg::ref_ptr<osg::TestResult> > ResultsVector;
+    ResultsVector _results;
+
+    RetrieveQueriesCallback(osg::GLExtensions* ext = NULL) :
+       _extensionsFallback(ext)
+    {
+    }
+
+    RetrieveQueriesCallback(const RetrieveQueriesCallback& rqc, const osg::CopyOp&) :
+       _extensionsFallback(rqc._extensionsFallback)
+    {
+    }
+    META_Object(osgOQ, RetrieveQueriesCallback)
+
+    virtual void operator () (osg::RenderInfo& renderInfo) const;
+
+    virtual void retrieveQueries(osg::RenderInfo &renderInfo) const;
+
+
+    void reset()
+    {
+       for (ResultsVector::iterator it = _results.begin(); it != _results.end();)
+       {
+          if (!(*it)->_active || !(*it)->_init) // remove results that have already been retrieved or their query objects deleted.
+           it = _results.erase(it);
+        else
+           ++it;
+       }
+    }
+
+    void add(osg::TestResult* tr)
+    {
+       _results.push_front(tr);
+    }
+
+    osg::GLExtensions* _extensionsFallback;
+    osg::ref_ptr<osg::Camera::DrawCallback> myNextCallback;
+
+   };
+
+
+   //! PreDraw callback; clears the list of Results from the PostDrawCallback (above).
+   struct OSG_EXPORT ClearQueriesCallback : public osg::Camera::DrawCallback
+   {
+      ClearQueriesCallback() : _rqcb(NULL) {}
+      ClearQueriesCallback(const ClearQueriesCallback&, const osg::CopyOp&) : _rqcb(NULL) {}
+      META_Object(osgOQ, ClearQueriesCallback)
+
+         virtual void operator() (osg::RenderInfo& renderInfo) const;
+
+      RetrieveQueriesCallback* _rqcb;
+      osg::ref_ptr<osg::Camera::DrawCallback> myNextCallback;
+   };
+
+  
+
 };
-
-}
-
 
 #endif

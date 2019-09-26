@@ -1,12 +1,21 @@
 #include <cassert>
 #include <memory>
 #include <sstream>
+#include <string>
+#include <locale>
+
+#include "ReaderWriterFBX.h"
 
 #include <osg/io_utils>
 #include <osg/Notify>
 #include <osg/MatrixTransform>
 #include <osg/Material>
 #include <osg/Texture2D>
+#include <osg/Switch>
+#include <osg/Lod>
+#include <osg/Sequence>
+#include <osg/Geometry>
+#include <osg/CullFace>
 
 #include <osgDB/FileNameUtils>
 #include <osgDB/ReadFile>
@@ -20,6 +29,10 @@
 #include <osgAnimation/StackedScaleElement>
 #include <osgAnimation/StackedTranslateElement>
 #include <osgAnimation/UpdateBone>
+#include <osgAnimation/AnimationMatrixTransform>
+
+#include <osgSim/DOFTransform>
+#include <osgSim/LightPointNode>
 
 #if defined(_MSC_VER)
     #pragma warning( disable : 4505 )
@@ -28,6 +41,79 @@
 #include <fbxsdk.h>
 
 #include "fbxReader.h"
+#include "fbxUtil.h"
+
+static const std::string disExternalRef = "@dis external_reference";
+static const std::string disSwitch = "@dis switch";
+static const std::string disState = "@dis state";
+// ArticulatedPart
+static const std::string disArticulatedPart = "@dis articulated_part";
+static const std::string disArticulatedPartTranslateMin = "translate_min";
+static const std::string disArticulatedPartTranslateCurrent = "translate_current";
+static const std::string disArticulatedPartTranslateMax = "translate_max";
+static const std::string disArticulatedPartTranslateStep = "translate_step";
+static const std::string disArticulatedPartRotateMin = "rotate_min";
+static const std::string disArticulatedPartRotateCurrent = "rotate_current";
+static const std::string disArticulatedPartRotateMax = "rotate_max";
+static const std::string disArticulatedPartRotateStep = "rotate_step";
+static const std::string disArticulatedPartScaleMin = "scale_min";
+static const std::string disArticulatedPartScaleCurrent = "scale_current";
+static const std::string disArticulatedPartScaleMax = "scale_max";
+static const std::string disArticulatedPartScaleStep = "scale_step";
+// End ArticulatedPart
+
+// Flipbook Animation
+static const std::string disFlipbookAnimation = "@dis flipbook_animation";
+static const std::string dislastFrameTime = "lastframetime";
+static const std::string disloopCount = "loopcount";
+static const std::string disloopDuration = "loopduration";
+static const std::string disSwing = "swing";
+static const std::string disFlipbookAnimationType = "animationtype";
+static const std::string disFlipbookFrame = "@dis frame";
+// end of Flipbook Animation
+
+// Lod parameters
+static const std::string disLod = "@dis lod";
+static const std::string disSwitchIn = "switch_in";
+static const std::string disSwitchOut = "switch_out";
+static const std::string disTransition = "transition";
+static const std::string disSIG = "significant_size";
+static const std::string disLodCenter = "lod_center";
+// end of Lod parameters
+
+// COPIED FROM osgSim/DOFTransform.cpp
+static const unsigned int TRANSLATION_X_LIMIT_BIT = 0x80000000u >> 0;
+static const unsigned int TRANSLATION_Y_LIMIT_BIT = 0x80000000u >> 1;
+static const unsigned int TRANSLATION_Z_LIMIT_BIT = 0x80000000u >> 2;
+static const unsigned int ROTATION_PITCH_LIMIT_BIT = 0x80000000u >> 3;
+static const unsigned int ROTATION_ROLL_LIMIT_BIT = 0x80000000u >> 4;
+static const unsigned int ROTATION_YAW_LIMIT_BIT = 0x80000000u >> 5;
+static const unsigned int SCALE_X_LIMIT_BIT = 0x80000000u >> 6;
+static const unsigned int SCALE_Y_LIMIT_BIT = 0x80000000u >> 7;
+static const unsigned int SCALE_Z_LIMIT_BIT = 0x80000000u >> 8;
+
+
+// Remove \n and \r from the string
+std::string removeReturn(const FbxString& pComment)
+{
+   std::string temp = pComment.Buffer();
+   temp.erase(std::remove(temp.begin(), temp.end(), '\n'), temp.end());
+   temp.erase(std::remove(temp.begin(), temp.end(), '\r'), temp.end());
+   return temp;
+}
+
+// Remove \" 
+void removeQuote(std::string& pComment)
+{   
+   pComment.erase(std::remove(pComment.begin(), pComment.end(), '\"'), pComment.end());
+}
+
+// Remove spaces ' '
+void removeSpaces(std::string& pComment)
+{
+   pComment.erase(std::remove(pComment.begin(), pComment.end(), ' '), pComment.end());
+}
+
 
 bool isAnimated(FbxProperty& prop, FbxScene& fbxScene)
 {
@@ -118,7 +204,7 @@ osg::Quat makeQuat(const FbxDouble3& degrees, EFbxRotationOrder fbxRotOrder)
     }
 }
 
-void makeLocalMatrix(const FbxNode* pNode, osg::Matrix& m)
+void makeLocalMatrix(const FbxNode* pNode, osg::Matrix& m, const FbxString& appName)
 {
     /*From http://area.autodesk.com/forum/autodesk-fbx/fbx-sdk/the-makeup-of-the-local-matrix-of-an-kfbxnode/
 
@@ -141,16 +227,27 @@ void makeLocalMatrix(const FbxNode* pNode, osg::Matrix& m)
 
     // When this flag is set to false, the RotationOrder, the Pre/Post rotation
     // values and the rotation limits should be ignored.
-    bool rotationActive = pNode->RotationActive.Get();
-
+    bool rotationActive = pNode->RotationActive.Get();    
     EFbxRotationOrder fbxRotOrder = rotationActive ? pNode->RotationOrder.Get() : eEulerXYZ;
+    
+    FbxNodeAttribute::EType lAttributeType = FbxNodeAttribute::eUnknown;
+    if (pNode->GetNodeAttribute())
+    {
+       lAttributeType = pNode->GetNodeAttribute()->GetAttributeType();
+    }
 
     FbxDouble3 fbxLclPos = pNode->LclTranslation.Get();
     FbxDouble3 fbxRotOff = pNode->RotationOffset.Get();
     FbxDouble3 fbxRotPiv = pNode->RotationPivot.Get();
     FbxDouble3 fbxPreRot = pNode->PreRotation.Get();
     FbxDouble3 fbxLclRot = pNode->LclRotation.Get();
-    FbxDouble3 fbxPostRot = pNode->PostRotation.Get();
+    FbxDouble3 fbxPostRot; // post rotation that we don't want to add in Vantage
+    
+    // only add the 3ds Max light post rotation for light
+    if (!(lAttributeType == FbxNodeAttribute::eLight && appName == "3ds Max"))
+    {
+       fbxPostRot = pNode->PostRotation.Get();
+    }
     FbxDouble3 fbxSclOff = pNode->ScalingOffset.Get();
     FbxDouble3 fbxSclPiv = pNode->ScalingPivot.Get();
     FbxDouble3 fbxLclScl = pNode->LclScaling.Get();
@@ -162,9 +259,9 @@ void makeLocalMatrix(const FbxNode* pNode, osg::Matrix& m)
     if (rotationActive)
     {
         m.preMultRotate(
-            makeQuat(fbxPostRot, fbxRotOrder) *
+            makeQuat(fbxPostRot, eEulerXYZ) *
             makeQuat(fbxLclRot, fbxRotOrder) *
-            makeQuat(fbxPreRot, fbxRotOrder));
+            makeQuat(fbxPreRot, eEulerXYZ));
     }
     else
     {
@@ -317,6 +414,10 @@ void readScaleElement(FbxPropertyT<FbxDouble3>& prop,
     }
 }
 
+// TODO 
+// FIX from https://github.com/openscenegraph/OpenSceneGraph/commit/9bc93fb18e91c6dfd06b3b85ac62059c9c7c4e22
+// NOTE check if this can be replace by FbxNode::EvaluateLocal/GlobalTransform() when using 
+// FbxAxisSystem::Max.ConvertScene(lScene)
 void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, FbxNode* pNode, FbxScene& fbxScene)
 {
     osg::Matrix staticTransform;
@@ -339,7 +440,7 @@ void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, Fbx
 
     if (rotationActive)
     {
-        staticTransform.preMultRotate(makeQuat(pNode->PreRotation.Get(), fbxRotOrder));
+       staticTransform.preMultRotate(makeQuat(pNode->PreRotation.Get(), eEulerXYZ));
     }
 
     readRotationElement(pNode->LclRotation, fbxRotOrder,
@@ -348,7 +449,7 @@ void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, Fbx
 
     if (rotationActive)
     {
-        staticTransform.preMultRotate(makeQuat(pNode->PostRotation.Get(), fbxRotOrder));
+       staticTransform.preMultRotate(makeQuat(pNode->PostRotation.Get(), eEulerXYZ));
     }
 
     FbxDouble3 fbxSclOffset = pNode->ScalingOffset.Get();
@@ -371,50 +472,359 @@ void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, Fbx
     }
 }
 
-osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
-    const std::string& animName, const osg::Matrix& localMatrix, bool bNeedSkeleton,
-    std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene)
+// Get the value in "@dis key value"
+std::string getDisValue(const std::string& pComment, size_t endPos)
 {
+   std::string temp;
+   size_t pos = pComment.find(' ', endPos);
+   if (pos != std::string::npos)
+   {
+      temp = pComment.substr(endPos, pos - endPos);
+   }
+   else
+   {
+      temp = pComment.substr(endPos, pComment.length() - endPos);
+   }
+   return temp;
+}
+
+// Get the value in "x,y,z" of float format
+void getVecValue(const std::string& pComment, size_t endPos, osg::Vec3f& vec3)
+{
+   std::string temp;
+   size_t pos = pComment.find(' ', endPos);
+   if (pos != std::string::npos)
+   {
+      temp = pComment.substr(endPos, pos - endPos);
+   }
+   else
+   {
+      temp = pComment.substr(endPos, pComment.length() - endPos);
+   }
+   float x = 0.0f;
+   float y = 0.0f; 
+   float z = 0.0f; 
+   sscanf(temp.c_str(), "%f,%f,%f", &x, &y, &z);
+   vec3.set(x, y, z);
+}
+
+// we read x,y,z (pitch, roll, yaw) like in FLT but write
+// (yaw, pitch, roll) in the vector to pass to the DOF
+void getVecValueFromDegree(const std::string& pComment, size_t endPos, osg::Vec3f& vec3)
+{
+   std::string temp;
+   size_t pos = pComment.find(' ', endPos);
+   if (pos != std::string::npos)
+   {
+      temp = pComment.substr(endPos, pos - endPos);
+   }
+   else
+   {
+      temp = pComment.substr(endPos, pComment.length() - endPos);
+   }
+   float x = 0.0f;
+   float y = 0.0f;
+   float z = 0.0f;
+   sscanf(temp.c_str(), "%f,%f,%f", &x, &y, &z);  // read (pitch, roll, yaw)
+   x = osg::inDegrees(x);
+   y = osg::inDegrees(y);
+   z = osg::inDegrees(z);
+   vec3.set(z, x, y); // save (yaw, pitch, roll) 
+}
+
+
+// format of the comment: "animation num_frames_per_second [ skip | noskip ] loopCount count lastFrameTime time
+//                         loopDuration time swing animationType [forward|backward]"
+// ex.  "animation 2 skip loopCount 3 lastFrameTime 11.5"
+void readFlipBookAnimationParameters(std::string pComment, int& nbFrame, bool& skip, int& loopCount, float& lastFrameTime,
+   float& loopDuration, bool& swing, bool& forwardAnim)
+{
+   std::transform(pComment.begin(), pComment.end(), pComment.begin(), ::tolower);
+   std::string temp;
+
+   // loopDuration [time]
+   size_t loopDurationPos = pComment.find(disloopDuration);
+   loopDuration = 0.0f;
+   if (loopDurationPos != std::string::npos)
+   {
+      // search for a space after loopDuration
+      size_t endPos = loopDurationPos + disloopDuration.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      loopDuration = atof(temp.c_str());
+   }
+
+   // swing
+   size_t swingPos = pComment.find(disSwing);
+   swing = false;
+   if (swingPos != std::string::npos)
+   {
+      swing = true;
+   }
+
+   // animationType
+   size_t disanimationTypePos = pComment.find(disFlipbookAnimationType);
+   forwardAnim = true;
+   if (disanimationTypePos != std::string::npos)
+   {
+      // search for a space after disanimationType
+      size_t endPos = disanimationTypePos + disFlipbookAnimationType.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      std::transform(temp.begin(), temp.end(), temp.begin(), ::tolower);
+      if (temp.find("backward") != std::string::npos)
+      {
+         forwardAnim = false;
+      }
+   }
+
+   // lastFrameTime [time]
+   size_t lastFrameTimePos = pComment.find(dislastFrameTime);
+   lastFrameTime = 0.0f;
+   if (lastFrameTimePos != std::string::npos)
+   {
+      // search for a space after lastFrameTime
+      size_t endPos = lastFrameTimePos+ dislastFrameTime.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      lastFrameTime = atof(temp.c_str());
+   }
+
+   // loopCount
+   size_t loopCountPos = pComment.find(disloopCount);
+   loopCount = -1;
+   if (loopCountPos != std::string::npos)
+   {
+      size_t endPos = loopCountPos+ disloopCount.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      loopCount = atoi(temp.c_str());
+   }
+
+   // animation [num_frames_per_second]
+   size_t animationPos = pComment.find(disFlipbookAnimationType);
+   if (animationPos != std::string::npos)
+   {
+      // search for a space after num_frames_per_second
+      size_t endPos = disFlipbookAnimationType.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      nbFrame = atoi(temp.c_str());
+
+      skip = true;  // Use skip as default
+      if (pComment.find("noskip") != std::string::npos)
+      {
+         skip = false;
+      }
+   }
+}
+
+// format of the comment: @dis articulated_part xxx translate_min x,y,z .... 
+// NOTE all angle are in degrees
+// ex.  @dis articulated_part 4096 
+//           translate_min x,y,z translate_current x,y,z translate_max x,y,z translate_step x,y,z 
+//           rotate_min x,y,z rotate_current x,y,z rotate_max x,y,z rotate_step x,y,z
+//           scale_min x,y,z scale_current x,y,z scale_max x,y,z  scale_step x,y,z
+unsigned long readArticulatedPartParameters(std::string pComment, int& partNumber, osg::Vec3f& translate_min, osg::Vec3f& translate_current,
+   osg::Vec3f& translate_max, osg::Vec3f& translate_step, osg::Vec3f& rotate_min, osg::Vec3f& rotate_current,
+   osg::Vec3f& rotate_max, osg::Vec3f& rotate_step, osg::Vec3f& scale_min, osg::Vec3f& scale_current,
+   osg::Vec3f& scale_max, osg::Vec3f& scale_step)
+{
+   unsigned long limitationFlag = 0;
+   std::transform(pComment.begin(), pComment.end(), pComment.begin(), ::tolower);
+   std::string temp;
+
+   // @dis articulated_part xxx
+   size_t partPos = pComment.find(disArticulatedPart);
+   partNumber = 0;
+   if (partPos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = partPos + disArticulatedPart.size() + 1; // pos after space
+      temp = getDisValue(pComment, endPos);
+      partNumber = atoi(temp.c_str());
+   }
+
+   // translate_min x,y,z
+   size_t Pos = pComment.find(disArticulatedPartTranslateMin);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartTranslateMin.size() + 1; // pos after space
+      getVecValue(pComment, endPos, translate_min);
+   }
+
+   // translate_current x,y,z
+   Pos = pComment.find(disArticulatedPartTranslateCurrent);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartTranslateCurrent.size() + 1; // pos after space
+      getVecValue(pComment, endPos, translate_current);
+   }
+
+   // translate_max x,y,z
+   Pos = pComment.find(disArticulatedPartTranslateMax);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartTranslateMax.size() + 1; // pos after space
+      getVecValue(pComment, endPos, translate_max);
+   }
+
+   // translate_step x,y,z
+   Pos = pComment.find(disArticulatedPartTranslateStep);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartTranslateStep.size() + 1; // pos after space
+      getVecValue(pComment, endPos, translate_step);
+   }
+
+   // rotate_min 
+   // we read x,y,z (pitch, roll, yaw) like in FLT but write
+   // (yaw, pitch, roll) in the vector
+   Pos = pComment.find(disArticulatedPartRotateMin);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartRotateMin.size() + 1; // pos after space
+      getVecValueFromDegree(pComment, endPos, rotate_min);
+   }
+
+   // rotate_current 
+   // we read x,y,z (pitch, roll, yaw) like in FLT but write
+   // (yaw, pitch, roll) in the vector
+   Pos = pComment.find(disArticulatedPartRotateCurrent);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartRotateCurrent.size() + 1; // pos after space
+      getVecValueFromDegree(pComment, endPos, rotate_current);
+   }
+   
+   // rotate_max 
+   // we read x,y,z (pitch, roll, yaw) like in FLT but write
+   // (yaw, pitch, roll) in the vector
+   Pos = pComment.find(disArticulatedPartRotateMax);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartRotateMax.size() + 1; // pos after space
+      getVecValueFromDegree(pComment, endPos, rotate_max);
+   }
+
+   // rotate_step 
+   // we read x,y,z (pitch, roll, yaw) like in FLT but write
+   // (yaw, pitch, roll) in the vector
+   Pos = pComment.find(disArticulatedPartRotateStep);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartRotateStep.size() + 1; // pos after space
+      getVecValueFromDegree(pComment, endPos, rotate_step);
+   }
+
+   // scale_min x,y,z
+   Pos = pComment.find(disArticulatedPartScaleMin);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartScaleMin.size() + 1; // pos after space
+      getVecValue(pComment, endPos, scale_min);
+   }
+
+   // scale_current x,y,z
+   Pos = pComment.find(disArticulatedPartScaleCurrent);
+   // Init current scale to 1.0
+   scale_current.set(1.0, 1.0, 1.0);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartScaleCurrent.size() + 1; // pos after space
+      getVecValue(pComment, endPos, scale_current);
+   }
+
+   // scale_max x,y,z
+   Pos = pComment.find(disArticulatedPartScaleMax);
+   // Init max scale to 1.0
+   scale_max.set(1.0, 1.0, 1.0);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartScaleMax.size() + 1; // pos after space
+      getVecValue(pComment, endPos, scale_max);
+   }
+
+   // scale_step x,y,z
+   Pos = pComment.find(disArticulatedPartScaleStep);
+   if (Pos != std::string::npos)
+   {
+      // search for a space after 
+      size_t endPos = Pos + disArticulatedPartScaleStep.size() + 1; // pos after space
+      getVecValue(pComment, endPos, scale_step);
+   }
+
+   // Set the constraint flag (
+
+   // Translation 
+   if (!osg::equivalent(translate_max.x() - translate_min.x(), 0.0f))  limitationFlag |= TRANSLATION_X_LIMIT_BIT;
+   if (!osg::equivalent(translate_max.y() - translate_min.y(), 0.0f))  limitationFlag |= TRANSLATION_Y_LIMIT_BIT;
+   if (!osg::equivalent(translate_max.z() - translate_min.z(), 0.0f))  limitationFlag |= TRANSLATION_Z_LIMIT_BIT;
+
+
+   // Rotation
+   // Note at that point x=yaw, y=pitch, z=roll
+   if (!osg::equivalent(rotate_max.x() - rotate_min.x(), 0.0f))  limitationFlag |= ROTATION_YAW_LIMIT_BIT;
+   if (!osg::equivalent(rotate_max.y() - rotate_min.y(), 0.0f))  limitationFlag |= ROTATION_PITCH_LIMIT_BIT;
+   if (!osg::equivalent(rotate_max.z() - rotate_min.z(), 0.0f))  limitationFlag |= ROTATION_ROLL_LIMIT_BIT;
+
+   // Scale
+   if (!osg::equivalent(scale_max.x() - scale_min.x(), 0.0f))  limitationFlag |= SCALE_X_LIMIT_BIT;
+   if (!osg::equivalent(scale_max.y() - scale_min.y(), 0.0f))  limitationFlag |= SCALE_Y_LIMIT_BIT;
+   if (!osg::equivalent(scale_max.z() - scale_min.z(), 0.0f))  limitationFlag |= SCALE_Z_LIMIT_BIT;
+
+   return limitationFlag;
+}
+
+osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
+    const std::string& animName, osgAnimation::Animation* animation, const osg::Matrix& localMatrix, bool bNeedSkeleton,
+    std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene, osg::NodeList& children, bool& hasDof)
+{
+    FbxString pComment;
+    fbxUtil::getCommentProperty(pNode, pComment);
+    
     if (bNeedSkeleton)
     {
-        osgAnimation::Bone* osgBone = new osgAnimation::Bone;
-        osgBone->setDataVariance(osg::Object::DYNAMIC);
-        osgBone->setName(pNode->GetName());
-        osgAnimation::UpdateBone* pUpdate = new osgAnimation::UpdateBone(animName);
-        readUpdateMatrixTransform(pUpdate, pNode, fbxScene);
-        osgBone->setUpdateCallback(pUpdate);
-
-        nodeMap.insert(std::pair<FbxNode*, osg::Node*>(pNode, osgBone));
-
-        return osgBone;
+        return addBone(pNode, animName, fbxScene, nodeMap);
+    }
+    else if (pComment.Find(disSwitch.c_str()) != -1 && pComment.Find(disSwitchIn.c_str()) == -1 && pComment.Find(disSwitchOut.c_str()) == -1)
+    {
+       return addSwitch(pNode, pComment);
+    }
+    else if (pComment.Find(disState.c_str()) != -1)
+    {
+       return addState(pNode, pComment);
+    }    
+    else if (pComment.Find(disArticulatedPart.c_str()) != -1 )
+    {
+       return addArticulatedPart(pNode, pComment, localMatrix, hasDof);
+    }
+    else if (pComment.Find(disFlipbookAnimation.c_str()) != -1)
+    {
+       return addFlipBookAnimation(pNode, pComment, children);
     }
     else
     {
         bool bAnimated = !animName.empty();
         if (!bAnimated && localMatrix.isIdentity())
         {
-            osg::Group* pGroup = new osg::Group;
-            pGroup->setName(pNode->GetName());
-            return pGroup;
+           return addGroup(pNode, pComment);
         }
-
-        osg::MatrixTransform* pTransform = new osg::MatrixTransform(localMatrix);
-        pTransform->setName(pNode->GetName());
-
-        if (bAnimated)
-        {
-            osgAnimation::UpdateMatrixTransform* pUpdate = new osgAnimation::UpdateMatrixTransform(animName);
-            readUpdateMatrixTransform(pUpdate, pNode, fbxScene);
-            pTransform->setUpdateCallback(pUpdate);
-        }
-
-        return pTransform;
+        return addTransform(pNode, pComment, localMatrix, fbxScene, animName, animation, bAnimated);
     }
 }
 
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     FbxNode* pNode,
-    bool& bIsBone, int& nLightCount)
+    bool& bIsBone, int& nLightCount,
+    textureUnitMap& textureMap,
+    const FbxString& appName)
 {
     if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute())
     {
@@ -485,7 +895,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
 
         bool bChildIsBone = false;
         osgDB::ReaderWriter::ReadResult childResult = readFbxNode(
-            pChildNode, bChildIsBone, nLightCount);
+            pChildNode, bChildIsBone, nLightCount, textureMap, appName);
         if (childResult.error())
         {
             return childResult;
@@ -504,22 +914,52 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
         }
     }
 
-    std::string animName = readFbxAnimation(pNode, pNode->GetName());
+    osgAnimation::Animation* animation = NULL;
+    // NOTE animName = the target name of the animation
+    std::string animName = readFbxAnimation(pNode, pNode->GetName(), animation);
 
     osg::Matrix localMatrix;
-    makeLocalMatrix(pNode, localMatrix);
+    makeLocalMatrix(pNode, localMatrix, appName);
     bool bLocalMatrixIdentity = localMatrix.isIdentity();
-
+    // NOTE in theory we should be able to use the call below instead 
+    // of doing makeLocalMatrix. This would be in conjunction with 
+    // FbxAxisSystem::Max.ConvertScene(pScene); but it does not seem to work
+    //FbxAMatrix lGlobal, lLocal;
+    //lGlobal = pNode->EvaluateGlobalTransform();
+    //lLocal = pNode->EvaluateLocalTransform();
+    
     osg::ref_ptr<osg::Group> osgGroup;
 
     bool bEmpty = children.empty() && !bIsBone;
-
+    std::string debugTypeString;
+    FbxString pComment;
+    fbxUtil::getCommentProperty(pNode, pComment);
     switch (lAttributeType)
     {
+    case FbxNodeAttribute::eNull:
+       {
+         // The vantage comment for this type of nodes are read in 
+         // createGroupNode()
+          debugTypeString = "eNull";
+          if (pNode->GetNodeAttribute())
+          {
+             // If we find an external reference command load the other FBX model
+             if (pComment.Find(disExternalRef.c_str()) != -1)
+             {
+                bool bAnimated = !animName.empty();
+                osg::ref_ptr<osg::MatrixTransform> mt = addTransform(pNode, pComment, localMatrix, fbxScene, animName, animation, bAnimated);
+                osgDB::ReaderWriter::ReadResult Xref = addExternalReference(pComment, localMatrix, options, currentFilePath);
+                mt->addChild(Xref.getNode());
+                return osgDB::ReaderWriter::ReadResult(mt.get());
+             }
+          }
+       }
+       break;
     case FbxNodeAttribute::eMesh:
         {
+            debugTypeString = "eMesh";
             size_t bindMatrixCount = boneBindMatrices.size();
-            osgDB::ReaderWriter::ReadResult meshRes = readFbxMesh(pNode, stateSetList);
+            osgDB::ReaderWriter::ReadResult meshRes = readFbxMesh(pNode, stateSetList, textureMap);
             if (meshRes.error())
             {
                 return meshRes;
@@ -538,6 +978,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
                 if (animName.empty() &&
                     children.empty() &&
                     skeletal.empty() &&
+                    (pComment.Find("@dis") == -1) &&    // If we find a Mak comment we should not return here
                     bLocalMatrixIdentity)
                 {
                     return osgDB::ReaderWriter::ReadResult(node);
@@ -550,6 +991,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     case FbxNodeAttribute::eCamera:
     case FbxNodeAttribute::eLight:
         {
+            debugTypeString = "eLight";
             osgDB::ReaderWriter::ReadResult res =
                 lAttributeType == FbxNodeAttribute::eCamera ?
                 readFbxCamera(pNode) : readFbxLight(pNode, nLightCount);
@@ -570,20 +1012,31 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
                     children.insert(children.begin(), resGroup);
                 }
             }
+            else if (osgSim::LightPointNode* lpn = dynamic_cast<osgSim::LightPointNode*>(res.getObject()))
+            {
+               bEmpty = false;
+               children.insert(children.begin(), lpn);
+            }
         }
         break;
     default:
+        debugTypeString = "Other";
         break;
     }
-
-    if (bEmpty)
+    
+    bool hasDof = false;
+    if (!osgGroup)
     {
-        osgDB::ReaderWriter::ReadResult(0);
+       osgGroup = createGroupNode(pSdkManager, pNode, animName, animation, localMatrix, 
+          bIsBone, nodeMap, fbxScene, children, hasDof);
+    }
+    osg::Group* pAddChildrenTo = osgGroup.get();
+    if (hasDof)
+    {
+       // if we had a DOF add the children to the DOF instead
+       pAddChildrenTo = (osg::Group*)osgGroup.get()->getChild(0);
     }
 
-    if (!osgGroup) osgGroup = createGroupNode(pSdkManager, pNode, animName, localMatrix, bIsBone, nodeMap, fbxScene);
-
-    osg::Group* pAddChildrenTo = osgGroup.get();
     if (bCreateSkeleton)
     {
         osgAnimation::Skeleton* osgSkeleton = getSkeleton(pNode, fbxSkeletons, skeletonMap);
@@ -596,11 +1049,46 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     {
         pAddChildrenTo->addChild(it->get());
     }
+
+    // Follow unity naming convention standard for FBX 
+    // https://docs.unity3d.com/Manual/LevelOfDetail.html
+    // If we find a group with name that start with LODx put it 
+    // under a LOD node
+    //    Group  
+    //     Lod
+    //  --------------
+    //  LOD0   LOD1 ...
+    //
+    bool addLod = false;
+    int childId = 0;
+    osg::ref_ptr<osg::LOD> pLod;
+
+    // Add all the children under a Group/Lod/Switch/Dof
     for (osg::NodeList::iterator it = children.begin(); it != children.end(); ++it)
     {
-        pAddChildrenTo->addChild(it->get());
+       // Get the group name 
+       osg::Node* childNode = it->get();
+       std::string nodeName = childNode->getName();
+       std::string nodeComment;
+       if (childNode->getNumDescriptions() > 0)
+       {
+          nodeComment = childNode->getDescription(0);
+       }
+       
+       //check if it finish with "_LODx" or comment contain "@dis lod"
+       if (returnEndNodeName(nodeName) == "_LOD" || nodeComment.find(disLod.c_str()) != std::string::npos)
+       {
+          readLodInformation(childNode, pAddChildrenTo, nodeName, nodeComment, addLod, childId, pLod);
+       }
+       else if (nodeComment.find(disFlipbookFrame.c_str()) != std::string::npos)
+       {
+          addFlipbookAnimationFrame(it, pAddChildrenTo, pComment);
+       }
+       else
+       {
+          pAddChildrenTo->addChild(childNode);
+       }
     }
-
 
     return osgDB::ReaderWriter::ReadResult(osgGroup.get());
 }
@@ -630,4 +1118,425 @@ osgAnimation::Skeleton* getSkeleton(FbxNode* fbxNode,
     {
         return it->second;
     }
+}
+
+void OsgFbxReader::addFlipbookAnimationFrame(osg::NodeList::iterator& itNodeList,
+   osg::Group* pGroup, const FbxString& pComment)
+{
+   bool inserted = false;
+   
+   // get the dis frame number of the current child we are looping on
+   unsigned int nbDesc = itNodeList->get()->getNumDescriptions();
+   unsigned int frameNum = 0;
+   if (nbDesc)
+   {
+      std::string childComment = itNodeList->get()->getDescription(0);
+      // jump after "@dis frame " to read the frame number xx
+      frameNum = atoi(childComment.c_str() + disFlipbookFrame.size() + 1);
+   }
+   else
+   {
+      OSG_WARN << "Node under the @dis animation group is missing @dis frame xx comment." << std::endl;
+   }
+
+   // Loop on the animation child to know where to insert it
+   // because in the FBX the order is not guarantied
+   for (unsigned int i = 0; i < pGroup->getNumChildren(); i++)
+   {
+      osg::Node* childNode = pGroup->getChild(i);
+      nbDesc = childNode->getNumDescriptions();
+      if (nbDesc > 0)
+      {
+         unsigned int ChildframeNum = atoi(childNode->getDescription(0).c_str() + disFlipbookFrame.size() + 1);
+         if (frameNum < ChildframeNum)
+         {
+            pGroup->insertChild(i, itNodeList->get());
+            inserted = true;
+            break;
+         }
+      }
+   }
+
+   if (!inserted)
+   {
+      pGroup->addChild(itNodeList->get());
+   }
+}
+
+void OsgFbxReader::readLodInformation(osg::Node* childNode, osg::Group* pGroup, 
+   const std::string& pNodeName,const std::string& nodeComment,
+   bool& pAddLod, int& pChildId, osg::ref_ptr<osg::LOD>& pLod)
+{
+   int lod;
+   if (pAddLod == false)
+   {
+      // if it's the first we hit, create a LOD node
+      pLod = new osg::LOD;
+      pAddLod = true;
+      pGroup->addChild(pLod);
+   }
+
+   // Check if we have Vantage comment on the node
+   // lod / switch_in / switch_out / transition / significant_size / lod_center
+   int cLod = -1;
+   float switch_in = -1.0f;
+   float switch_out = -1.0f;
+   float transition = -1.0f; // TODO add to OSG if needed
+   float significant_size = -1.0f; // TODO add to OSG (for CDB also)
+   osg::BoundingSphere::vec_type lod_center;   
+
+   // Get default values
+   fbxUtil::minMaxSwitchDistance(pNodeName, lod, switch_out, switch_in);
+   bool hasLodCenter = findLodComments(nodeComment, cLod, switch_in, switch_out, transition, significant_size, lod_center);
+   if (lod != cLod)
+   {
+      // Use default values and node name for _LODx
+      cLod = lod;
+   }
+   if (cLod >= 0)
+   {
+       // We found values in the comment
+      pLod->addChild(childNode, switch_out, switch_in);
+      pChildId++;
+   }
+   else
+   {
+      OSG_WARN << "LOD child not added, could not find the value LOD index" << std::endl;
+   }
+
+   if (hasLodCenter && pLod.get()!=NULL)
+   {
+      pLod->setCenter(lod_center);
+   }
+}
+
+//! example
+//! @dis lod 1
+//! switch_in 50
+//! switch_out 0
+//! transition 0
+//! significant_size 0
+//! lod_center 0, 0, 0
+bool OsgFbxReader::findLodComments(const std::string& pComment, int& cLod,
+   float& switch_in, float& switch_out, float& transition,
+   float& significant_size, osg::BoundingSphere::vec_type& lod_center)
+{
+   bool hasLodCenter = false;
+   // Check if the @dis lod is present (mandatory for the others)
+   int pos = pComment.find(disLod.c_str());
+   if (pos != std::string::npos)
+   {
+      std::string strcomment = pComment;
+      // Check for the "@dis lod"
+      int offset = pos + disLod.length() + 1;
+      size_t nexttoken = getTokenPosition(strcomment, offset);
+      std::string tempValue = strcomment.substr(offset, nexttoken - offset);
+      cLod = atoi(tempValue.c_str());
+
+      // check for the "switch_in"
+      pos = pComment.find(disSwitchIn.c_str());
+      if (pos != std::string::npos)
+      {
+         offset = pos + disSwitchIn.length() + 1;
+         nexttoken = getTokenPosition(strcomment, offset);
+         tempValue = strcomment.substr(offset, nexttoken - offset);
+         switch_in = atof(tempValue.c_str());
+      }
+
+      // check for the "switch_out"
+      pos = pComment.find(disSwitchOut.c_str());
+      if (pos != std::string::npos)
+      {
+         offset = pos + disSwitchOut.length() + 1;
+         nexttoken = getTokenPosition(strcomment, offset);
+         tempValue = strcomment.substr(offset, nexttoken - offset);
+         switch_out = atof(tempValue.c_str());
+      }
+      if ((switch_in > -1.0f && switch_out < 0.0f) || (switch_in < 0.0f && switch_out > -1.0f))
+      {
+         OSG_WARN << "@dis switch_in or @dis switch_out value is missing, both are needed." << std::endl;
+      }
+
+      // check for the "transition"
+      pos = pComment.find(disTransition.c_str());
+      if (pos != std::string::npos)
+      {
+         offset = pos + disTransition.length() + 1;
+         nexttoken = getTokenPosition(strcomment, offset);
+         tempValue = strcomment.substr(offset, nexttoken - offset);
+         transition = atof(tempValue.c_str());
+      }
+
+      // check for the "significant_size"
+      pos = pComment.find(disSIG.c_str());
+      if (pos != std::string::npos)
+      {
+         offset = pos + disSIG.length() + 1;
+         nexttoken = getTokenPosition(strcomment, offset);
+         tempValue = strcomment.substr(offset, nexttoken - offset);
+         significant_size = atof(tempValue.c_str());
+      }
+
+      // check for the "lod_center"
+      pos = pComment.find(disLodCenter.c_str());
+      if (pos != std::string::npos)
+      {
+         offset = pos + disLodCenter.length() + 1;
+         nexttoken = getTokenPosition(strcomment, offset);
+         tempValue = strcomment.substr(offset, nexttoken - offset); // 1,2,3
+         // X
+         size_t posx = getXYZPosition(tempValue, 0);
+         std::string xyzValue = tempValue.substr(0, posx);
+         float x = atof(xyzValue.c_str());
+         // Y
+         posx++;
+         size_t posy = getXYZPosition(tempValue, posx);
+         xyzValue = tempValue.substr(posx, posy - posx);
+         float y = atof(xyzValue.c_str());
+         // Z
+         posy++;
+         size_t posz = getXYZPosition(tempValue, posy);
+         xyzValue = tempValue.substr(posy, posz - posy);
+         float z = atof(xyzValue.c_str());
+
+         lod_center.set(x, y, z);
+         hasLodCenter = true;
+      }
+   }
+   return hasLodCenter;
+}
+
+size_t OsgFbxReader::getTokenPosition(const std::string& strcomment, size_t offset)
+{
+   size_t nexttoken = strcomment.find('@', offset);
+   if (nexttoken == std::string::npos)
+   {
+      return strcomment.length();
+   }
+   else
+   {
+      return nexttoken;
+   }
+}
+
+size_t OsgFbxReader::getXYZPosition(const std::string& strcomment, size_t offset)
+{
+   size_t nexttoken = strcomment.find(',', offset);
+   if (nexttoken == std::string::npos)
+   {
+      return strcomment.length();
+   }
+   else
+   {
+      return nexttoken;
+   }
+}
+
+std::string OsgFbxReader::returnEndNodeName(const std::string& nodeName)
+{
+   std::string endNodeName = "";
+   if (nodeName.length() > 5)
+   {
+      endNodeName = nodeName.substr(nodeName.length() - 5, 4);
+   }
+   return endNodeName;
+}
+
+osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment)
+{
+   // If a valid vantage switch comment is found it will add a switch
+   osgSim::MultiSwitch* pSwitch = new osgSim::MultiSwitch;
+   pSwitch->setName(pNode->GetName());
+   pSwitch->addDescription(removeReturn(pComment));
+   pSwitch->setValue(0, 0, true);
+   return pSwitch;
+}
+
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment)
+{
+   // If a valid vantage state comment is found it will add a group with comment
+   osg::Group* pGroup = new osg::Group;
+   pGroup->setName(pNode->GetName());
+   pGroup->addDescription(removeReturn(pComment));
+   return pGroup;
+}
+
+osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof)
+{
+   std::string strComment = removeReturn(pComment);
+   int partNumber = 0;
+   osg::Vec3f translate_min, translate_current, translate_max, translate_step,
+      rotate_min, rotate_current, rotate_max, rotate_step,
+      scale_min, scale_current, scale_max, scale_step;
+   // Read all the parameters
+   unsigned long limitationFlag = readArticulatedPartParameters(strComment, partNumber, 
+      translate_min, translate_current, translate_max, translate_step,
+      rotate_min, rotate_current, rotate_max, rotate_step,
+      scale_min, scale_current, scale_max, scale_step);
+
+   // If a valid vantage articulated part comment is found it will add a matrix and DOF
+   // under it with the comment
+   osg::MatrixTransform* pTransform = new osg::MatrixTransform(localMatrix);
+   pTransform->setDataVariance(osg::Object::STATIC);
+   osgSim::DOFTransform* pDOF = new osgSim::DOFTransform();
+   pDOF->setDataVariance(osg::Object::DYNAMIC);
+   pDOF->setName(pNode->GetName());
+   pDOF->addDescription(strComment);
+
+   //translations:
+   pDOF->setMinTranslate(translate_min);
+   pDOF->setMaxTranslate(translate_max);
+   pDOF->setCurrentTranslate(translate_current);
+   pDOF->setIncrementTranslate(translate_step);
+
+   //rotations:
+   pDOF->setMinHPR(rotate_min);
+   pDOF->setMaxHPR(rotate_max);
+   pDOF->setCurrentHPR(rotate_current);
+   pDOF->setIncrementHPR(rotate_step);
+
+   //scales:
+   pDOF->setMinScale(scale_min);
+   pDOF->setMaxScale(scale_max);
+   pDOF->setCurrentScale(scale_current);
+   pDOF->setIncrementScale(scale_step);
+
+   // Set the limitation flag if some parameters were found in the comments
+   pDOF->setLimitationFlags(limitationFlag);
+   
+   hasDof = true;
+   pTransform->addChild(pDOF);
+   return pTransform;
+}
+
+osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, const osg::Matrix& localMatrix,
+   const osgDB::Options& options, const std::string& currentModelPath)
+{
+   size_t offset = disExternalRef.length() + 1;
+   // remove return in string
+   std::string filename = removeReturn(pComment);
+   filename = filename.substr(offset, filename.length() - offset);
+   // remove quote around filename
+   removeQuote(filename);
+   // check for existing path
+   std::string filepath = osgDB::getFilePath(filename);
+   if (filepath.empty())
+   {
+      // if no path exist add the parent path
+      filename = currentModelPath + osgDB::getNativePathSeparator() + filename;
+   }
+
+   ReaderWriterFBX FbxReader;
+   return FbxReader.readNode(filename, &options);
+}
+
+osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children)
+{
+   // flip book animation
+   int nbFrame = 0;
+   bool skip = true;  // Used in  DtArticulatedModelParser::parseAnimationDeclaration()
+   int loopCount = 0;  // Also used in  DtArticulatedModelParser::parseAnimationDeclaration()
+   float lastFrameTime = 0.0f; // Used in DtArticulatedModelParser::parseAnimationDeclaration()
+   float loopDuration = 0.0f;
+   bool swing = false;
+   bool forwardAnim = true;
+   std::string comment = pComment;
+   readFlipBookAnimationParameters(comment, nbFrame, skip, loopCount, lastFrameTime, loopDuration, swing, forwardAnim);
+
+   // format of the comment: "animation num_frames_per_second [ skip | noskip ] loopCount count lastFrameTime time"
+   // ex.  "animation 2 skip loopCount 3 lastFrameTime 11.5"
+   osg::Sequence* pSequence = new osg::Sequence;
+   pSequence->setName(pNode->GetName());
+   pSequence->addDescription(removeReturn(pComment));
+
+   // Regardless of forwards or backwards, animation could have swing bit set.
+   osg::Sequence::LoopMode loopMode = (swing) ?
+      osg::Sequence::LOOP : osg::Sequence::SWING;
+
+   if (forwardAnim)
+      pSequence->setInterval(loopMode, 0, -1);
+   else
+      pSequence->setInterval(loopMode, -1, 0);
+
+   float frameDuration;
+   if (loopDuration == 0.0f)
+   {
+      frameDuration = 0.1f;     // 10Hz
+   }
+   else
+   {
+      frameDuration = loopDuration / float(children.size());
+   }
+
+   for (unsigned int i = 0; i < children.size(); i++)
+   {
+      pSequence->setTime(i, frameDuration);
+   }
+
+   //// Set number of repetitions.
+   if (loopCount > 0)
+      pSequence->setDuration(1.0f, loopCount);
+   else
+      pSequence->setDuration(1.0f);        // Run continuously
+
+   pSequence->setMode(osg::Sequence::START);
+   return pSequence;
+}
+
+osgAnimation::Bone* addBone(FbxNode* pNode, const std::string& animName, FbxScene& fbxScene, std::map<FbxNode*, osg::Node*>& nodeMap)
+{
+   osgAnimation::Bone* osgBone = new osgAnimation::Bone;
+   osgBone->setDataVariance(osg::Object::DYNAMIC);
+   osgBone->setName(pNode->GetName());
+   osgAnimation::UpdateBone* pUpdate = new osgAnimation::UpdateBone(animName);
+   readUpdateMatrixTransform(pUpdate, pNode, fbxScene);
+   osgBone->setUpdateCallback(pUpdate);
+
+   nodeMap.insert(std::pair<FbxNode*, osg::Node*>(pNode, osgBone));
+
+   return osgBone;
+}
+
+osg::Group* addGroup(FbxNode* pNode, const FbxString& pComment)
+{
+   osg::Group* pGroup = new osg::Group;
+   pGroup->setName(pNode->GetName());
+   if (!pComment.IsEmpty())
+   {
+      pGroup->addDescription(removeReturn(pComment));
+   }
+   return pGroup;
+}
+
+osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment, 
+   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated)
+{
+   if (bAnimated)
+   {
+      osgAnimation::AnimationMatrixTransform* pAnimTransform = new osgAnimation::AnimationMatrixTransform();
+      pAnimTransform->setDataVariance(osg::Object::DYNAMIC);
+      pAnimTransform->setName(pNode->GetName());
+      osgAnimation::UpdateMatrixTransform* pUpdate = new osgAnimation::UpdateMatrixTransform(animName);
+      readUpdateMatrixTransform(pUpdate, pNode, fbxScene);
+      pAnimTransform->setUpdateCallback(pUpdate);
+      pAnimTransform->setAnimation(animation);
+      // if we have a dis frame or annotation comment add it to the matrix transform and not the geode
+      if (!pComment.IsEmpty())
+      {
+         pAnimTransform->addDescription(removeReturn(pComment));
+      }
+      return pAnimTransform;
+   }
+   else
+   {
+      osg::MatrixTransform* pTransform = new osg::MatrixTransform(localMatrix);
+      pTransform->setName(pNode->GetName());
+      pTransform->setDataVariance(osg::Object::STATIC);
+      // if we have a dis frame or annotation comment add it to the matrix transform and not the geode
+      if (!pComment.IsEmpty())
+      {
+         pTransform->addDescription(removeReturn(pComment));
+      }
+      return pTransform;
+   }
 }

@@ -32,6 +32,10 @@ LightPointDrawable::LightPointDrawable():
     _depthOn = new osg::Depth;
     _depthOn->setWriteMask(true);
 
+    //VRV PATCH - For reverse depth buffer support
+    _depthFunction = -1;
+    //END VRV PATCH
+
     _blendOne = new osg::BlendFunc;
     _blendOne->setFunction(osg::BlendFunc::SRC_ALPHA,osg::BlendFunc::ONE);
 
@@ -50,7 +54,10 @@ LightPointDrawable::LightPointDrawable(const LightPointDrawable& lpd,const osg::
     _simulationTimeInterval(lpd._simulationTimeInterval),
     _sizedOpaqueLightPointList(lpd._sizedOpaqueLightPointList),
     _sizedAdditiveLightPointList(lpd._sizedAdditiveLightPointList),
-    _sizedBlendedLightPointList(lpd._sizedBlendedLightPointList)
+    _sizedBlendedLightPointList(lpd._sizedBlendedLightPointList),
+    //VRV PATCH - For reverse depth
+    _depthFunction(lpd._depthFunction)
+    //END VRV PATCH
 {
 }
 
@@ -85,7 +92,7 @@ void LightPointDrawable::reset()
 
 void LightPointDrawable::drawImplementation(osg::RenderInfo& renderInfo) const
 {
-#if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GL3_AVAILABLE)
+#if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE)
     osg::State& state = *renderInfo.getState();
 
     state.applyMode(GL_POINT_SMOOTH,true);
@@ -95,6 +102,17 @@ void LightPointDrawable::drawImplementation(osg::RenderInfo& renderInfo) const
     state.applyTextureMode(0,GL_TEXTURE_2D,false);
 
     glHint(GL_POINT_SMOOTH_HINT,GL_NICEST);
+
+    //VRV PATCH - For reverse depth buffer support
+    // osg::Depth defaults to GL_LESS, but Vantage
+    // in reverse depth uses GL_GREATER so query state
+    bool changeDepthFunc = _depthFunction == -1;
+    if (changeDepthFunc)
+    {
+       glGetIntegerv(GL_DEPTH_FUNC, &(_depthFunction));
+       _depthOn->setFunction((osg::Depth::Function)_depthFunction);
+    }
+    //END VRV PATCH
 
     state.applyAttribute(_depthOn.get());
 
@@ -113,14 +131,28 @@ void LightPointDrawable::drawImplementation(osg::RenderInfo& renderInfo) const
         {
             glPointSize(pointsize);
             //glInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#if defined(OSG_GL_FIXED_FUNCTION_AVAILABLE)
             state.setInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#else
+            state.disableAllVertexArrays();
+            state.setVertexAttribPointer(state.getColorAlias()._location, 4, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].first);
+            state.setVertexAttribPointer(state.getVertexAlias()._location, 3, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].second);
+            state.dirtyAllVertexArrays();
+#endif
             glDrawArrays(GL_POINTS,0,lpl.size());
         }
     }
 
     state.applyMode(GL_BLEND,true);
-    state.applyAttribute(_depthOff.get());
 
+    //VRV PATCH - For reverse depth buffer support
+    if (changeDepthFunc)
+    {
+       _depthOff->setFunction((osg::Depth::Function)_depthFunction);
+    }
+    //END VRV PATCH
+
+    state.applyAttribute(_depthOff.get());
 
     state.applyAttribute(_blendOneMinusSrcAlpha.get());
 
@@ -134,7 +166,14 @@ void LightPointDrawable::drawImplementation(osg::RenderInfo& renderInfo) const
         {
             glPointSize(pointsize);
             //glInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#if defined(OSG_GL_FIXED_FUNCTION_AVAILABLE)
             state.setInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#else
+            state.disableAllVertexArrays();
+            state.setVertexAttribPointer(state.getColorAlias()._location, 4, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].first);
+            state.setVertexAttribPointer(state.getVertexAlias()._location, 3, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].second);
+            state.dirtyAllVertexArrays();
+#endif
             glDrawArrays(GL_POINTS,0,lpl.size());
         }
     }
@@ -153,7 +192,14 @@ void LightPointDrawable::drawImplementation(osg::RenderInfo& renderInfo) const
             //state.applyMode(GL_POINT_SMOOTH,pointsize!=1);
             glPointSize(pointsize);
             //glInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#if defined(OSG_GL_FIXED_FUNCTION_AVAILABLE)
             state.setInterleavedArrays(GL_C4UB_V3F,0,&lpl.front());
+#else
+            state.disableAllVertexArrays();
+            state.setVertexAttribPointer(state.getColorAlias()._location, 4, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].first);
+            state.setVertexAttribPointer(state.getVertexAlias()._location, 3, GL_FLOAT, false, sizeof(lpl[0]), &lpl[0].second);
+            state.dirtyAllVertexArrays();
+#endif
             glDrawArrays(GL_POINTS,0,lpl.size());
         }
     }

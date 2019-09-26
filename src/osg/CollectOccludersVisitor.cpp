@@ -64,7 +64,9 @@ float CollectOccludersVisitor::getDistanceFromEyePoint(const Vec3& pos, bool wit
     float dist = -(pos[0]*matrix(0,2)+pos[1]*matrix(1,2)+pos[2]*matrix(2,2)+matrix(3,2));
 
     if (withLODScale) return dist*getLODScale();
-    else return dist*getLODScale();
+    // BEGIN VRV_PATCH
+    else return dist;
+    // END VRV_PATCH
 }
 
 void CollectOccludersVisitor::apply(osg::Node& node)

@@ -58,8 +58,8 @@ void ProxyNode::setDatabasePath(const std::string& path)
 
 void ProxyNode::traverse(NodeVisitor& nv)
 {
-    if (nv.getDatabaseRequestHandler() && _filenameList.size()>_children.size() &&
-        _loadingExtReference!=NO_AUTOMATIC_LOADING)
+    if (_loadingExtReference==DEFER_LOADING_TO_DATABASE_PAGER &&
+         nv.getDatabaseRequestHandler() && _filenameList.size()>_children.size() )
     {
         for(unsigned int i=_children.size(); i<_filenameList.size(); ++i)
         {

@@ -27,6 +27,7 @@
 using namespace osg;
 using namespace osgText;
 
+
 //#define TREES_CODE_FOR_MAKING_SPACES_EDITABLE
 
 Text::Text():
@@ -1233,16 +1234,90 @@ void Text::computeColorGradientsPerCharacter() const
     }
 }
 
+osg::ref_ptr<osg::Program> Text::getOrCreateFixedFunctionProgram()
+{
+   if (_program.get())
+   {
+      return _program;
+   }
+
+   std::string vertexShaderSrc = 
+      "#version 150 compatibility                              \n"
+      "#extension GL_ARB_explicit_attrib_location : enable     \n"
+      "out vec4 vp_out_color;                                  \n"
+      "out vec4 vp_out_texcoords;                              \n"
+      "void main()                                             \n"
+      "{                                                       \n"
+      "                                                        \n"
+      "   gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;\n"
+      "   vp_out_color = gl_Color;                             \n"
+      "   vp_out_texcoords = gl_MultiTexCoord0;                \n"
+      "}                                                       \n"
+      ;     
+   std::string pixelShaderSrc = 	 
+      "#version 150  compatibility                             \n"
+      "uniform sampler2D diffuseMap;                           \n "
+      "in vec4 vp_out_color;                                   \n"
+      "in vec4 vp_out_texcoords;                               \n"
+      "void main()                                             \n"
+      "{                                                       \n"
+      "  vec4 color;                                           \n"
+      "  color.rgb = vp_out_color.rgb; \n"
+      "  color.a = vp_out_color.a*texture2D(diffuseMap, vp_out_texcoords.st).a; \n"
+      "  gl_FragColor = color;                                 \n"
+      "}                                                       \n"
+      ;
+
+      _program = new osg::Program();
+      _program->setName("text_program");
+
+      osg::ref_ptr<osg::Shader> vertexShader = new osg::Shader(osg::Shader::VERTEX, vertexShaderSrc);
+      vertexShader->setName("text_shader_vp");
+
+      _program->addShader(vertexShader);
+
+      osg::ref_ptr<osg::Shader> fragmentShader = new osg::Shader(osg::Shader::FRAGMENT, pixelShaderSrc);
+      fragmentShader->setName("text_shader_fp");
+
+      _program->addShader(fragmentShader);
+
+      return _program;
+
+}
+osg::ref_ptr<osg::Program> Text::_program;
+
+void Text::setStateSet(osg::StateSet* stateSet)
+{
+   TextBase::setStateSet(stateSet);
+
+   const osg::StateAttribute * program = getStateSet()->getAttribute(osg::StateAttribute::PROGRAM);
+
+#ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
+   if (!program)
+   {
+      osg::ref_ptr<osg::Program>  program = getOrCreateFixedFunctionProgram();
+      getStateSet()->setAttribute(program);
+      osg::Uniform *diffuseMap = new osg::Uniform("diffuseMap", 0);
+      stateSet->addUniform(diffuseMap);
+#endif
+   }
+}
+
 void Text::drawImplementation(osg::RenderInfo& renderInfo) const
 {
     drawImplementation(*renderInfo.getState(), osg::Vec4(1.0f,1.0f,1.0f,1.0f));
 }
+
 
 void Text::drawImplementation(osg::State& state, const osg::Vec4& colorMultiplier) const
 {
     unsigned int contextID = state.getContextID();
 
     state.applyMode(GL_BLEND,true);
+    const osg::StateAttribute *  program = getStateSet()->getAttribute(osg::StateAttribute::PROGRAM);
+    if (program){
+       state.applyAttribute(program);
+    }
 #if defined(OSG_GL_FIXED_FUNCTION_AVAILABLE)
     state.applyTextureMode(0,GL_TEXTURE_2D,osg::StateAttribute::ON);
     state.applyTextureAttribute(0,getActiveFont()->getTexEnv());
@@ -1373,8 +1448,12 @@ void Text::drawImplementation(osg::State& state, const osg::Vec4& colorMultiplie
                     glPopAttrib();
             }
         #else
-            OSG_NOTICE<<"Warning: Text::drawImplementation() fillMode FILLEDBOUNDINGBOX not supported"<<std::endl;
-        #endif
+           static int warn = 1;
+           if (warn){
+              warn = 0;
+              OSG_INFO << "Warning: Text::drawImplementation() fillMode FILLEDBOUNDINGBOX not supported" << std::endl;
+           }
+         #endif
         }
     }
 

@@ -27,7 +27,10 @@ GLBeginEndAdapter::GLBeginEndAdapter(State* state):
     _color(1.0f,1.0f,1.0f,1.0f),
     _overallNormalAssigned(false),
     _overallColorAssigned(false),
-    _primitiveMode(0)
+    _primitiveMode(0),
+   // BEGIN VRV_PATCH
+   _numElementsHint(4)
+   // END VRV_PATCH
 {
 }
 
@@ -126,18 +129,26 @@ void GLBeginEndAdapter::Vertex3f(GLfloat x, GLfloat y, GLfloat z)
 
     if (!_vertices) _vertices = new osg::Vec3Array;
 
+    // BEGIN VRV_PATCH
+    const int vertsSize = _vertices->size();
+    // END VRV_PATCH
+
     if (_normalAssigned)
     {
         if (!_normals) _normals = new osg::Vec3Array;
-        if (_normals->size()<_vertices->size()) _normals->resize(_vertices->size(), _overallNormal);
+        // BEGIN VRV_PATCH
+        if (_normals->size()<vertsSize) _normals->resize(vertsSize, _overallNormal);
+        // END VRV_PATCH
 
         _normals->push_back(_normal);
     }
 
     if (_colorAssigned)
     {
-        if (!_colors) _colors = new osg::Vec4Array;
-        if (_colors->size()<_vertices->size()) _colors->resize(_vertices->size(), _overallColor);
+        if (!_colors) { _colors = new osg::Vec4Array; }
+        // BEGIN VRV_PATCH
+        if (_colors->size()<vertsSize) _colors->resize(vertsSize, _overallColor);
+        // END VRV_PATCH
 
         _colors->push_back(_color);
     }
@@ -150,14 +161,15 @@ void GLBeginEndAdapter::Vertex3f(GLfloat x, GLfloat y, GLfloat z)
             {
                 if (unit>=_texCoordsList.size()) _texCoordsList.resize(unit+1);
                 if (!_texCoordsList[unit]) _texCoordsList[unit] = new osg::Vec4Array;
-                if (_texCoordsList[unit]->size()<_vertices->size()) _texCoordsList[unit]->resize(_vertices->size(), osg::Vec4(0.0,0.0f,0.0f,0.0f));
+                // BEGIN VRV_PATCH
+                if (_texCoordsList[unit]->size()<vertsSize) _texCoordsList[unit]->resize(vertsSize, osg::Vec4(0.0,0.0f,0.0f,0.0f));
+                // END VRV_PATCH
 
                 _texCoordsList[unit]->push_back(_texCoordList[unit]);
             }
         }
     }
-
-
+    
     if (!_vertexAttribAssignedList.empty())
     {
         for(unsigned int unit=0; unit<_vertexAttribAssignedList.size(); ++unit)
@@ -166,7 +178,9 @@ void GLBeginEndAdapter::Vertex3f(GLfloat x, GLfloat y, GLfloat z)
             {
                 if (unit>=_vertexAttribsList.size()) _vertexAttribsList.resize(unit+1);
                 if (!_vertexAttribsList[unit]) _vertexAttribsList[unit] = new osg::Vec4Array;
-                if (_vertexAttribsList[unit]->size()<_vertices->size()) _vertexAttribsList[unit]->resize(_vertices->size(), osg::Vec4(0.0,0.0f,0.0f,0.0f));
+                // BEGIN VRV_PATCH
+                if (_vertexAttribsList[unit]->size()<vertsSize) _vertexAttribsList[unit]->resize(vertsSize, osg::Vec4(0.0,0.0f,0.0f,0.0f));
+                // END VRV_PATCH
 
                 _vertexAttribsList[unit]->push_back(_vertexAttribList[unit]);
             }
@@ -183,13 +197,25 @@ void GLBeginEndAdapter::Begin(GLenum mode)
 
     // reset geometry
     _primitiveMode = mode;
-    if (_vertices.valid()) _vertices->clear();
+    if (_vertices.valid()) { _vertices->clear(); 
+    // BEGIN VRV_PATCH - reserve before we start pushing back elements
+        _vertices->reserveArray(_numElementsHint);
+    // END VRV_PATCH
+    }
 
     _normalAssigned = false;
-    if (_normals.valid()) _normals->clear();
+    if (_normals.valid()) { _normals->clear();
+        // BEGIN VRV_PATCH - reserve before we start pushing back elements
+        _normals->reserveArray(_numElementsHint);
+        // END VRV_PATCH
+    }
 
     _colorAssigned = false;
-    if (_colors.valid()) _colors->clear();
+    if (_colors.valid()) { _colors->clear();
+        // BEGIN VRV_PATCH - reserve before we start pushing back elements
+        _colors->reserveArray(_numElementsHint);
+        // END VRV_PATCH
+    }
 
     _texCoordAssignedList.clear();
     _texCoordList.clear();
@@ -197,11 +223,21 @@ void GLBeginEndAdapter::Begin(GLenum mode)
         itr != _texCoordsList.end();
         ++itr)
     {
-        if (itr->valid()) (*itr)->clear();
+        if (itr->valid())
+        {
+            (*itr)->clear();
+            // BEGIN VRV_PATCH - reserve before we start pushing back elements
+            (*itr)->reserveArray(_numElementsHint);
+            // END VRV_PATCH
+        }
     }
 
     _vertexAttribAssignedList.clear();
     _vertexAttribList.clear();
+    // BEGIN VRV_PATCH - reserve before we start pushing back elements
+    _vertexAttribAssignedList.reserve(_numElementsHint);
+    _vertexAttribList.reserve(_numElementsHint);
+    // END VRV_PATCH
 }
 
 void GLBeginEndAdapter::End()
@@ -304,3 +340,10 @@ void GLBeginEndAdapter::reset()
     _overallNormalAssigned = false;
     _overallColorAssigned = false;
 }
+
+// BEGIN VRV_PATCH
+void osg::GLBeginEndAdapter::setNumElementsHint(unsigned int numElements)
+{
+   _numElementsHint = numElements;
+}
+// END VRV_PATCH

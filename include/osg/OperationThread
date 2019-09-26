@@ -62,6 +62,11 @@ class Operation : virtual public Referenced
         /** Get the human readable name of the operation.*/
         const std::string& getName() const { return _name; }
 
+        // VRV_PATCH BEGIN
+        /** Set up the operation (call before operator() ) and before CullThread::startUp().*/
+        virtual void startUp() { }
+        // VRV_PATCH END
+
         /** Set whether the operation should be kept once its been applied.*/
         void setKeep(bool keep) { _keep = keep; }
 

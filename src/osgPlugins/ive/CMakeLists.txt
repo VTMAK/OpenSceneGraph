@@ -6,6 +6,8 @@ ENDIF()
 
 SET(TARGET_SRC
     AlphaFunc.cpp
+    Animation.cpp
+    AnimationMatrixTransform.cpp
     AnimationPathCallback.cpp
     AnimationPath.cpp
     AnisotropicLighting.cpp
@@ -46,6 +48,7 @@ SET(TARGET_SRC
     ElevationSector.cpp
     EllipsoidModel.cpp
     Exception.cpp
+    ExtendedMaterial.cpp
     FadeText.cpp
     Fog.cpp
     FragmentProgram.cpp
@@ -97,6 +100,7 @@ SET(TARGET_SRC
     Shape.cpp
     ShapeDrawable.cpp
     SpecularHighlights.cpp
+    StackedTransformElement.cpp
     StateSet.cpp
     Stencil.cpp
     StencilTwoSided.cpp
@@ -120,6 +124,7 @@ SET(TARGET_SRC
     TextureRectangle.cpp
     Transform.cpp
     Uniform.cpp
+    UpdateMatrixTransform.cpp
     VertexProgram.cpp
     Viewport.cpp
     VisibilityGroup.cpp
@@ -137,6 +142,8 @@ SET(TARGET_SRC
 )
 SET(TARGET_H
     AlphaFunc.h
+    Animation.h
+    AnimationMatrixTransform.h
     AnimationPathCallback.h
     AnimationPath.h
     AnisotropicLighting.h
@@ -177,6 +184,7 @@ SET(TARGET_H
     ElevationSector.h
     EllipsoidModel.h
     Exception.h
+    ExtendedMaterial.h
     FadeText.h
     Fog.h
     FragmentProgram.h
@@ -228,6 +236,7 @@ SET(TARGET_H
     ShapeDrawable.h
     Shape.h
     SpecularHighlights.h
+    StackedTransformElement.h
     StateSet.h
     Stencil.h
     StencilTwoSided.h
@@ -251,6 +260,7 @@ SET(TARGET_H
     TextureRectangle.h
     Transform.h
     Uniform.h
+    UpdateMatrixTransform.h
     VertexProgram.h
     Viewport.h
     VisibilityGroup.h
@@ -266,7 +276,7 @@ SET(TARGET_H
     VolumeLocator.h
     VolumeTile.h
 )
-SET(TARGET_ADDED_LIBRARIES osgSim osgFX osgText osgTerrain osgVolume)
+SET(TARGET_ADDED_LIBRARIES osgSim osgFX osgText osgTerrain osgVolume osgAnimation)
 
 IF(ZLIB_FOUND)
     SET(TARGET_LIBRARIES_VARS ZLIB_LIBRARY)

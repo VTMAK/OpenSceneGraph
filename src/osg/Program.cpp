@@ -31,6 +31,7 @@
 #include <osg/Program>
 #include <osg/Shader>
 #include <osg/GLExtensions>
+#include <osg/ConcurrencyViewerMacros>
 
 #include <OpenThreads/ScopedLock>
 #include <OpenThreads/Mutex>
@@ -38,6 +39,9 @@
 #include <string.h>
 
 using namespace osg;
+
+
+osg::ref_ptr<osg::Program> osg::Program::_fftProgram[NUM_SHADERS];
 
 ///////////////////////////////////////////////////////////////////////////
 // static cache of glPrograms flagged for deletion, which will actually
@@ -66,8 +70,10 @@ void Program::flushDeletedGlPrograms(unsigned int contextID,double /*currentTime
     if (availableTime<=0.0) return;
 
     OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlProgramCache);
-    const GLExtensions* extensions = GLExtensions::Get(contextID,true);
-    if( ! extensions->isGlslSupported ) return;
+    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
+    if (!extensions || !extensions->isGlslSupported) {
+       return;
+    }
 
     const osg::Timer& timer = *osg::Timer::instance();
     osg::Timer_t start_tick = timer.tick();
@@ -139,6 +145,23 @@ Program::Program() :
     _geometryOutputType(GL_TRIANGLE_STRIP),
     _numGroupsX(0), _numGroupsY(0), _numGroupsZ(0), _feedbackmode(GL_SEPARATE_ATTRIBS)
 {
+   // GNP TO DO fixme properly
+   // matches material.cpp
+   int MATERIAL_INDEX = 0;
+   addBindUniformBlock("osg_material_uniform_block", MATERIAL_INDEX);
+
+   int ALPHA_INDEX = 1;
+   addBindUniformBlock("osg_alpha_threshold_block", ALPHA_INDEX);
+
+   if (State::getUseUboTransformStack()) {
+      int TRANSFORM_INDEX = 3;
+      addBindUniformBlock("osg_transform_stack_block", TRANSFORM_INDEX);
+   }
+  
+  // VRV hack to support another UBO
+   int PER_CHANNEL_INDEX = 4;
+   addBindUniformBlock("vrv_per_channel_uniform_block", PER_CHANNEL_INDEX);
+  
 }
 
 
@@ -585,23 +608,21 @@ Program::ProgramObjects::ProgramObjects(const osg::Program* program, unsigned in
 
 Program::PerContextProgram* Program::ProgramObjects::getPCP(const std::string& defineStr) const
 {
-    for(PerContextPrograms::const_iterator itr = _perContextPrograms.begin();
-        itr != _perContextPrograms.end();
-        ++itr)
+    //VRVantage Patch, switched to map for much better performance
+    PerContextPrograms::const_iterator itr = _perContextPrograms.find(defineStr);
+    if(itr != _perContextPrograms.end())
     {
-        if ((*itr)->getDefineString()==defineStr)
-        {
-            // OSG_NOTICE<<"Returning PCP "<<itr->get()<<" DefineString = "<<(*itr)->getDefineString()<<std::endl;
-            return itr->get();
-        }
+        return itr->second;
     }
+    
     return 0;
 }
 
 Program::PerContextProgram* Program::ProgramObjects::createPerContextProgram(const std::string& defineStr)
 {
+    //VRVantage Patch, switched to map for much better performance
     Program::PerContextProgram* pcp = new PerContextProgram( _program, _contextID );
-    _perContextPrograms.push_back( pcp );
+    _perContextPrograms[defineStr] = pcp;
     pcp->setDefineString(defineStr);
     // OSG_NOTICE<<"Creating PCP "<<pcp<<" PCP DefineString = ["<<pcp->getDefineString()<<"]"<<std::endl;
     return pcp;
@@ -609,43 +630,47 @@ Program::PerContextProgram* Program::ProgramObjects::createPerContextProgram(con
 
 void Program::ProgramObjects::requestLink()
 {
+    //VRVantage Patch, switched to map for much better performance
     for(PerContextPrograms::iterator itr = _perContextPrograms.begin();
         itr != _perContextPrograms.end();
         ++itr)
     {
-        (*itr)->requestLink();
+        itr->second->requestLink();
     }
 }
 
 void Program::ProgramObjects::addShaderToAttach(Shader* shader)
 {
+    //VRVantage Patch, switched to map for much better performance
     for(PerContextPrograms::iterator itr = _perContextPrograms.begin();
         itr != _perContextPrograms.end();
         ++itr)
     {
-        (*itr)->addShaderToAttach(shader);
+        itr->second->addShaderToAttach(shader);
     }
 }
 
 void Program::ProgramObjects::addShaderToDetach(Shader* shader)
 {
+    //VRVantage Patch, switched to map for much better performance
     for(PerContextPrograms::iterator itr = _perContextPrograms.begin();
         itr != _perContextPrograms.end();
         ++itr)
     {
-        (*itr)->addShaderToDetach(shader);
+        itr->second->addShaderToDetach(shader);
     }
 }
 
 
 bool Program::ProgramObjects::getGlProgramInfoLog(std::string& log) const
 {
+    //VRVantage Patch, switched to map for much better performance
     bool result = false;
     for(PerContextPrograms::const_iterator itr = _perContextPrograms.begin();
         itr != _perContextPrograms.end();
         ++itr)
     {
-        result = (*itr)->getInfoLog( log ) | result;
+        result = itr->second->getInfoLog( log ) | result;
     }
     return result;
 }
@@ -653,7 +678,7 @@ bool Program::ProgramObjects::getGlProgramInfoLog(std::string& log) const
 Program::PerContextProgram* Program::getPCP(State& state) const
 {
     unsigned int contextID = state.getContextID();
-    const std::string defineStr = state.getDefineString(getShaderDefines());
+    const std::string & defineStr = state.getDefineString(getShaderDefines());
 
     if( ! _pcpList[contextID].valid() )
     {
@@ -724,6 +749,10 @@ Program::PerContextProgram::PerContextProgram(const Program* program, unsigned i
     {
         _extensions = GLExtensions::Get( _contextID, true );
         _glProgramHandle = _extensions->glCreateProgram();
+        //VRV_PATCH
+        if (_extensions->glObjectLabel && program->getName().length()) {
+           _extensions->glObjectLabel(GL_PROGRAM, _glProgramHandle, -1, program->getName().c_str());
+        }
         _ownsProgramHandle = true;
     }
     requestLink();
@@ -745,11 +774,18 @@ void Program::PerContextProgram::requestLink()
 }
 
 
+
 void Program::PerContextProgram::linkProgram(osg::State& state)
 {
-    if( ! _needsLink ) return;
+    if( ! _needsLink ) return; 
     _needsLink = false;
-
+    
+    osg::CVMarkerSeries series("Render Tasks");
+    osg::CVSpan UpdateTick(series, 0, "linkProgram");
+    if (_program->getName().length())
+    {
+       series.write_alert(_program->getName().c_str());
+    }
     OSG_INFO << "Linking osg::Program \"" << _program->getName() << "\""
              << " id=" << _glProgramHandle
              << " contextID=" << _contextID
@@ -765,6 +801,10 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
             reinterpret_cast<const GLvoid*>(programBinary->getData()), programBinary->getSize() );
         _extensions->glGetProgramiv( _glProgramHandle, GL_LINK_STATUS, &linked );
         _loadedBinary = _isLinked = (linked == GL_TRUE);
+        //VRV_PATCH
+        if (_extensions->glObjectLabel && _program->getName().length()) {
+           _extensions->glObjectLabel(GL_PROGRAM, _glProgramHandle, -1, _program->getName().c_str());
+        }
     }
 
     if (!_loadedBinary && _extensions->isGeometryShader4Supported)
@@ -849,13 +889,36 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
 
     if( ! _isLinked )
     {
-        OSG_WARN << "glLinkProgram \""<< _program->getName() << "\" FAILED" << std::endl;
+        OSG_WARN << "----------------------------------------------------------------------------------------" << std::endl;
+        OSG_WARN << "----------------------------------------------------------------------------------------" << std::endl << std::endl;
+        OSG_WARN << "glLinkProgram \"" << _program->getName() << "\" FAILED" << std::endl;
 
         std::string infoLog;
         if( getInfoLog(infoLog) )
         {
             OSG_WARN << "Program \""<< _program->getName() << "\" "
                                       "infolog:\n" << infoLog << std::endl;
+            //VRVantage Patch,  mod, dump shader if it doesn't compile
+            int all_shaders_valid = 1;
+            for (int i = 0; i < _program->_shaderList.size(); i++)
+            {
+               if (!_program->_shaderList[i]->getPCS(state)->isCompiled()){
+                  all_shaders_valid = 0;
+                  break;
+               }
+            }
+
+            if (all_shaders_valid)
+            {
+               // link error, dump shaders
+               for (int i = 0; i < _program->_shaderList.size(); i++)
+               {
+                  OSG_WARN << "----------------------------------------------------------------" << std::endl;
+                  osg::Shader * shader = _program->_shaderList[i];
+                  OSG_WARN << "Shader: " << shader->getName() << std::endl;
+                  OSG_WARN << osg::Shader::insertLineNumbers(shader->_shaderSourcePostTransform) << std::endl;
+               }
+            }
         }
 
         return;
@@ -867,6 +930,10 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
         {
             OSG_INFO << "Program \""<< _program->getName() << "\" "<<
                                       "link succeeded, infolog:\n" << infoLog << std::endl;
+        }
+
+        if (_extensions->glObjectLabel){
+           _extensions->glObjectLabel(GL_PROGRAM, _glProgramHandle, _program->getName().length(), _program->getName().c_str());
         }
     }
 
@@ -1134,4 +1201,103 @@ void Program::PerContextProgram::useProgram() const
     {
         _extensions->glDispatchCompute( _program->_numGroupsX, _program->_numGroupsY, _program->_numGroupsZ );
     }
+}
+
+// Vantage Change
+//static 
+osg::ref_ptr<osg::Program>
+osg::Program::getFixedFunctionProgram(osg::Program::FFTShader_Type shader_type)
+{
+   if (!_fftProgram[shader_type])
+   {
+      _fftProgram[shader_type] = new osg::Program;
+      std::string vertString;
+      std::string fragString;
+      std::string shaderName;
+      if (shader_type == osg::Program::LightPoint_Drawing||shader_type==osg::Program::LightPointSprite_Drawing)
+      {
+         if(shader_type == osg::Program::LightPoint_Drawing){
+            shaderName = "LightPoint_Drawing";
+         }
+         else if(shader_type == osg::Program::LightPointSprite_Drawing){
+            shaderName = "LightPointSprite_Drawing";
+         }
+         
+         vertString = 
+            "#version 150 compatibility                              \n"
+            "#extension GL_ARB_explicit_attrib_location : enable     \n"
+            "                                                        \n"
+            "out vec4 vp_out_color;                                  \n"
+            "void main()                                             \n"
+            "{                                                       \n"
+            "                                                        \n"
+            "   gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;\n"
+            "   vp_out_color = gl_Color;                             \n"
+            "}                                                       \n";
+
+         fragString =
+            "#version 150 compatibility                           \n"
+            "uniform sampler2D spriteTexture;                      \n "
+            "in vec4 vp_out_color;                                 \n"
+            "void main()                                           \n"
+            "{                                                     \n"
+            "    vec4 color = vp_out_color;                        \n";
+         if (shader_type == osg::Program::LightPointSprite_Drawing)
+         {
+            fragString +=
+
+               "    gl_FragColor = color*texture2D(spriteTexture, gl_PointCoord.xy);\n"
+               "}                                                   \n";
+         }
+         else
+         {
+            fragString +=
+               "    gl_FragColor = color;                         \n"
+               "}                                                 \n";
+         }
+      }
+      else
+      {
+         shaderName = "Normal_drawing";
+
+         vertString =
+            "#version 150 compatibility                             \n" 
+            "out vec4 vary_color;                                    \n"
+            "void main()                                             \n"
+            "{                                                       \n"
+            "                                                        \n"
+            "   gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;\n"
+            "   gl_TexCoord[0] = gl_MultiTexCoord0;\n                \n"
+            "   vary_color = gl_Color;                               \n"
+            "}                                                       \n";
+
+         fragString =
+            "#version 150 compatibility                                \n"
+            "uniform sampler2D diffuseMap;                             \n "
+            "uniform int ufrm_diffuse_map_enabled;                    \n "
+            "uniform float osg_alpha_threshold;                       \n"
+            "in vec4 vary_color;                                      \n"
+            "void main()                                             \n"
+            "{                                                       \n"
+            "  vec4 color = vary_color;                              \n"
+            "  if(ufrm_diffuse_map_enabled == 1){                    \n"
+            "  color *= texture2D(diffuseMap, gl_TexCoord[0].st); \n"
+            "  }                                                       \n"
+            "   if(color.a < osg_alpha_threshold){                    \n"
+            "      discard;                                          \n"
+            "   }                                                    \n"
+            "   gl_FragColor = color;                                 \n"
+            "}                                                       \n";
+      }
+      osg::ref_ptr<osg::Shader> vertexShader = new osg::Shader(osg::Shader::VERTEX, vertString);
+      vertexShader->setName(shaderName + "_vp");
+
+      _fftProgram[shader_type]->addShader(vertexShader);
+
+      osg::ref_ptr<osg::Shader> fragmentShader = new osg::Shader(osg::Shader::FRAGMENT, fragString);
+      fragmentShader->setName(shaderName + "_fp");
+
+      _fftProgram[shader_type]->addShader(fragmentShader);
+   }
+   return  _fftProgram[shader_type];
 }

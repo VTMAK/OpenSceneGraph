@@ -1,7 +1,7 @@
 // -*-c++-*-
 
 /*
- * $Id$
+ * $Id: directx.cpp 13864 2013-10-21 09:54:41Z robert $
  *
  * Loader for DirectX .x files.
  * Copyright (c)2002-2006 Ulrich Hertlein <u.hertlein@sandbox.de>
@@ -63,7 +63,8 @@ bool Object::load(std::istream& fin)
 {
     // read header
     char buf[256];
-    if (!fin.getline(buf, sizeof(buf))) {
+    fin.getline(buf, sizeof(buf));
+    if ( buf == 0) {
         OSG_WARN << "Failed to read DirectX header\n";
         return false;
     }
