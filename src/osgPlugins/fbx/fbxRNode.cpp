@@ -92,6 +92,7 @@ static const unsigned int SCALE_X_LIMIT_BIT = 0x80000000u >> 6;
 static const unsigned int SCALE_Y_LIMIT_BIT = 0x80000000u >> 7;
 static const unsigned int SCALE_Z_LIMIT_BIT = 0x80000000u >> 8;
 
+static const std::string stateNodeName = "maingroup_";
 
 // Remove \n and \r from the string
 std::string removeReturn(const FbxString& pComment)
@@ -788,7 +789,14 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
 {
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
-    
+    // Search for "maingroup_xxx" in the name to see if we need to add the state (normal/destroy)
+    bool foundStateName = false;
+    std::string nodeName = pNode->GetName();
+    if (nodeName.find(stateNodeName) != std::string::npos)
+    {
+       foundStateName = true;
+    }
+
     if (bNeedSkeleton)
     {
         return addBone(pNode, animName, fbxScene, nodeMap);
@@ -797,9 +805,9 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     {
        return addSwitch(pNode, pComment);
     }
-    else if (pComment.Find(disState.c_str()) != -1)
+    else if (pComment.Find(disState.c_str()) != -1 || foundStateName)
     {
-       return addState(pNode, pComment);
+       return addState(pNode, pComment, foundStateName);
     }    
     else if (pComment.Find(disArticulatedPart.c_str()) != -1 )
     {
@@ -826,7 +834,11 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     textureUnitMap& textureMap,
     const FbxString& appName)
 {
-    if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute())
+
+   // Add comment from Node Name if needed
+   addCommentFromNodeName(pNode);
+
+   if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute())
     {
         FbxNodeAttribute::EType attrType = lNodeAttribute->GetAttributeType();
         switch (attrType)
@@ -909,7 +921,10 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
             }
             else
             {
-                children.push_back(osgChild);
+               if (addDamageSwitch(osgChild, children) == false)
+               {
+                  children.push_back(osgChild);
+               }
             }
         }
     }
@@ -1075,8 +1090,10 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
           nodeComment = childNode->getDescription(0);
        }
        
-       //check if it finish with "_LODx" or comment contain "@dis lod"
-       if (returnEndNodeName(nodeName) == "_LOD" || nodeComment.find(disLod.c_str()) != std::string::npos)
+       // check if it finish with "_LODx" or comment contain "@dis lod"
+       // we also need to check if it start with "LODx"
+       if (returnEndNodeName(nodeName) == "_LOD" || nodeComment.find(disLod.c_str()) != std::string::npos ||
+          nodeName.substr(0,3) == "LOD")
        {
           readLodInformation(childNode, pAddChildrenTo, nodeName, nodeComment, addLod, childId, pLod);
        }
@@ -1352,12 +1369,32 @@ osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment)
    return pSwitch;
 }
 
-osg::Group* addState(FbxNode* pNode, const FbxString& pComment)
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName)
 {
    // If a valid vantage state comment is found it will add a group with comment
    osg::Group* pGroup = new osg::Group;
-   pGroup->setName(pNode->GetName());
-   pGroup->addDescription(removeReturn(pComment));
+   std::string nodeName = pNode->GetName();
+   static const std::string destroyed = "_destroyed_";
+   pGroup->setName(nodeName.c_str());
+   // if the nodename contain maingroup_ in it we need to
+   // add the proper state comment and check if we need to add a parent switch node
+   if (foundStateName)
+   {
+      if (nodeName.find(destroyed) != std::string::npos)
+      {
+         // destroyed state
+         pGroup->addDescription("@dis state 3");
+      }
+      else
+      {
+         // normal state
+         pGroup->addDescription("@dis state 0,1,2");
+      }
+   }
+   else
+   {
+      pGroup->addDescription(removeReturn(pComment));
+   }
    return pGroup;
 }
 

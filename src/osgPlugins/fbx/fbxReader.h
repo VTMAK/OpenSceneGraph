@@ -65,7 +65,9 @@ public:
         tessellatePolygons(tessellatePolygons1),
         authoringTool(authoringTool1),
         currentFilePath(currentFilePath1)
-    {}
+    {
+       readNodeMapCSVfile();
+    }
 
     osgDB::ReaderWriter::ReadResult readFbxNode(
         FbxNode*, bool& bIsBone, int& nLightCount,
@@ -134,6 +136,25 @@ protected:
     //! Return the 5 last character of the node name
     std::string returnEndNodeName(const std::string& nodeName);
 
+    //! Special case, check if we need to add a damage state node parent because it's missing)
+    bool addDamageSwitch(osg::Node* osgChild, osg::NodeList& children);
+
+    //! Read the Vantage Map Node CSV 
+    void readNodeMapCSVfile();
+    
+    //! Add a comment from the node map if needed
+    void addCommentFromNodeName(FbxNode* pNode);
+
+    //! Retrieve a @dis comment based on the node name (this is filled using the Vantage FBX_NodeNameMap.csv file)
+    std::string getCommentFromNodeName(const std::string& nodeName);
+
+    //! Flag to know if the mapping file was read
+    static bool CSVfileread;
+
+    //! map that keep the @dis comment based on node name
+    typedef std::map<std::string, std::string> NodeNameToCommentMap;
+    NodeNameToCommentMap _nodeNameMap;
+    
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
@@ -144,7 +165,7 @@ osgAnimation::Skeleton* getSkeleton(FbxNode*,
 osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment);
 
 //! Add DIS state
-osg::Group* addState(FbxNode* pNode, const FbxString& pComment);
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName);
 
 //! Add articulation part 
 osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof);

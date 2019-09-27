@@ -256,7 +256,7 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             // Empty texture unit map that will be pass down
             // and filled as needed
             textureUnitMap textureMap;
-            
+                        
             ReadResult res = reader.readFbxNode(pNode, bIsBone, nLightCount, textureMap, appName);
 
             if (res.success())
