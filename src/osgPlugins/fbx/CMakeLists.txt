@@ -26,6 +26,10 @@ SET(TARGET_H
     fbxMatrixTransformVisitor.h
 )
 
+INCLUDE_DIRECTORIES(${BOOST_INCLUDE_DIR})
+
+link_directories(${BOOST_LIB_DIR})
+
 IF(CMAKE_COMPILER_IS_GNUCXX)
 
     SET(CMAKE_CXX_FLAGS "-w")

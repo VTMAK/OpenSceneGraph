@@ -20,8 +20,16 @@
 
 #include <string>
 
+#include <boost/tokenizer.hpp>
+#include <boost/token_functions.hpp>
+
 static const std::string disBillboardPoint = "@dis billboard point";
 static const std::string disBillboardAxis = "@dis billboard axis";
+static const std::string disDamageState = "@dis switch damage";
+
+// Special case for top node name maingroup_xxx = normal state, maingroup_destroy_xxx (destroy state)
+static const std::string stateNodeName = "maingroup_";
+static const std::string destroyed_stateNodeName = "maingroup_destroyed";
 
 
 #if defined(_MSC_VER)
@@ -1535,3 +1543,136 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxMesh(FbxNode* pNode,
     return readMesh(pNode, lMesh, stateSetList,
         pNode->GetName(), textureMap);
 }
+
+bool OsgFbxReader::CSVfileread = false; // Init once when the DLL is loaded
+void OsgFbxReader::readNodeMapCSVfile()
+{
+   const static std::string vrvAppDataDir = "vrvAppDataDir=";
+   if (CSVfileread == false)
+   {
+      std::string optionString = options.getOptionString();
+      std::size_t pos = optionString.find(vrvAppDataDir);
+      if (pos != std::string::npos)
+      {
+         std::size_t endpos = optionString.find(" ", pos);
+         if (pos == std::string::npos)
+         {
+            // no other param, use the end position for the length
+            endpos = optionString.length();
+         }
+         pos = pos + vrvAppDataDir.length();
+         std::string csvFile = optionString.substr(pos, endpos - pos);
+         csvFile += "/importConfig/FBX_NodeNameMap.csv";
+
+
+         FILE* file = fopen(csvFile.c_str(), "r");
+         if (file != NULL)
+         {
+            char charline[256];
+            bool firstLineRead = false;
+            while (fgets(charline, sizeof(charline), file))
+            {
+               if (firstLineRead)
+               {
+                  std::string line = charline;
+                  boost::char_separator<char> sep(",", "", boost::keep_empty_tokens);
+
+                  boost::tokenizer<boost::char_separator<char> >
+                     tokenList(line, sep);
+                  boost::tokenizer<boost::char_separator<char> >::iterator curAttrIter =
+                     tokenList.begin();
+                  boost::tokenizer<boost::char_separator<char> >::iterator endAttrIter =
+                     tokenList.end();
+
+                  if (curAttrIter != endAttrIter)
+                  {
+                     // Read Node Name
+                     std::string nodeNameStr = *curAttrIter;
+                     ++curAttrIter;
+
+                     // Read @DIS comment
+                     std::string commentStr = *curAttrIter;
+                     ++curAttrIter;
+
+                     // insert in the map
+                     _nodeNameMap.insert(std::pair<std::string, std::string>(nodeNameStr, commentStr));
+                  }
+               }
+               else
+               {
+                  firstLineRead = true;
+               }
+            }
+         }
+         fclose(file);
+      }
+      CSVfileread = true;
+   }
+}
+
+void OsgFbxReader::addCommentFromNodeName(FbxNode* pNode)
+{
+   // Get comment from node name map
+   std::string disComment = getCommentFromNodeName(pNode->GetName());
+   if (!disComment.empty())
+   {
+      // Create a 3DMAX property (that hold the comment we use)
+      FbxProperty p1 = FbxProperty::Create(pNode, FbxStringDT, "UDP3DSMAX", "Comments");
+      p1.Set(FbxString(disComment.c_str()));
+   }
+}
+
+std::string OsgFbxReader::getCommentFromNodeName(const std::string& nodeName)
+{
+   return _nodeNameMap[nodeName];
+}
+
+bool OsgFbxReader::addDamageSwitch(osg::Node* osgChild, osg::NodeList& children)
+{
+   // special case if the maingroup does not have a switch need need to create one
+   std::string nodeName = osgChild->getName();
+   osgSim::MultiSwitch* pSwitch = NULL;
+   bool childrenAdded = false;
+   if (nodeName.find(stateNodeName) != std::string::npos)
+   {
+      // Check if a switch was already created
+      bool switchFound = false;
+      unsigned int activeSwitchPos = 0;
+      for (osg::NodeList::iterator iter = children.begin();
+         iter != children.end(); ++iter)
+      {
+         pSwitch = dynamic_cast<osgSim::MultiSwitch*>(iter->get());
+         activeSwitchPos++;
+         if (pSwitch)
+         {
+            pSwitch->addChild(osgChild);
+            switchFound = true;
+            childrenAdded = true;
+            break;
+         }
+      }
+
+      // Add a switch of top of the maingroup if it's missing
+      if (switchFound == false)
+      {
+         pSwitch = new osgSim::MultiSwitch;
+         pSwitch->setName("maingroup_switch");
+         pSwitch->addDescription(disDamageState);
+         pSwitch->setValue(0, 0, true);
+         pSwitch->addChild(osgChild);
+         children.push_back(pSwitch);
+         childrenAdded = true;
+      }
+
+      // if it's not the destroyed state set state to active
+      if (nodeName.find(destroyed_stateNodeName) == std::string::npos)
+      {
+         if (pSwitch)
+         {
+            pSwitch->setActiveSwitchSet(activeSwitchPos);
+         }
+      }
+   }
+   return childrenAdded;
+}
+

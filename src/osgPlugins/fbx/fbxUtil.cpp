@@ -208,7 +208,18 @@ void fbxUtil::resolveBindMatrices(
 void fbxUtil::minMaxSwitchDistance(const std::string& nodeName, int& lod, float& min, float& max)
 {
    // The nodename should end with "_LODx", this should be check before this call
-   lod = atoi(&nodeName[nodeName.length()-1]);
+   // or start with "LODx_"
+   std::size_t pos = nodeName.find("_LOD");
+   if (pos != std::string::npos)
+   {
+      // case with "_LODx" at the end
+      lod = atoi(&nodeName[nodeName.length() - 1]);
+   }
+   else
+   {
+      // case with "LODx_" at the beginning 
+      lod = atoi(&nodeName[3]);
+   }
    //pLod->setCenter(center*document.unitScale());
    min = 0.0;
    max = 10000.0;
