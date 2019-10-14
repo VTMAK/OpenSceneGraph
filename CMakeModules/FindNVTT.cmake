@@ -114,6 +114,7 @@ FIND_LIBRARY(NVTHREAD_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -123,6 +124,7 @@ FIND_LIBRARY(NVTHREAD_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -134,6 +136,7 @@ FIND_LIBRARY(NVSQUISH_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -143,6 +146,7 @@ FIND_LIBRARY(NVSQUISH_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -154,6 +158,7 @@ FIND_LIBRARY(NVBC6H_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -163,6 +168,7 @@ FIND_LIBRARY(NVBC6H_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -174,6 +180,7 @@ FIND_LIBRARY(NVBC7_LIBRARY_RELEASE
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
@@ -183,6 +190,7 @@ FIND_LIBRARY(NVBC7_LIBRARY_DEBUG
   /usr/local
   /usr
   $ENV{NVTT_DIR}
+  ${NVTT_LIB_DIR}
   ${3rdPartyRoot}
   PATH_SUFFIXES lib64 lib lib/shared lib/static lib64/static
 )
