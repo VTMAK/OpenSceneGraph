@@ -1172,7 +1172,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         void removeOrphan(TextureObject* to);
         // END VRV PATCH
 
-        unsigned int size() const { return _profile._size * _numOfTextureObjects; }
+        // ALPHAPIXEL: Removed - members inside function not found. unsigned int size() const { return _profile._size * _numOfTextureObjects; }
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture,
                                                      unsigned int contextID,
