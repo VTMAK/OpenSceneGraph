@@ -231,64 +231,6 @@ ShaderBinary* ShaderBinary::readShaderBinaryFile(const std::string& fileName)
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// static cache of glShaders flagged for deletion, which will actually
-// be deleted in the correct GL context.
-
-typedef std::list<GLuint> GlShaderHandleList;
-typedef osg::buffered_object<GlShaderHandleList> DeletedGlShaderCache;
-
-static OpenThreads::Mutex    s_mutex_deletedGlShaderCache;
-static DeletedGlShaderCache  s_deletedGlShaderCache;
-
-void Shader::deleteGlShader(unsigned int contextID, GLuint shader)
-{
-    if( shader )
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlShaderCache);
-
-        // add glShader to the cache for the appropriate context.
-        s_deletedGlShaderCache[contextID].push_back(shader);
-    }
-}
-
-void Shader::flushDeletedGlShaders(unsigned int contextID,double /*currentTime*/, double& availableTime)
-{
-    // if no time available don't try to flush objects.
-    if (availableTime<=0.0) return;
-
-    const GLExtensions* extensions = GLExtensions::Get(contextID, false);
-    if(!extensions || !extensions->isGlslSupported ) return;
-
-    const osg::Timer& timer = *osg::Timer::instance();
-    osg::Timer_t start_tick = timer.tick();
-    double elapsedTime = 0.0;
-
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlShaderCache);
-
-        GlShaderHandleList& pList = s_deletedGlShaderCache[contextID];
-        for(GlShaderHandleList::iterator titr=pList.begin();
-            titr!=pList.end() && elapsedTime<availableTime;
-            )
-        {
-            extensions->glDeleteShader( *titr );
-            titr = pList.erase( titr );
-            elapsedTime = timer.delta_s(start_tick,timer.tick());
-        }
-    }
-
-    availableTime -= elapsedTime;
-}
-
-void Shader::discardDeletedGlShaders(unsigned int contextID)
-{
-    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlShaderCache);
-
-    GlShaderHandleList& pList = s_deletedGlShaderCache[contextID];
-    pList.clear();
-}
-
-///////////////////////////////////////////////////////////////////////////
 // osg::Shader
 ///////////////////////////////////////////////////////////////////////////
 
