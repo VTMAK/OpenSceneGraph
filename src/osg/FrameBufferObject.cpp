@@ -195,35 +195,6 @@ void RenderBuffer::releaseGLObjects(osg::State* state) const
     }
 }
 
-void RenderBuffer::flushDeletedRenderBuffers(unsigned int contextID,double /*currentTime*/, double& availableTime)
-{
-    // if no time available don't try to flush objects.
-    if (availableTime<=0.0) return;
-
-    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
-    if(!extensions || !extensions->isFrameBufferObjectSupported ) return;
-
-    const osg::Timer& timer = *osg::Timer::instance();
-    osg::Timer_t start_tick = timer.tick();
-    double elapsedTime = 0.0;
-
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedRenderBufferCache);
-
-        RenderBufferHandleList& pList = s_deletedRenderBufferCache[contextID];
-        for(RenderBufferHandleList::iterator titr=pList.begin();
-            titr!=pList.end() && elapsedTime<availableTime;
-            )
-        {
-            extensions->glDeleteRenderbuffers(1, &(*titr) );
-            titr = pList.erase( titr );
-            elapsedTime = timer.delta_s(start_tick,timer.tick());
-        }
-    }
-
-    availableTime -= elapsedTime;
-}
-
 /**************************************************************************
  * FrameBufferAttachment
  **************************************************************************/
