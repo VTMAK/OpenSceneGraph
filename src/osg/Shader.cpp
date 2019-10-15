@@ -104,65 +104,6 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 
 }
 
-// BEGIN VRV_PATCH - faster shader defines
-namespace osg
-{
-
-template<typename M>
-inline std::string::size_type find_first(const std::string& str, const M& match, std::string::size_type startpos, std::string::size_type endpos=std::string::npos)
-{
-    std::string::size_type endp = (endpos!=std::string::npos) ? endpos : str.size();
-
-    while(startpos<endp)
-    {
-        if (match(str[startpos])) return startpos;
-
-        ++startpos;
-    }
-    return endpos;
-}
-
-struct EqualTo
-{
-    EqualTo(char c): _c(c) {}
-    bool operator() (char rhs) const { return rhs==_c; }
-    char _c;
-};
-
-struct OneOf
-{
-    OneOf(const char* str) : _str(str) {}
-    bool operator() (char rhs) const
-    {
-        const char* ptr = _str;
-        while(*ptr!=0 && rhs!=*ptr) ++ptr;
-        return (*ptr!=0);
-    }
-    const char* _str;
-};
-
-struct NotEqualTo
-{
-    NotEqualTo(char c): _c(c) {}
-    bool operator() (char rhs) const { return rhs!=_c; }
-    char _c;
-};
-
-struct NoneOf
-{
-    NoneOf(const char* str) : _str(str) {}
-    bool operator() (char rhs) const
-    {
-        const char* ptr = _str;
-        while(*ptr!=0 && rhs!=*ptr) ++ptr;
-        return (*ptr==0);
-    }
-    const char* _str;
-};
-
-}
-// END VRV_PATCH
-
 using namespace osg;
 
 class GLShaderManager : public GLObjectManager
