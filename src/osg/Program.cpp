@@ -56,43 +56,6 @@ public:
 osg::ref_ptr<osg::Program> osg::Program::_fftProgram[NUM_SHADERS];
 
 ///////////////////////////////////////////////////////////////////////////
-// static cache of glPrograms flagged for deletion, which will actually
-// be deleted in the correct GL context.
-
-typedef std::list<GLuint> GlProgramHandleList;
-typedef osg::buffered_object<GlProgramHandleList> DeletedGlProgramCache;
-
-static OpenThreads::Mutex    s_mutex_deletedGlProgramCache;
-static DeletedGlProgramCache s_deletedGlProgramCache;
-
-void Program::deleteGlProgram(unsigned int contextID, GLuint program)
-{
-    if( program )
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlProgramCache);
-
-        // add glProgram to the cache for the appropriate context.
-        s_deletedGlProgramCache[contextID].push_back(program);
-    }
-}
-
-void Program::flushDeletedGlPrograms(unsigned int contextID,double /*currentTime*/, double& availableTime)
-{
-    // if no time available don't try to flush objects.
-    if (availableTime<=0.0) return;
-
-    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedGlProgramCache);
-    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
-    if (!extensions || !extensions->isGlslSupported) {
-       return;
-    }
-
-    const osg::Timer& timer = *osg::Timer::instance();
-    osg::Timer_t start_tick = timer.tick();
-    double elapsedTime = 0.0;
-}
-
-///////////////////////////////////////////////////////////////////////////
 // osg::Program::ProgramBinary
 ///////////////////////////////////////////////////////////////////////////
 
