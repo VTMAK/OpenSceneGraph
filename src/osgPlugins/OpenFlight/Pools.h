@@ -1,13 +1,13 @@
-/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield
+/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield 
  *
- * This library is open source and may be redistributed and/or modified under
- * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
+ * This library is open source and may be redistributed and/or modified under  
+ * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or 
  * (at your option) any later version.  The full license is in LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
  * OpenSceneGraph Public License for more details.
 */
 
@@ -23,9 +23,11 @@
 #include <vector>
 #include <map>
 #include <sstream>
+#include <cstring>
 #include <osg/Vec4>
 #include <osg/StateSet>
 #include <osg/Material>
+#include <osg/ExtendedMaterial>
 #include <osg/Light>
 #include <osg/Program>
 #include "Types.h"
@@ -84,6 +86,48 @@ protected:
 
 };
 
+struct MultiTextureKey
+{
+   MultiTextureKey()   
+   {
+      memset(buffer,0,sizeof(char[56]));
+   }
+
+   bool operator<(const MultiTextureKey& other) const
+   {
+      return memcmp(buffer,other.buffer,sizeof(char[56])) < 0;
+   }
+   char buffer[56];
+};
+
+
+class MultiTexturePool : public osg::Referenced , public std::map<MultiTextureKey,osg::ref_ptr<osg::StateSet> >
+{
+public:
+
+    MultiTexturePool() {}
+
+    osg::StateSet* get(const MultiTextureKey& key)
+    {
+        iterator itr = find(key);
+        if (itr != end())
+            return (*itr).second.get();
+        return NULL;
+    }
+    
+    osg::StateSet* create(const MultiTextureKey& key)
+    {
+      osg::StateSet* ss = new osg::StateSet;
+      this->operator[](key) = ss;
+      return ss;
+    }
+
+protected:
+
+    virtual ~MultiTexturePool() {}
+
+};
+
 
 class MaterialPool : public osg::Referenced , public std::map<int,osg::ref_ptr<osg::Material> >
 {
@@ -94,7 +138,7 @@ public:
     // Get material, return default material if not found in palette.
     osg::Material* get(int index);
 
-    // Get or create material based on
+    // Get or create material based on 
     // index: face material index
     // color: face color with alpha set to 1-face transparency.
     osg::Material* getOrCreateMaterial(int index, const osg::Vec4& faceColor);
@@ -128,6 +172,63 @@ protected:
     // Material from palette combined with face color stored here for reuse.
     typedef std::map<MaterialParameters,osg::ref_ptr<osg::Material> > FinalMaterialMap;
     FinalMaterialMap _finalMaterialMap;
+};
+
+class ExtendedMaterialPool : public osg::Referenced, public std::map<int, osg::ref_ptr<osg::ExtendedMaterial> >
+{
+public:
+
+   ExtendedMaterialPool()
+      : myCurrentExtendedMaterialIndex(-1)
+      , myFirstAvaiableTextureUnit(-1)
+   {}
+
+   osg::ExtendedMaterial* currentExtendedMaterial()
+   {
+      if (myCurrentExtendedMaterialIndex != -1)
+      {
+         osg::ExtendedMaterial* extendedMaterial = get(myCurrentExtendedMaterialIndex);
+         if (!extendedMaterial)
+         {
+            extendedMaterial = new osg::ExtendedMaterial();
+            insert(std::make_pair(myCurrentExtendedMaterialIndex,extendedMaterial));
+         }
+         return extendedMaterial;
+      }
+      return NULL;
+   }
+
+   void setCurrentExtendedMaterialIndex(int index)
+   {
+      myCurrentExtendedMaterialIndex = index;
+   }
+
+   void setFirstTextureUnitAfterEffectTexture(int unit)
+   {
+      myFirstAvaiableTextureUnit = unit;
+   }
+
+   int firstTextureUnitAfterEffectTexture()
+   {
+      return myFirstAvaiableTextureUnit;
+   }
+
+   osg::ExtendedMaterial* get(int index)
+   {
+      iterator itr = find(index);
+      if (itr != end())
+      {
+         return (*itr).second.get();
+      }
+      return NULL;
+   }
+
+protected:
+   int myCurrentExtendedMaterialIndex;
+   //This is the first texture unit after we insert the effect textures into to the stateset,
+   //Used for multiTexture(blending with base texture), See AncillaryRecords.cpp
+   int myFirstAvaiableTextureUnit;
+   virtual ~ExtendedMaterialPool() {}
 };
 
 
@@ -217,7 +318,7 @@ protected:
 
 struct LPAnimation : public osg::Referenced
 {
-    enum AnimationType
+    enum AnimationType 
     {
         FLASHING_SEQUENCE = 0,
         ROTATING = 1,
@@ -325,8 +426,14 @@ public:
     void setTexturePool(TexturePool* pool) { _texturePool=pool; }
     TexturePool* getTexturePool() const { return _texturePool.get(); }
 
+    void setMultiTexturePool(MultiTexturePool* pool) { _multiTexturePool=pool; }
+    MultiTexturePool* getMultiTexturePool() const { return _multiTexturePool.get(); }
+
     void setMaterialPool(MaterialPool* pool) { _materialPool=pool; }
     MaterialPool* getMaterialPool() const { return _materialPool.get(); }
+
+    void setExtendedMaterialPool(ExtendedMaterialPool* pool) { _extendedMaterialPool = pool; }
+    ExtendedMaterialPool* getExtendedMaterialPool() const { return _extendedMaterialPool.get(); }
 
     void setLightSourcePool(LightSourcePool* pool) { _lightSourcePool=pool; }
     LightSourcePool* getLightSourcePool() const { return _lightSourcePool.get(); }
@@ -346,7 +453,9 @@ protected:
 
     osg::ref_ptr<ColorPool> _colorPool;
     osg::ref_ptr<MaterialPool> _materialPool;
+    osg::ref_ptr<ExtendedMaterialPool> _extendedMaterialPool;
     osg::ref_ptr<TexturePool> _texturePool;
+    osg::ref_ptr<MultiTexturePool> _multiTexturePool;
     osg::ref_ptr<LightSourcePool> _lightSourcePool;
     osg::ref_ptr<LightPointAppearancePool> _lpAppearancePool;
     osg::ref_ptr<LightPointAnimationPool> _lpAnimationPool;

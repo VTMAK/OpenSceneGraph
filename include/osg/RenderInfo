@@ -53,6 +53,9 @@ public:
     }
 
     unsigned int getContextID() const { return _state.valid() ? _state->getContextID() : 0; }
+    // VRV_PATCH
+    unsigned int getNonSharedContextID() const { return _state.valid() ? _state->getNonSharedContextID() : 0; }
+    // VRV_PATCH
 
     void setState(State* state) { _state = state; }
     State* getState() { return _state.get(); }

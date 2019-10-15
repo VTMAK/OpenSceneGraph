@@ -1,0 +1,44 @@
+/******************************************************************************
+** Copyright (c) 2019 MAK Technologies, Inc.
+** All rights reserved.
+******************************************************************************/
+
+//! \file AnimationMatrixTransform
+//! \brief Contains A Matrix transform with an animation reference
+
+#ifndef OSGANIMATION_ANIMATIONMATRIXTRANSFORM
+#define OSGANIMATION_ANIMATIONMATRIXTRANSFORM 1
+
+#include <osg/MatrixTransform>
+#include <osgAnimation/Export>
+#include <osgAnimation/Animation>
+
+namespace osgAnimation
+{
+
+   class OSGANIMATION_EXPORT AnimationMatrixTransform : public osg::MatrixTransform
+   {
+   public:
+      AnimationMatrixTransform();
+
+      /** Copy constructor using CopyOp to manage deep vs shallow copy.*/
+      AnimationMatrixTransform(const AnimationMatrixTransform& amt, const osg::CopyOp& copyop = osg::CopyOp::SHALLOW_COPY);
+
+      AnimationMatrixTransform(const osg::Matrix& matrix);
+
+      META_Node(osgAnimation, AnimationMatrixTransform)
+
+      virtual void setAnimation(Animation* animation);
+
+      virtual Animation* getAnimation() const;
+
+   protected:
+
+      virtual ~AnimationMatrixTransform();
+
+      osg::ref_ptr<Animation> _animation;
+
+   };
+}
+
+#endif

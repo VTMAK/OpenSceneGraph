@@ -10,7 +10,7 @@
  *    HISTORY:        Created 11.03.2003
  *                    Updated for texture1D by Don Burns, 27.1.2004
  *                      Updated for light model - Stan Blinov at 25 august 7512 from World Creation (7.09.2004)
- *
+ *                     Updated for animation - VT MAK 30.07.2019
  *
  *    Copyright 2003 VR-C
  **********************************************************************/
@@ -25,6 +25,7 @@
 #include "BlendEquation.h"
 #include "Depth.h"
 #include "Material.h"
+#include "ExtendedMaterial.h"
 #include "CullFace.h"
 #include "ColorMask.h"
 #include "ClipPlane.h"
@@ -89,6 +90,9 @@
 #include "MultiSwitch.h"
 #include "VisibilityGroup.h"
 
+#include "AnimationMatrixTransform.h"
+#include "Animation.h"
+
 #include "MultiTextureControl.h"
 #include "ShapeAttributeList.h"
 #include "Effect.h"
@@ -149,6 +153,10 @@ DataInputStream::DataInputStream(std::istream* istream, const osgDB::ReaderWrite
     _owns_istream = false;
     _peeking = false;
     _peekValue = 0;
+    //VRV Patch
+    _peekingChar = false;
+    _peekCharValue = 0;
+    //End VRV Patch
     _byteswap = 0;
 
     _options = options;
@@ -304,6 +312,12 @@ bool DataInputStream::readBool(){
 }
 
 char DataInputStream::readChar(){
+    //VRV Patch
+    if (_peekingChar) {
+       _peekingChar = false;
+       return _peekCharValue;
+    }
+    // End VRV Patch
     char c=0;
     _istream->read(&c, CHARSIZE);
 
@@ -340,6 +354,21 @@ unsigned short DataInputStream::readUShort(){
     return s;
 }
 
+//VRV Patch
+short DataInputStream::readShort() {
+   short s = 0;
+   _istream->read((char*)&s, SHORTSIZE);
+   if (_istream->rdstate() & _istream->failbit)
+      throwException("DataInputStream::readUShort(): Failed to read short value.");
+
+   if (_verboseOutput) std::cout << "read/writeShort() [" << s << "]" << std::endl;
+
+   if (_byteswap) osg::swapBytes((char *)&s, SHORTSIZE);
+
+   return s;
+}
+// End VRV Patch
+
 unsigned int DataInputStream::readUInt(){
     unsigned int s=0;
     _istream->read((char*)&s, INTSIZE);
@@ -371,6 +400,22 @@ int DataInputStream::readInt(){
 
     return i;
 }
+
+//VRV Patch
+/**
+ * Read an char from the stream, but
+ * save it such that the next readChar call will
+ * return the same char.
+ */
+char DataInputStream::peekChar() {
+   if (_peekingChar) {
+      return _peekCharValue;
+   }
+   _peekCharValue = readChar();
+   _peekingChar = true;
+   return _peekCharValue;
+}
+// End VRV Patch
 
 /**
  * Read an integer from the stream, but
@@ -494,6 +539,233 @@ osg::Vec4 DataInputStream::readVec4(){
 
     return v;
 }
+//VRV Patch
+osg::Vec2b DataInputStream::readVec2b()
+{
+   osg::Vec2b v;
+   v.x() = readChar();
+   v.y() = readChar();
+
+   if (_verboseOutput) std::cout << "read/writeVec2b() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec3b DataInputStream::readVec3b() {
+   osg::Vec3b v;
+   v.x() = readChar();
+   v.y() = readChar();
+   v.z() = readChar();
+
+   if (_verboseOutput) std::cout << "read/writeVec3b() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec4b DataInputStream::readVec4b() {
+   osg::Vec4b v;
+   v.x() = readChar();
+   v.y() = readChar();
+   v.z() = readChar();
+   v.w() = readChar();
+
+   if (_verboseOutput) std::cout << "read/writeVec4b() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec2ub DataInputStream::readVec2ub()
+{
+   osg::Vec2ub v;
+   v.x() = readChar();
+   v.y() = readChar();
+   
+   //if (_verboseOutput) std::cout << "read/writeVec2ub() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec3ub DataInputStream::readVec3ub() {
+   osg::Vec3ub v;
+   v.r() = readChar();
+   v.g() = readChar();
+   v.b() = readChar();
+   
+//   if (_verboseOutput) std::cout << "read/writeVec3ub() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec2s DataInputStream::readVec2s()
+{
+   osg::Vec2s v;
+   v.x() = readShort();
+   v.y() = readShort();
+
+   if (_verboseOutput) std::cout << "read/writeVec2s() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec3s DataInputStream::readVec3s() {
+   osg::Vec3s v;
+   v.x() = readShort();
+   v.y() = readShort();
+   v.z() = readShort();
+
+   if (_verboseOutput) std::cout << "read/writeVec3s() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec4s DataInputStream::readVec4s() {
+   osg::Vec4s v;
+   v.x() = readShort();
+   v.y() = readShort();
+   v.z() = readShort();
+   v.w() = readShort();
+
+   if (_verboseOutput) std::cout << "read/writeVec4s() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec2us DataInputStream::readVec2us()
+{
+   osg::Vec2us v;
+   v.x() = readUShort();
+   v.y() = readUShort();
+
+//   if (_verboseOutput) std::cout << "read/writeVec2us() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec3us DataInputStream::readVec3us() {
+   osg::Vec3us v;
+   v.x() = readUShort();
+   v.y() = readUShort();
+   v.z() = readUShort();
+
+//   if (_verboseOutput) std::cout << "read/writeVec3us() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec4us DataInputStream::readVec4us() {
+   osg::Vec4us v;
+   v.x() = readUShort();
+   v.y() = readUShort();
+   v.z() = readUShort();
+   v.w() = readUShort();
+
+//   if (_verboseOutput) std::cout << "read/writeVec4us() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec2i DataInputStream::readVec2i()
+{
+   osg::Vec2i v;
+   v.x() = readInt();
+   v.y() = readInt();
+
+   if (_verboseOutput) std::cout << "read/writeVec2i() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec3i DataInputStream::readVec3i() {
+   osg::Vec3i v;
+   v.x() = readInt();
+   v.y() = readInt();
+   v.z() = readInt();
+
+   if (_verboseOutput) std::cout << "read/writeVec3i() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec4i DataInputStream::readVec4i() {
+   osg::Vec4i v;
+   v.x() = readInt();
+   v.y() = readInt();
+   v.z() = readInt();
+   v.w() = readInt();
+
+   if (_verboseOutput) std::cout << "read/writeVec4i() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec2ui DataInputStream::readVec2ui()
+{
+   osg::Vec2ui v;
+   v.x() = readUInt();
+   v.y() = readUInt();
+
+//   if (_verboseOutput) std::cout << "read/writeVec2ui() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec3ui DataInputStream::readVec3ui() {
+   osg::Vec3ui v;
+   v.x() = readUInt();
+   v.y() = readUInt();
+   v.z() = readUInt();
+
+//   if (_verboseOutput) std::cout << "read/writeVec3ui() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec4ui DataInputStream::readVec4ui() {
+   osg::Vec4ui v;
+   v.x() = readUInt();
+   v.y() = readUInt();
+   v.z() = readUInt();
+   v.w() = readUInt();
+
+//   if (_verboseOutput) std::cout << "read/writeVec4ui() [" << v << "]" << std::endl; // todo
+
+   return v;
+}
+
+osg::Vec2f DataInputStream::readVec2f()
+{
+   osg::Vec2f v;
+   v.x() = readFloat();
+   v.y() = readFloat();
+
+   if (_verboseOutput) std::cout << "read/writeVec2f() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec3f DataInputStream::readVec3f() {
+   osg::Vec3f v;
+   v.x() = readFloat();
+   v.y() = readFloat();
+   v.z() = readFloat();
+
+   if (_verboseOutput) std::cout << "read/writeVec3f() [" << v << "]" << std::endl;
+
+   return v;
+}
+
+osg::Vec4f DataInputStream::readVec4f() {
+   osg::Vec4f v;
+   v.x() = readFloat();
+   v.y() = readFloat();
+   v.z() = readFloat();
+   v.w() = readFloat();
+
+   if (_verboseOutput) std::cout << "read/writeVec4f() [" << v << "]" << std::endl;
+
+   return v;
+}
+//End VRV Patch
 osg::Vec2d DataInputStream::readVec2d()
 {
     osg::Vec2d v;
@@ -576,10 +848,77 @@ osg::Quat DataInputStream::readQuat(){
 
     return q;
 }
+//VRV Patch
+DataInputStream& DataInputStream::operator>>(osg::BoundingBoxf& bb)
+{
+   float p0, p1, p2, p3, p4, p5; *this >> p0 >> p1 >> p2 >> p3 >> p4 >> p5;
+   bb.set(p0, p1, p2, p3, p4, p5); return *this;
+}
 
+DataInputStream& DataInputStream::operator>>(osg::BoundingBoxd& bb)
+{
+   double p0, p1, p2, p3, p4, p5; *this >> p0 >> p1 >> p2 >> p3 >> p4 >> p5;
+   bb.set(p0, p1, p2, p3, p4, p5); return *this;
+}
 
+DataInputStream& DataInputStream::operator>>(osg::BoundingSpheref& bs)
+{
+   float p0, p1, p2, p3; *this >> p0 >> p1 >> p2 >> p3;
+   bs.set(osg::Vec3f(p0, p1, p2), p3); return *this;
+}
 
+DataInputStream& DataInputStream::operator>>(osg::BoundingSphered& bs)
+{
+   double p0, p1, p2, p3; *this >> p0 >> p1 >> p2 >> p3;
+   bs.set(osg::Vec3d(p0, p1, p2), p3); return *this;
+}
 
+osg::Object* DataInputStream::readStackedTransformElement()
+{
+   int id = peekInt();
+   if (id == IVESTACKEDQUATERNIONELEMENT)
+   {      
+      id = readInt();
+      osg::ref_ptr <osgAnimation::StackedQuaternionElement> sqe = new osgAnimation::StackedQuaternionElement();
+      sqe->setQuaternion(readQuat());
+      return sqe.release();
+   }
+   else if (id == IVESTACKEDROTATEAXISELEMENT)
+   {
+      id = readInt();
+      osg::ref_ptr <osgAnimation::StackedRotateAxisElement> sre = new osgAnimation::StackedRotateAxisElement();
+      sre->setAxis(readVec3d());
+      sre->setAngle(readDouble());
+      return sre.release();
+   }
+   else if (id == IVESTACKEDSCALEELEMENT)
+   {
+      id = readInt();
+      osg::ref_ptr <osgAnimation::StackedScaleElement> sse = new osgAnimation::StackedScaleElement();
+      sse->setScale(readVec3d());
+      return sse.release();
+   }
+   else if (id == IVESTACKEDTRANSLATEELEMENT)
+   {
+      id = readInt();
+      osg::ref_ptr <osgAnimation::StackedTranslateElement> ste = new osgAnimation::StackedTranslateElement();
+      ste->setTranslate(readVec3d());
+      return ste.release();
+   }
+   else if (id == IVESTACKEDMATRIXELEMENT)
+   {
+      id = readInt();
+      osg::ref_ptr <osgAnimation::StackedMatrixElement> ste = new osgAnimation::StackedMatrixElement();
+      ste->setMatrix(readMatrixd());
+      return ste.release();
+   }
+   else 
+   {
+      OSG_WARN << "unknown StackedTransformElement type" << std::endl;
+      return NULL;
+   }
+}
+//End VRV Patch
 deprecated_osg::Geometry::AttributeBinding DataInputStream::readBinding(){
     char c = readChar();
 
@@ -1395,6 +1734,10 @@ osg::StateAttribute* DataInputStream::readStateAttribute()
         attribute = new osg::Material();
         ((ive::Material*)(attribute.get()))->read(this);
     }
+    else if (attributeID == IVEEXTENDEDMATERIAL){
+       attribute = new osg::ExtendedMaterial();
+       ((ive::ExtendedMaterial*)(attribute.get()))->read(this);
+    }
     else if(attributeID == IVECULLFACE){
         attribute = new osg::CullFace();
         ((ive::CullFace*)(attribute.get()))->read(this);
@@ -1714,7 +2057,12 @@ osg::Node* DataInputStream::readNode()
     osg::ref_ptr<osg::Node> node;
     int nodeTypeID= peekInt();
 
-    if(nodeTypeID== IVEMATRIXTRANSFORM){
+    //VRV Patch
+    if (nodeTypeID == IVEANIMATIONMATRIXTRANSFORM) {
+       node = new osgAnimation::AnimationMatrixTransform();
+       ((ive::AnimationMatrixTransform*)(node.get()))->read(this);
+    } // End VRV Patch
+    else if(nodeTypeID== IVEMATRIXTRANSFORM){
         node = new osg::MatrixTransform();
         ((ive::MatrixTransform*)(node.get()))->read(this);
     }
@@ -2154,7 +2502,18 @@ osg::Object* DataInputStream::readObject()
 
         return sal.release();
     }
+	//VRV Patch
+    else if (id == IVEANIMATION)
+    {
+       osg::ref_ptr<osgAnimation::Animation> anim = new osgAnimation::Animation;
+       ((ive::Animation*)anim.get())->read(this);
 
+       // exit early if an exception has been set.
+       if (getException()) return 0;
+
+       return anim.release();
+    }
+	// End VRV Patch
     return 0;
 }
 

@@ -13,6 +13,8 @@
 #include <osg/Object>
 #include <osg/UserDataContainer>
 
+#include <OpenThreads/Mutex>
+
 namespace osg
 {
 
@@ -24,7 +26,8 @@ Object::Object(const Object& obj,const CopyOp& copyop):
     Referenced(),
     _name(obj._name),
     _dataVariance(obj._dataVariance),
-    _userDataContainer(0)
+    _userDataContainer(0),
+    _dataMutex(0)
 {
     if (obj._userDataContainer)
     {
@@ -42,8 +45,24 @@ Object::Object(const Object& obj,const CopyOp& copyop):
 Object::~Object()
 {
     if (_userDataContainer) _userDataContainer->unref();
+    delete _dataMutex;
+    _dataMutex = 0;
 }
 
+// VRV_PATCH
+OpenThreads::Mutex& Object::getDataMutex()
+{
+   if (!_dataMutex) {
+      static OpenThreads::Mutex creationMutex;
+      OpenThreads::ScopedLock<OpenThreads::Mutex> lock(creationMutex);
+      if (!_dataMutex) {
+         _dataMutex = new OpenThreads::Mutex();
+      }
+   }
+   return *_dataMutex;
+}
+
+   
 
 void Object::setThreadSafeRefUnref(bool threadSafe)
 {

@@ -598,13 +598,17 @@ bool trpgLightAttr::isValid(void) const
 
 trpgLightAttr& trpgLightAttr::operator = (const trpgLightAttr& in)
 {
-    data = in.data;
-    if (in.data.commentStr) {
-        data.commentStr = new char[strlen(in.data.commentStr)+1];
-        strcpy(data.commentStr,in.data.commentStr);
+    if (this != &in)  // VRV_PATCH
+    {
+       data = in.data;
+       if (in.data.commentStr) {
+          data.commentStr = new char[strlen(in.data.commentStr) + 1];
+          strcpy(data.commentStr, in.data.commentStr);
+       }
+       handle = in.handle;
+       writeHandle = in.writeHandle;
     }
-    handle = in.handle;
-    writeHandle = in.writeHandle;
+
     return *this;
 }
 

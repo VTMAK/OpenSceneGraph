@@ -44,6 +44,10 @@ void TexMat::apply(State& state) const
 
     glMatrixMode( GL_MODELVIEW );
 #else
-    OSG_NOTICE<<"Warning: TexMat::apply(State&) - not supported."<<std::endl;
+   static int warn = 1;
+   if (warn){
+      warn = 0;
+      OSG_INFO << "Warning: TexMat::apply(State&) - not supported." << std::endl;
+   }
 #endif
 }

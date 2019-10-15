@@ -783,10 +783,11 @@ bool DelaunayTriangulator::triangulate()
                     points_->push_back(p1); // add non-unique constraint points to triangulation
                     nadded++;
                 }
-                else
-                {
-                    OSG_WARN << "DelaunayTriangulator: ignore a duplicate point at "<< p1.x()<< " " << p1.y() << std::endl;;
-                }
+                // This is a harmless warning, that just clutters up the console
+                //else
+                //{
+                //    OSG_WARN << "DelaunayTriangulator: ignore a duplicate point at "<< p1.x()<< " " << p1.y() << std::endl;;
+                //}
             }
         }
     //    OSG_WARN<< "constraint size "<<vercon->size()<<" " <<nadded<< std::endl;
@@ -1018,7 +1019,7 @@ bool DelaunayTriangulator::triangulate()
                                                 } else if(edgeRight.back()!=e2 && edgeLeft.back()==e1 && e2!=ip2) {
                                                     edgeRight.push_back(e2);
                                                 } else {
-                                                    if (!tradj->usesVertex(ip2)) OSG_WARN << "tradj error " << tradj->a()<<  " , " << tradj->b()<<  " , " << tradj->c()<< std::endl;
+                                                   if (!tradj->usesVertex(ip2)) OSG_INFO << "tradj error " << tradj->a() << " , " << tradj->b() << " , " << tradj->c() << std::endl;
                                                 }
                                                 const Triangle *previousTradj = tradj;
                                                 tradj=getTriangleWithEdge(e2,e1, &triangles);

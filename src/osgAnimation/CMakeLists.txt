@@ -17,6 +17,7 @@ SET(TARGET_H
     ${HEADER_PATH}/ActionVisitor
     ${HEADER_PATH}/Animation
     ${HEADER_PATH}/AnimationManagerBase
+    ${HEADER_PATH}/AnimationMatrixTransform
     ${HEADER_PATH}/AnimationUpdateCallback
     ${HEADER_PATH}/BasicAnimationManager
     ${HEADER_PATH}/Bone
@@ -64,8 +65,9 @@ SET(TARGET_SRC
     ActionCallback.cpp
     ActionStripAnimation.cpp
     ActionVisitor.cpp
-    Animation.cpp
+    Animation.cpp	
     AnimationManagerBase.cpp
+    AnimationMatrixTransform.cpp
     BasicAnimationManager.cpp
     Bone.cpp
     BoneMapVisitor.cpp

@@ -30,6 +30,7 @@ osgParticle::ParticleProcessor::ParticleProcessor()
     _frameNumber(0)
 {
     setCullingActive(false);
+    setNumChildrenRequiringUpdateTraversal(1);
 }
 
 osgParticle::ParticleProcessor::ParticleProcessor(const ParticleProcessor& copy, const osg::CopyOp& copyop)
@@ -50,15 +51,16 @@ osgParticle::ParticleProcessor::ParticleProcessor(const ParticleProcessor& copy,
     _resetTime(copy._resetTime),
     _frameNumber(copy._frameNumber)
 {
+    setCullingActive(false);
+    setNumChildrenRequiringUpdateTraversal(1);
 }
 
 void osgParticle::ParticleProcessor::traverse(osg::NodeVisitor& nv)
 {
-    // typecast the NodeVisitor to CullVisitor
-    osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(&nv);
-
-    // continue only if the visitor actually is a cull visitor
-    if (cv) {
+    // TDG: Mak Patch to syncronize particle systems. Moved particle updates to Update from Cull
+    // update only if the visitor actually is an update visitor
+    if (nv.getVisitorType() == osg::NodeVisitor::UPDATE_VISITOR) 
+    {
 
         // continue only if the particle system is valid
         if (_ps.valid())

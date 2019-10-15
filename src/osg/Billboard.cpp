@@ -81,26 +81,35 @@ void Billboard::setNormal(const Vec3& normal)
         _rotateNormalToZAxis.makeIdentity();
 }
 
+// VRV_PATCH BEGIN - Using osg::equivalent now, logic is supposed to be the same
 void Billboard::updateCache()
 {
     if (_mode==AXIAL_ROT)
     {
-        if      (_axis==Vec3(1.0f,0.0,0.0f) && _normal==Vec3(0.0f,-1.0,0.0f)) _cachedMode = AXIAL_ROT_X_AXIS;
-        else if (_axis==Vec3(0.0f,1.0,0.0f) && _normal==Vec3(1.0f, 0.0,0.0f)) _cachedMode = AXIAL_ROT_Y_AXIS;
-        else if (_axis==Vec3(0.0f,0.0,1.0f) && _normal==Vec3(0.0f,-1.0,0.0f)) _cachedMode = AXIAL_ROT_Z_AXIS;
-        else                                                                  _cachedMode = AXIAL_ROT;
+        if (osg::equivalent(_axis, Vec3(1.0f, 0.0, 0.0f)) && osg::equivalent(_normal, Vec3(0.0f, -1.0f, 0.0f)))
+           _cachedMode = AXIAL_ROT_X_AXIS;
+        else if (osg::equivalent(_axis, Vec3(0.0f, 1.0, 0.0f)) && osg::equivalent(_normal, Vec3(1.0f, 0.0f, 0.0f)))
+           _cachedMode = AXIAL_ROT_Y_AXIS;
+        else if (osg::equivalent(_axis, Vec3(0.0f, 0.0, 1.0f)) && osg::equivalent(_normal, Vec3(0.0f, -1.0f, 0.0f)))
+           _cachedMode = AXIAL_ROT_Z_AXIS;
+        else
+           _cachedMode = AXIAL_ROT;
     }
     else if( _mode == POINT_ROT_WORLD )
     {
-        if(_axis==Vec3(0.0f, 0.0, 1.0f) && _normal==Vec3(0.0f, -1.0f, 0.0f))  _cachedMode = POINT_ROT_WORLD_Z_AXIS;
-        else _cachedMode = _mode;
-
+        if (osg::equivalent(_axis, Vec3(0.0f, 0.0, 1.0f)) && osg::equivalent(_normal, Vec3(0.0f, -1.0f, 0.0f)))
+           _cachedMode = POINT_ROT_WORLD_Z_AXIS;
+        else 
+           _cachedMode = _mode;
+       _cachedMode = POINT_ROT_WORLD_Z_AXIS;
     }
     else _cachedMode = _mode;
 
     _side = _axis^_normal;
     _side.normalize();
 }
+// VRV_PATCH END
+
 
 bool Billboard::addDrawable(Drawable *gset)
 {

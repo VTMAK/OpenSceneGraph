@@ -65,6 +65,10 @@ class OSGSIM_EXPORT LightPoint
         osg::ref_ptr<BlinkSequence> _blinkSequence;
 
         BlendingMode                _blendingMode;
+
+        //VRV patch so we can handle the light point palette type's name
+        std::string                 _typeName;
+        //End VRV Patch
 };
 
 }

@@ -215,7 +215,12 @@ Image::Image()
     _pixelAspectRatio(1.0),
     _allocationMode(USE_NEW_DELETE),
     _data(0L),
-    _dimensionsChangedCallbacks()
+    _dimensionsChangedCallbacks(),
+    //VRV PATCH - Added a isTranslucent cached result
+    _translucentCheckModCount(_modifiedCount - 1),
+    _isTranslucent(false),
+    _beingProcessed(false)
+    //END VRV PATCH
 {
     setDataVariance(STATIC);
 }
@@ -235,7 +240,12 @@ Image::Image(const Image& image,const CopyOp& copyop):
     _allocationMode(USE_NEW_DELETE),
     _data(0L),
     _mipmapData(image._mipmapData),
-    _dimensionsChangedCallbacks(image._dimensionsChangedCallbacks)
+    _dimensionsChangedCallbacks(image._dimensionsChangedCallbacks),
+    //VRV PATCH - Added a isTranslucent cached result
+    _translucentCheckModCount(image._translucentCheckModCount),
+    _isTranslucent(image._isTranslucent),
+    _beingProcessed(false)
+    //END VRV PATCH
 {
     if (image._data)
     {
@@ -276,6 +286,10 @@ int Image::compare(const Image& rhs) const
         if (_data>rhs._data) return 1;
     }
 
+    //VRV PATCH - Added a isTranslucent cached result
+    COMPARE_StateAttribute_Parameter(_translucentCheckModCount)
+    COMPARE_StateAttribute_Parameter(_isTranslucent)
+    //END VRV PATCH
     // need to test against image contents here...
     COMPARE_StateAttribute_Parameter(_s)
     COMPARE_StateAttribute_Parameter(_t)
@@ -305,7 +319,11 @@ void Image::setData(unsigned char* data, AllocationMode mode)
     deallocateData();
     _data = data;
     _allocationMode = mode;
-    dirty();
+    
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 
@@ -486,6 +504,22 @@ unsigned int Image::computeNumComponents(GLenum pixelFormat)
 {
     switch(pixelFormat)
     {
+        case(GL_SRGB_EXT): return 3;
+        case(GL_SRGB8_EXT): return 3;
+        case(GL_SRGB_ALPHA_EXT): return 4;
+        case(GL_SRGB8_ALPHA8_EXT): return 4;
+        case(GL_SLUMINANCE_ALPHA_EXT): return 2;
+        case(GL_SLUMINANCE8_ALPHA8_EXT): return 2;
+        case(GL_SLUMINANCE_EXT): return 1;
+        case(GL_SLUMINANCE8_EXT): return 1;
+        case(GL_COMPRESSED_SRGB_EXT): return 3;
+        case(GL_COMPRESSED_SRGB_ALPHA_EXT): return 4;
+        case(GL_COMPRESSED_SLUMINANCE_EXT): return 1;
+        case(GL_COMPRESSED_SLUMINANCE_ALPHA_EXT): return 2;
+        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT): return 3;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT): return 4;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT): return 4;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT): return 4;
         case(GL_COMPRESSED_RGB_S3TC_DXT1_EXT): return 3;
         case(GL_COMPRESSED_RGBA_S3TC_DXT1_EXT): return 4;
         case(GL_COMPRESSED_RGBA_S3TC_DXT3_EXT): return 4;
@@ -617,6 +651,10 @@ unsigned int Image::computePixelSizeInBits(GLenum format,GLenum type)
 
     switch(format)
     {
+        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT): return 4;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT): return 4;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT): return 8;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT): return 8;
         case(GL_COMPRESSED_RGB_S3TC_DXT1_EXT): return 4;
         case(GL_COMPRESSED_RGBA_S3TC_DXT1_EXT): return 4;
         case(GL_COMPRESSED_RGBA_S3TC_DXT3_EXT): return 8;
@@ -655,6 +693,10 @@ unsigned int Image::computePixelSizeInBits(GLenum format,GLenum type)
     // Robert Osfield, Jan 2005.
     switch(format)
     {
+        case(GL_COMPRESSED_SRGB_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_EXT):
+        case(GL_COMPRESSED_SLUMINANCE_EXT):
+        case(GL_COMPRESSED_SLUMINANCE_ALPHA_EXT):
         case(GL_COMPRESSED_ALPHA):
         case(GL_COMPRESSED_LUMINANCE):
         case(GL_COMPRESSED_LUMINANCE_ALPHA):
@@ -668,6 +710,14 @@ unsigned int Image::computePixelSizeInBits(GLenum format,GLenum type)
 
     switch(format)
     {
+        case(GL_SRGB_EXT): return 24;
+        case(GL_SRGB8_EXT): return 24;
+        case(GL_SRGB_ALPHA_EXT): return 32;
+        case(GL_SRGB8_ALPHA8_EXT): return 32;
+        case(GL_SLUMINANCE_ALPHA_EXT): return 16;
+        case(GL_SLUMINANCE8_ALPHA8_EXT): return 16;
+        case(GL_SLUMINANCE_EXT): return 8;
+        case(GL_SLUMINANCE8_EXT): return 8;
         case(GL_LUMINANCE4): return 4;
         case(GL_LUMINANCE8): return 8;
         case(GL_LUMINANCE12): return 12;
@@ -836,6 +886,29 @@ int Image::computeNearestPowerOfTwo(int s,float bias)
     return s;
 }
 
+//From Bit Twiddling Hacks (website)
+inline static unsigned int nextPowerOf2(unsigned int i)
+{
+   --i;
+   i |= i >> 1;
+   i |= i >> 2;
+   i |= i >> 4;
+   i |= i >> 8;
+   i |= i >> 16;
+   ++i;
+   return i;
+}
+
+inline static unsigned int logBase2(unsigned int i)
+{
+   static const int MultiplyDeBruijnBitPosition[32] = 
+   {
+      0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
+      8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
+   };
+
+   return MultiplyDeBruijnBitPosition[((nextPowerOf2(i + 1) - 1) * 0x07C4ACDDU) >> 27];
+}
 int Image::computeNumberOfMipmapLevels(int s,int t, int r)
 {
     int w = maximum(s, t);
@@ -851,6 +924,14 @@ bool Image::isCompressed() const
 {
     switch(_pixelFormat)
     {
+        case(GL_COMPRESSED_SRGB_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_EXT):
+        case(GL_COMPRESSED_SLUMINANCE_EXT):
+        case(GL_COMPRESSED_SLUMINANCE_ALPHA_EXT):
+        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
         case(GL_COMPRESSED_ALPHA_ARB):
         case(GL_COMPRESSED_INTENSITY_ARB):
         case(GL_COMPRESSED_LUMINANCE_ALPHA_ARB):
@@ -931,11 +1012,20 @@ void Image::setInternalTextureFormat(GLint internalFormat)
     // won't do any sanity checking right now, leave it to
     // OpenGL to make the call.
     _internalTextureFormat = internalFormat;
+
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 void Image::setPixelFormat(GLenum pixelFormat)
 {
     _pixelFormat = pixelFormat;
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 void Image::setDataType(GLenum dataType)
@@ -946,6 +1036,10 @@ void Image::setDataType(GLenum dataType)
     {
         // setting the datatype for the first time
         _dataType = dataType;
+        //VRV PATCH - Added a isTranslucent cached result
+        //Mark the translucent check as dirty since the data may have changed.
+        _translucentCheckModCount = getModifiedCount() - 1;
+        //END VRV PATCH
     }
     else
     {
@@ -1056,6 +1150,11 @@ void Image::readPixels(int x,int y,int width,int height,
     glPixelStorei(GL_PACK_ROW_LENGTH,_rowLength);
 
     glReadPixels(x,y,width,height,format,type,_data);
+
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 
@@ -1313,6 +1412,11 @@ void Image::swap(osg::Image& rhs)
     std::swap(_bufferObject, rhs._bufferObject);
 
     std::swap(_dimensionsChangedCallbacks, rhs._dimensionsChangedCallbacks);
+
+    //VRV PATCH - Added a isTranslucent cached result
+    std::swap(_translucentCheckModCount, rhs._translucentCheckModCount);
+    std::swap(_isTranslucent, rhs._isTranslucent);
+    //END VRV PATCH
 }
 
 
@@ -1430,6 +1534,11 @@ void Image::copySubImage(int s_offset, int t_offset, int r_offset, const osg::Im
     {
         OSG_WARN << "Error Image::scaleImage() did not succeed : errorString = "<< gluErrorString((GLenum)status) << ". The rendering context may be invalid." << std::endl;
     }
+
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 void Image::flipHorizontal()
@@ -1623,6 +1732,11 @@ void Image::flipDepth()
             }
         }
     }
+
+    //VRV PATCH - Added a isTranslucent cached result
+    //Mark the translucent check as dirty since the data may have changed.
+    _translucentCheckModCount = getModifiedCount() - 1;
+    //END VRV PATCH
 }
 
 
@@ -1689,6 +1803,13 @@ bool _maskedFindLowerAlphaValueInRow(unsigned int num, T* data,T value, T mask, 
 
 bool Image::isImageTranslucent() const
 {
+   //VRV PATCH - Added a isTranslucent cached result
+   if(_translucentCheckModCount == getModifiedCount())
+   {
+      return _isTranslucent;
+   }
+   _translucentCheckModCount = getModifiedCount();
+   //END VRV PATCH
     unsigned int offset = 0;
     unsigned int delta = 1;
     switch(_pixelFormat)
@@ -1697,6 +1818,8 @@ bool Image::isImageTranslucent() const
             offset = 0;
             delta = 1;
             break;
+		case(GL_SLUMINANCE_ALPHA_EXT):
+		case(GL_SLUMINANCE8_ALPHA8_EXT):
         case(GL_LUMINANCE_ALPHA):
             offset = 1;
             delta = 2;
@@ -1706,20 +1829,38 @@ bool Image::isImageTranslucent() const
             delta = 4;
             break;
         case(GL_BGRA):
+        case(GL_SRGB_ALPHA_EXT):
+        case(GL_SRGB8_ALPHA8_EXT):
             offset = 3;
             delta = 4;
             break;
         case(GL_RGB):
+        case(GL_SRGB_EXT):
+		case(GL_SRGB8_EXT):
+            _isTranslucent = false; //VRV_PATCH
             return false;
         case(GL_BGR):
+            _isTranslucent = false; //VRV_PATCH
             return false;
+        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
         case(GL_COMPRESSED_RGB_S3TC_DXT1_EXT):
+        case(GL_COMPRESSED_SRGB_EXT):
+            _isTranslucent = false; //VRV_PATCH
             return false;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_EXT):
+        case(GL_COMPRESSED_SLUMINANCE_ALPHA_EXT):
         case(GL_COMPRESSED_RGBA_S3TC_DXT1_EXT):
         case(GL_COMPRESSED_RGBA_S3TC_DXT3_EXT):
         case(GL_COMPRESSED_RGBA_S3TC_DXT5_EXT):
-            return dxtc_tool::CompressedImageTranslucent(_s, _t, _pixelFormat, _data);
+            //VRV PATCH - Added a isTranslucent cached result
+            _isTranslucent = dxtc_tool::CompressedImageTranslucent(_s, _t, _pixelFormat, _data);
+            return _isTranslucent; 
+            //END VRV PATCH
         default:
+            _isTranslucent = false; //VRV_PATCH
             return false;
     }
 
@@ -1732,77 +1873,121 @@ bool Image::isImageTranslucent() const
             {
                 case(GL_BYTE):
                     if (_findLowerAlphaValueInRow(s(), (char*)d +offset, (char)127, delta))
+                    {
+                        _isTranslucent = true; //VRV_PATCH
                         return true;
+                    }
                     break;
                 case(GL_UNSIGNED_BYTE):
                     if (_findLowerAlphaValueInRow(s(), (unsigned char*)d + offset, (unsigned char)255, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_SHORT):
                     if (_findLowerAlphaValueInRow(s(), (short*)d + offset, (short)32767, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_SHORT):
                     if (_findLowerAlphaValueInRow(s(), (unsigned short*)d + offset, (unsigned short)65535, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_INT):
                     if (_findLowerAlphaValueInRow(s(), (int*)d + offset, (int)2147483647, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_INT):
                     if (_findLowerAlphaValueInRow(s(), (unsigned int*)d + offset, 4294967295u, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_FLOAT):
                     if (_findLowerAlphaValueInRow(s(), (float*)d + offset, 1.0f, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_SHORT_5_5_5_1):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned short*)d,
                                                         (unsigned short)0x0001,
                                                         (unsigned short)0x0001, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_SHORT_1_5_5_5_REV):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned short*)d,
                                                         (unsigned short)0x8000,
                                                         (unsigned short)0x8000, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_SHORT_4_4_4_4):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned short*)d,
                                                         (unsigned short)0x000f,
                                                         (unsigned short)0x000f, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_SHORT_4_4_4_4_REV):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned short*)d,
                                                         (unsigned short)0xf000,
                                                         (unsigned short)0xf000, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_INT_10_10_10_2):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned int*)d,
                                                         0x00000003u,
                                                         0x00000003u, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_UNSIGNED_INT_2_10_10_10_REV):
                     if (_maskedFindLowerAlphaValueInRow(s(), (unsigned int*)d,
                                                         0xc0000000u,
                                                         0xc0000000u, 1))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
                 case(GL_HALF_FLOAT):
                     if (_findLowerAlphaValueInRow(s(), (unsigned short*)d + offset,
                                                   (unsigned short)0x3c00, delta))
-                        return true;
+                    {
+                       _isTranslucent = true; //VRV_PATCH
+                       return true;
+                    }
                     break;
             }
         }
     }
 
+
+    _isTranslucent = false; //VRV_PATCH
     return false;
 }
 
@@ -1855,6 +2040,9 @@ Geode* osg::createGeodeForImage(osg::Image* image,float s,float t)
             dstate->setMode(GL_CULL_FACE,osg::StateAttribute::OFF);
             dstate->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
             dstate->setTextureAttributeAndModes(0, texture,osg::StateAttribute::ON);
+            
+            dstate->setAttribute(osg::Program::getFixedFunctionProgram(osg::Program::Normal_Drawing), osg::StateAttribute::ON);
+            dstate->addUniform(new osg::Uniform("ufrm_diffuse_map_enabled", 1));
 
             // set up the geoset.                unsigned int rowSize = computeRowWidthInBytes(s,_pixelFormat,_dataType,_packing);
 

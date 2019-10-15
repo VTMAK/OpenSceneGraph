@@ -24,6 +24,7 @@
 
 #include <osg/PolygonMode>
 #include <osg/Geometry>
+#include <osg/Program>
 
 namespace osgViewer
 {
@@ -43,7 +44,7 @@ StatsHandler::StatsHandler():
     _blockMultiplier(10000.0),
     _statsWidth(1280.0f),
     _statsHeight(1024.0f),
-    _font("fonts/arial.ttf"),
+    _font("Fonts/arial.ttf"),
     _startBlocks(150.0f),
     _leftPos(10.0f),
     _characterSize(20.0f),
@@ -51,6 +52,8 @@ StatsHandler::StatsHandler():
 {
     _camera = new osg::Camera;
     _camera->setRenderer(new Renderer(_camera.get()));
+    _camera->setName("stats_camera");
+    _camera->getRenderer()->setName("stats_renderer");
     _camera->setProjectionResizePolicy(osg::Camera::FIXED);
 }
 
@@ -664,6 +667,8 @@ struct BlockDrawCallback : public virtual osg::Drawable::DrawCallback
                 (*vertices)[vi++].x() = _xPos + (endValue - referenceTime) * _statsHandler->getBlockMultiplier();
             }
         }
+        // vrv fix
+        vertices->dirty();
 
         osg::DrawArrays* drawArrays = static_cast<osg::DrawArrays*>(geom->getPrimitiveSet(0));
         drawArrays->setCount(vi);
@@ -837,7 +842,8 @@ protected:
 
             _curX++;
             GraphUpdateCallback::_frameNumber = frameNumber;
-
+            // vrv fix
+            vertices->dirty();
             geometry->dirtyBound();
 
             drawable->drawImplementation(renderInfo);
@@ -922,6 +928,8 @@ struct FrameMarkerDrawCallback : public virtual osg::Drawable::DrawCallback
                 (*vertices)[vi++].x() = _xPos + (currentReferenceTime - referenceTime) * _statsHandler->getBlockMultiplier();
             }
         }
+        // vrv fix
+        vertices->dirty();
 
         drawable->drawImplementation(renderInfo);
     }
@@ -943,6 +951,9 @@ struct PagerCallback : public virtual osg::NodeCallback
                     osgText::Text* averageValue,
                     osgText::Text* filerequestlist,
                     osgText::Text* compilelist,
+                    osgText::Text* mergelist,
+                    osgText::Text* pagedLODs,
+                    osgText::Text* pagedLODTarget,
                     double multiplier):
         _dp(dp),
         _minValue(minValue),
@@ -950,6 +961,9 @@ struct PagerCallback : public virtual osg::NodeCallback
         _averageValue(averageValue),
         _filerequestlist(filerequestlist),
         _compilelist(compilelist),
+        _mergelist(mergelist),
+        _pagedLODs(pagedLODs),
+        _pagedLODTarget(pagedLODTarget),
         _multiplier(multiplier)
     {
     }
@@ -993,11 +1007,21 @@ struct PagerCallback : public virtual osg::NodeCallback
                 _maxValue->setText("");
             }
 
-            sprintf(tmpText,"%4d", _dp->getFileRequestListSize());
+            sprintf(tmpText,"%3d", _dp->getFileRequestListSize() + 
+               _dp-> getDataToCompileListSize() + _dp->getDataToMergeListSize());
             _filerequestlist->setText(tmpText);
 
-            sprintf(tmpText,"%4d", _dp->getDataToCompileListSize());
+            sprintf(tmpText,"%3d", _dp->getDataToCompileListSize());
             _compilelist->setText(tmpText);
+
+            sprintf(tmpText, "%3d", _dp->getDataToMergeListSize());
+            _mergelist->setText(tmpText);
+
+            sprintf(tmpText, "%4d", _dp->getActivePagedLODListSize());
+            _pagedLODs->setText(tmpText);
+
+            sprintf(tmpText, "%4d", _dp->getTargetMaximumNumberOfPageLOD());
+            _pagedLODTarget->setText(tmpText);
         }
 
         traverse(node,nv);
@@ -1010,6 +1034,9 @@ struct PagerCallback : public virtual osg::NodeCallback
     osg::ref_ptr<osgText::Text> _averageValue;
     osg::ref_ptr<osgText::Text> _filerequestlist;
     osg::ref_ptr<osgText::Text> _compilelist;
+    osg::ref_ptr<osgText::Text> _mergelist;
+    osg::ref_ptr<osgText::Text> _pagedLODs;
+    osg::ref_ptr<osgText::Text> _pagedLODTarget;
     double                      _multiplier;
 };
 
@@ -1078,6 +1105,8 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
 #ifdef OSG_GL1_AVAILABLE
     stateset->setAttribute(new osg::PolygonMode(), osg::StateAttribute::PROTECTED);
 #endif
+    stateset->addUniform(new osg::Uniform("ufrm_diffuse_map_enabled", 0));
+    stateset->setAttribute(osg::Program::getFixedFunctionProgram(osg::Program::Normal_Drawing), osg::StateAttribute::ON);
 
     // collect all the relevant cameras
     ViewerBase::Cameras validCameras;
@@ -1327,13 +1356,13 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
         {
             Scene* scene = *itr;
             osgDB::DatabasePager* dp = scene->getDatabasePager();
-            if (dp && dp->isRunning())
+            if (dp)
             {
                 pos.y() -= (_characterSize + backgroundSpacing);
 
                 _statsGeode->addDrawable(createBackgroundRectangle(    pos + osg::Vec3(-backgroundMargin, _characterSize + backgroundMargin, 0),
                                                                        _statsWidth - 2 * backgroundMargin,
-                                                                       _characterSize + 2 * backgroundMargin,
+                                                                       2 * _characterSize + 2 * backgroundMargin,
                                                                        backgroundColor));
 
                 osg::ref_ptr<osgText::Text> averageLabel = new osgText::Text;
@@ -1354,7 +1383,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
                 averageValue->setFont(_font);
                 averageValue->setCharacterSize(_characterSize);
                 averageValue->setPosition(pos);
-                averageValue->setText("1000");
+                averageValue->setText("1000 ");
 
                 pos.x() = averageValue->getBoundingBox().xMax() + 2.0f*_characterSize;
 
@@ -1377,7 +1406,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
                 minValue->setFont(_font);
                 minValue->setCharacterSize(_characterSize);
                 minValue->setPosition(pos);
-                minValue->setText("1000");
+                minValue->setText("1000 ");
 
                 pos.x() = minValue->getBoundingBox().xMax() + 2.0f*_characterSize;
 
@@ -1399,7 +1428,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
                 maxValue->setFont(_font);
                 maxValue->setCharacterSize(_characterSize);
                 maxValue->setPosition(pos);
-                maxValue->setText("1000");
+                maxValue->setText("1000  ");
 
                 pos.x() = maxValue->getBoundingBox().xMax();
 
@@ -1421,9 +1450,9 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
                 requestList->setFont(_font);
                 requestList->setCharacterSize(_characterSize);
                 requestList->setPosition(pos);
-                requestList->setText("0");
+                requestList->setText("0   ");
 
-                pos.x() = requestList->getBoundingBox().xMax() + 2.0f*_characterSize;;
+                pos.x() = requestList->getBoundingBox().xMax() + 2.0f*_characterSize;
 
                 osg::ref_ptr<osgText::Text> compileLabel = new osgText::Text;
                 _statsGeode->addDrawable( compileLabel.get() );
@@ -1443,11 +1472,80 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
                 compileList->setFont(_font);
                 compileList->setCharacterSize(_characterSize);
                 compileList->setPosition(pos);
-                compileList->setText("0");
+                compileList->setText("0   ");
 
-                pos.x() = maxLabel->getBoundingBox().xMax();
+                pos.x() = compileList->getBoundingBox().xMax() + 2.0f*_characterSize;
 
-                _statsGeode->setCullCallback(new PagerCallback(dp, minValue.get(), maxValue.get(), averageValue.get(), requestList.get(), compileList.get(), 1000.0));
+                osg::ref_ptr<osgText::Text> mergeLabel = new osgText::Text;
+                _statsGeode->addDrawable( mergeLabel.get() );
+
+                mergeLabel->setColor(colorDP);
+                mergeLabel->setFont(_font);
+                mergeLabel->setCharacterSize(_characterSize);
+                mergeLabel->setPosition(pos);
+                mergeLabel->setText("tomerge: ");
+
+                pos.x() = mergeLabel->getBoundingBox().xMax();
+
+                osg::ref_ptr<osgText::Text> mergeList = new osgText::Text;
+                _statsGeode->addDrawable( mergeList.get() );
+
+                mergeList->setColor(colorDP);
+                mergeList->setFont(_font);
+                mergeList->setCharacterSize(_characterSize);
+                mergeList->setPosition(pos);
+                mergeList->setText("0   ");
+
+                pos.x() = _leftPos;
+                pos.y() -= (_characterSize + backgroundSpacing);
+
+                osg::ref_ptr<osgText::Text> pagedLodLabel = new osgText::Text;
+                _statsGeode->addDrawable( pagedLodLabel.get() );
+
+                pagedLodLabel->setColor(colorDP);
+                pagedLodLabel->setFont(_font);
+                pagedLodLabel->setCharacterSize(_characterSize);
+                pagedLodLabel->setPosition(pos);
+                pagedLodLabel->setText("paged LODs: ");
+
+                pos.x() = pagedLodLabel->getBoundingBox().xMax();
+
+                osg::ref_ptr<osgText::Text> pagedLODs = new osgText::Text;
+                _statsGeode->addDrawable( pagedLODs.get() );
+
+                pagedLODs->setColor(colorDP);
+                pagedLODs->setFont(_font);
+                pagedLODs->setCharacterSize(_characterSize);
+                pagedLODs->setPosition(pos);
+                pagedLODs->setText("   0");
+
+                pos.x() = pagedLODs->getBoundingBox().xMax() + _characterSize;
+
+                osg::ref_ptr<osgText::Text> targetPagedLodLabel = new osgText::Text;
+                _statsGeode->addDrawable( targetPagedLodLabel.get() );
+
+                targetPagedLodLabel->setColor(colorDP);
+                targetPagedLodLabel->setFont(_font);
+                targetPagedLodLabel->setCharacterSize(_characterSize);
+                targetPagedLodLabel->setPosition(pos);
+                targetPagedLodLabel->setText("paged LOD Target: ");
+
+                pos.x() = targetPagedLodLabel->getBoundingBox().xMax();
+
+                osg::ref_ptr<osgText::Text> pagedLODTarget = new osgText::Text;
+                _statsGeode->addDrawable( pagedLODTarget.get() );
+
+                pagedLODTarget->setColor(colorDP);
+                pagedLODTarget->setFont(_font);
+                pagedLODTarget->setCharacterSize(_characterSize);
+                pagedLODTarget->setPosition(pos);
+                pagedLODTarget->setText("0");
+
+                pos.x() = pagedLODTarget->getBoundingBox().xMax();
+
+                _statsGeode->setCullCallback(new PagerCallback(dp, minValue.get(),
+                   maxValue.get(), averageValue.get(), requestList.get(), 
+                   compileList.get(), mergeList.get(), pagedLODs.get(), pagedLODTarget.get(), 1000.0));
             }
 
             pos.x() = _leftPos;
@@ -1546,6 +1644,8 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase* viewer)
         geode->setCullingActive(false);
         group->addChild(geode);
 
+        // Move down 2 lines to avoid channel name in previous block
+        pos.y() -= 2*(_characterSize + backgroundSpacing);
         geode->addDrawable(createBackgroundRectangle(pos + osg::Vec3(-backgroundMargin, _characterSize + backgroundMargin, 0),
                                                         6 * _characterSize + 2 * backgroundMargin,
                                                         12 * _characterSize + 2 * backgroundMargin,

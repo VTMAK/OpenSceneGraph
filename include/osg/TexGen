@@ -46,13 +46,7 @@ class OSG_EXPORT TexGen : public StateAttribute
         TexGen();
 
         /** Copy constructor using CopyOp to manage deep vs shallow copy. */
-        TexGen(const TexGen& texgen,const CopyOp& copyop=CopyOp::SHALLOW_COPY):
-            StateAttribute(texgen,copyop),
-            _mode(texgen._mode),
-            _plane_s(texgen._plane_s),
-            _plane_t(texgen._plane_t),
-            _plane_r(texgen._plane_r),
-            _plane_q(texgen._plane_q) {}
+        TexGen(const TexGen& texgen,const CopyOp& copyop=CopyOp::SHALLOW_COPY);
 
         META_StateAttribute(osg, TexGen, TEXGEN);
 

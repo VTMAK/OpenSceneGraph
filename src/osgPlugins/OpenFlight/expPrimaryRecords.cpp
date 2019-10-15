@@ -757,9 +757,9 @@ FltExportVisitor::writeLightPoint( const osgSim::LightPointNode* lpn )
             (*v)[ idx ] = lp._position;
             (*c)[ idx ] = lp._color;
 
-            const osgSim::DirectionalSector* ds = dynamic_cast< osgSim::DirectionalSector* >( lp._sector.get() );
-            if (ds)
-                normal = ds->getDirection();
+            const osgSim::DirectionalSector* ds2 = dynamic_cast< osgSim::DirectionalSector* >( lp._sector.get() );
+            if (ds2)
+                normal = ds2->getDirection();
             (*n)[ idx ] = normal;
         }
         _vertexPalette->add( (const osg::Array*)NULL, v.get(), c.get(), n.get(), NULL, true, true, false );

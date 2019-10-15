@@ -21,6 +21,10 @@
 #include <sstream>
 #include <algorithm>
 
+// VRV_PATCH BEGIN - for updateCurrentDefines sprintf
+#include <stdio.h>
+// VRV_PATCH END
+
 #ifndef GL_MAX_TEXTURE_COORDS
 #define GL_MAX_TEXTURE_COORDS 0x8871
 #endif
@@ -38,11 +42,57 @@ using namespace osg;
 
 static ApplicationUsageProxy State_e0(ApplicationUsage::ENVIRONMENTAL_VARIABLE,"OSG_GL_ERROR_CHECKING <type>","ONCE_PER_ATTRIBUTE | ON | on enables fine grained checking,  ONCE_PER_FRAME enables coarse grained checking");
 
+#define USE_TRANS_STACK_UBO
+
+namespace osg
+{
+   struct osg_TransformStack
+   {
+      osg::Matrixf ModelViewMatrixInverse;
+      osg::Matrixf ModelViewMatrix;
+      osg::Matrixf ModelViewProjectionMatrix;
+      osg::Matrixf ProjectionMatrix;
+      osg::Matrixf NormalMatrix;
+   };
+}
+const char * UBO_DECL =
+"struct osg_TransformStack\n"
+"{\n"
+"    mat4 ModelViewMatrixInverse;\n"
+"    mat4 ModelViewMatrix;\n"
+"    mat4 ModelViewProjectionMatrix;\n"
+"    mat4 ProjectionMatrix;\n"
+"    mat3 NormalMatrix;\n"
+"    vec4 padding;\n"
+"};"
+"\n\n"
+"layout(std140) uniform osg_transform_stack_block\n"
+"{\n"
+"   osg_TransformStack osg;\n"
+"};\n";
+
+const char * State::getTransformUboDeclaration()
+{
+#ifdef USE_TRANS_STACK_UBO
+   return UBO_DECL;
+#else 
+   return NULL;
+#endif
+}
+
+// VRV_PATCH
+unsigned int State::s_nonSharedContextIDCounter = 0;
+// VRV_PATCH
+
 State::State():
     Referenced(true)
 {
     _graphicsContext = 0;
     _contextID = 0;
+
+    // VRV_PATCH
+    _nonSharedContextID = 0;
+    // VRV_PATCH
 
     _shaderCompositionEnabled = false;
     _shaderCompositionDirty = true;
@@ -63,16 +113,26 @@ State::State():
         _useVertexAttributeAliasing = false;
     #endif
 
-    _modelViewMatrixUniform = new Uniform(Uniform::FLOAT_MAT4,"osg_ModelViewMatrix");
-    _projectionMatrixUniform = new Uniform(Uniform::FLOAT_MAT4,"osg_ProjectionMatrix");
+#ifndef USE_TRANS_STACK_UBO
+    _modelViewMatrixUniform = new Uniform(Uniform::FLOAT_MAT4, "osg_ModelViewMatrix");
+    _modelViewMatrixInverseUniform = new Uniform(Uniform::FLOAT_MAT4, "osg_ModelViewMatrixInverse");
+    _projectionMatrixUniform = new Uniform(Uniform::FLOAT_MAT4, "osg_ProjectionMatrix");
     _modelViewProjectionMatrixUniform = new Uniform(Uniform::FLOAT_MAT4,"osg_ModelViewProjectionMatrix");
     _normalMatrixUniform = new Uniform(Uniform::FLOAT_MAT3,"osg_NormalMatrix");
+    
+#endif
+    _transformStackUBO = new osg_TransformStack();
+    _transformStackID = 0;
 
     resetVertexAttributeAlias();
 
     _abortRenderingPtr = NULL;
 
+#if _DEBUG
     _checkGLErrors = ONCE_PER_FRAME;
+#else
+    _checkGLErrors = NEVER_CHECK_GL_ERRORS;
+#endif
 
     const char* str = getenv("OSG_GL_ERROR_CHECKING");
     if (str && (strcmp(str,"ONCE_PER_ATTRIBUTE")==0 || strcmp(str,"ON")==0 || strcmp(str,"on")==0))
@@ -97,6 +157,7 @@ State::State():
     _isVertexBufferObjectSupported = false;
 
     _lastAppliedProgramObject = 0;
+    _lastAppliedFboId = 0;
 
     _extensionProcsInitialized = false;
     _glClientActiveTexture = 0;
@@ -135,10 +196,21 @@ State::~State()
     // delete the GLExtensions object associated with this osg::State.
     if (_glExtensions)
     {
-        GLExtensions::Set(_contextID, 0);
+       if (_transformStackID){
+          _glExtensions->glDeleteBuffers(1, &_transformStackID);
+       }
+       
+       // VRV_PATCH
+       // TDG: this was causing crashes in GLBufferObject because the extensions were getting deleted
+       // this line is not really usefull because we are using shared contexts so they all have a context ID of 0
+       // and use the same extensions.
+       //GLExtensions::Set(_contextID, 0);
+       // VRV_PATCH
         _glExtensions = 0;
     }
 
+    delete _transformStackUBO;
+    _transformStackUBO = NULL;
     //_texCoordArrayList.clear();
 
     //_vertexAttribArrayList.clear();
@@ -205,6 +277,12 @@ void State::reset()
         ms.valueVec.clear();
         ms.last_applied_value = !ms.global_default_value;
         ms.changed = true;
+        //VRV_PATCH
+        //TDG:When dirty all modes or have applied mode is called this flag is used to 
+        // make sure that the openGL mode is updated to match the OSG state
+        // the next time applyMode is called.
+        ms.dirtyDueToExternalApply = true;
+        //END VRV_PATCH
     }
 #else
     _modeMap.clear();
@@ -226,7 +304,7 @@ void State::reset()
         as.changed = true;
     }
 
-    // we can do a straight clear, we arn't interested in GL_DEPTH_TEST defaults in texture modes.
+    // we can do a straight clear, we aren't interested in GL_DEPTH_TEST defaults in texture modes.
     for(TextureModeMapList::iterator tmmItr=_textureModeMapList.begin();
         tmmItr!=_textureModeMapList.end();
         ++tmmItr)
@@ -276,6 +354,7 @@ void State::reset()
     _currentShaderCompositionUniformList.clear();
 
     _lastAppliedProgramObject = 0;
+    _lastAppliedFboId = 0;
 
     // what about uniforms??? need to clear them too...
     // go through all active Uniform's, setting to change to force update,
@@ -352,8 +431,9 @@ void State::popAllStateSets()
 
     while (!_stateStateStack.empty()) popStateSet();
 
-    applyProjectionMatrix(0);
-    applyModelViewMatrix(0);
+    applyProjectionAndModelViewMatrix(0, 0);
+//    applyProjectionMatrix(0);
+//    applyModelViewMatrix(0);
 
     _lastAppliedProgramObject = 0;
 }
@@ -481,8 +561,12 @@ void State::captureCurrentState(StateSet& stateset) const
 
 }
 
+
 void State::apply(const StateSet* dstate)
 {
+//   marker_series series("State Apply");
+//   span UpdateTick(series, 2, "Dif Apply");
+
     if (_checkGLErrors==ONCE_PER_ATTRIBUTE) checkGLErrors("start of State::apply(StateSet*)");
 
     // equivalent to:
@@ -493,7 +577,7 @@ void State::apply(const StateSet* dstate)
 
     if (dstate)
     {
-        // push the stateset on the stack so it can be querried from within StateAttribute
+        // push the stateset on the stack so it can be queried from within StateAttribute
         _stateStateStack.push_back(dstate);
 
         _currentShaderCompositionUniformList.clear();
@@ -573,8 +657,10 @@ void State::apply(const StateSet* dstate)
     if (_checkGLErrors==ONCE_PER_ATTRIBUTE) checkGLErrors("end of State::apply(StateSet*)");
 }
 
+
 void State::apply()
 {
+
     if (_checkGLErrors==ONCE_PER_ATTRIBUTE) checkGLErrors("start of State::apply()");
 
     _currentShaderCompositionUniformList.clear();
@@ -726,6 +812,12 @@ void State::haveAppliedMode(ModeMap& modeMap,StateAttribute::GLMode mode,StateAt
 
     // will need to disable this mode on next apply so set it to changed.
     ms.changed = true;
+    //VRV_PATCH
+    //TDG:When dirty all modes or have applied mode is called this flag is used to 
+    // make sure that the openGL mode is updated to match the OSG state
+    // the next time applyMode is called.
+    ms.dirtyDueToExternalApply = true;
+    //END VRV_PATCH
 }
 
 /** mode has been set externally, update state to reflect this setting.*/
@@ -739,6 +831,12 @@ void State::haveAppliedMode(ModeMap& modeMap,StateAttribute::GLMode mode)
 
     // will need to disable this mode on next apply so set it to changed.
     ms.changed = true;
+    //VRV_PATCH
+    //TDG:When dirty all modes or have applied mode is called this flag is used to 
+    // make sure that the openGL mode is updated to match the OSG state
+    // the next time applyMode is called.
+    ms.dirtyDueToExternalApply = true;
+    //END VRV_PATCH
 }
 
 /** attribute has been applied externally, update state to reflect this setting.*/
@@ -806,7 +904,12 @@ void State::dirtyAllModes()
         ModeStack& ms = mitr->second;
         ms.last_applied_value = !ms.last_applied_value;
         ms.changed = true;
-
+        //VRV_PATCH
+        //TDG:When dirty all modes or have applied mode is called this flag is used to 
+        // make sure that the openGL mode is updated to match the OSG state
+        // the next time applyMode is called.
+        ms.dirtyDueToExternalApply = true;
+        //END VRV_PATCH
     }
 
     for(TextureModeMapList::iterator tmmItr=_textureModeMapList.begin();
@@ -820,7 +923,12 @@ void State::dirtyAllModes()
             ModeStack& ms = mitr->second;
             ms.last_applied_value = !ms.last_applied_value;
             ms.changed = true;
-
+            //VRV_PATCH
+            //TDG:When dirty all modes or have applied mode is called this flag is used to 
+            // make sure that the openGL mode is updated to match the OSG state
+            // the next time applyMode is called.
+            ms.dirtyDueToExternalApply = true;
+            //END VRV_PATCH
         }
     }
 }
@@ -966,8 +1074,13 @@ void State::initializeExtensionProcs()
         _defineMap.changed = true;
     }
 
-    _glExtensions = new GLExtensions(_contextID);
-    GLExtensions::Set(_contextID, _glExtensions.get());
+    // VRV_PATCH
+    // TDG: this was causing crashes in GLBufferObject because the extensions were getting deleted
+    // switched to using the same extentions forever
+    _glExtensions = GLExtensions::Get(_contextID, true);
+    //_glExtensions = new GLExtensions(_contextID);
+    //GLExtensions::Set(_contextID, _glExtensions.get());
+    //VRV_PATCH
 
     setGLExtensionFuncPtr(_glClientActiveTexture,"glClientActiveTexture","glClientActiveTextureARB");
     setGLExtensionFuncPtr(_glActiveTexture, "glActiveTexture","glActiveTextureARB");
@@ -1031,6 +1144,9 @@ void State::initializeExtensionProcs()
         }
     }
 
+#ifndef _DEBUG
+    setTimestampBits(0);
+#endif
 
     _extensionProcsInitialized = true;
 
@@ -1392,12 +1508,42 @@ bool State::checkGLErrors(const StateAttribute* attribute) const
 
 void State::applyModelViewAndProjectionUniformsIfRequired()
 {
+
+#ifdef USE_TRANS_STACK_UBO
+
+   GLExtensions * _extensions = GLExtensions::Get(getContextID(), true);
+  
+   if (_transformStackID == 0){
+      _extensions->glGenBuffers(1, &_transformStackID);
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _transformStackID);
+      if (_extensions->glObjectLabel){
+         _extensions->glObjectLabel(GL_BUFFER, _transformStackID, -1, "transform_uniforms");
+      }
+      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
+
+   // FIXME matches hard code in program.cpp
+   const int PER_DRAW_CALL_INDEX = 3;
+   _extensions->glBindBufferBase(GL_UNIFORM_BUFFER, PER_DRAW_CALL_INDEX, _transformStackID);
+   _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _transformStackID);
+   _extensions->glBufferData(GL_UNIFORM_BUFFER, sizeof(osg_TransformStack), _transformStackUBO, GL_DYNAMIC_DRAW);
+   _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+#else    // USE_TRANS_STACK_UBO
+
+
     if (!_lastAppliedProgramObject) return;
+    
+    // vantage change, seeing lots of spew from gl debug layer, bind just in case
+    _lastAppliedProgramObject->useProgram();
 
     if (_modelViewMatrixUniform.valid()) _lastAppliedProgramObject->apply(*_modelViewMatrixUniform);
+    if (_modelViewMatrixInverseUniform.valid()) _lastAppliedProgramObject->apply(*_modelViewMatrixInverseUniform);
     if (_projectionMatrixUniform) _lastAppliedProgramObject->apply(*_projectionMatrixUniform);
     if (_modelViewProjectionMatrixUniform) _lastAppliedProgramObject->apply(*_modelViewProjectionMatrixUniform);
     if (_normalMatrixUniform) _lastAppliedProgramObject->apply(*_normalMatrixUniform);
+#endif
 }
 
 namespace State_Utils
@@ -1430,48 +1576,87 @@ namespace State_Utils
         return replacedStr;
     }
 
-    void replaceAndInsertDeclaration(std::string& source, std::string::size_type declPos, const std::string& originalStr, const std::string& newStr, const std::string& declarationPrefix)
+    void replaceAndInsertDeclaration(std::string& source, std::string::size_type declPos, const std::string& originalStr, const std::string& newStr,
+       const std::string& declarationPrefix, const std::string& declarationSuffix = "")
     {
-        if (replace(source, originalStr, newStr))
-        {
-            source.insert(declPos, declarationPrefix + newStr + std::string(";\n"));
-        }
+       if (replace(source, originalStr, newStr))
+       {
+          source.insert(declPos, declarationPrefix + newStr + declarationSuffix + std::string(";\n"));
+       }
     }
 }
 
-bool State::convertVertexShaderSourceToOsgBuiltIns(std::string& source) const
+bool State::convertShaderSourceToOsgBuiltIns(osg::Shader::Type shader_type, std::string& source) const
 {
     OSG_INFO<<"State::convertShaderSourceToOsgBuiltIns()"<<std::endl;
 
     OSG_INFO<<"++Before Converted source "<<std::endl<<source<<std::endl<<"++++++++"<<std::endl;
 
+    int add_ubo = 0;
     // find the first legal insertion point for replacement declarations. GLSL requires that nothing
-    // precede a "#verson" compiler directive, so we must insert new declarations after it.
-    std::string::size_type declPos = source.rfind( "#version " );
+    // precede a "#version" compiler directive, so we must insert new declarations after it.
+
+    // GNP- 4.5 is unhappy with anything befor "#extension" compiler directive
+    std::string::size_type declPos = source.rfind( "#extension ");
+    if (declPos == std::string::npos) {
+       declPos = source.rfind("#version ");
+    }
+
     if ( declPos != std::string::npos )
     {
         // found the string, now find the next linefeed and set the insertion point after it.
         declPos = source.find( '\n', declPos );
         declPos = declPos != std::string::npos ? declPos+1 : source.length();
+        add_ubo = 1;
     }
     else
     {
         declPos = 0;
+		// VRV_PATCH for UBO support
+        std::string vnum = "#version 150 compatibility\n";
+        source.insert(0, vnum);
+        declPos = vnum.length();
+        add_ubo = 1;
     }
+    std::string notice = "// Dynamically added by osg::State::convertVertexShaderSourceToOsgBuiltIns()\n";
+    source.insert(declPos, notice);
+    declPos += notice.length();
+
+#ifdef USE_TRANS_STACK_UBO
+    if (source.find("struct osg_TransformStack") != std::string::npos) {
+       add_ubo = 0;
+    }
+    if (add_ubo){
+       source.insert(declPos, UBO_DECL);
+    }
+#endif
 
     if (_useModelViewAndProjectionUniforms)
     {
         // replace ftransform as it only works with built-ins
         State_Utils::replace(source, "ftransform()", "gl_ModelViewProjectionMatrix * gl_Vertex");
 
+        // materials
+        State_Utils::replace(source, "gl_FrontMaterial", "osg_FrontMaterial");
+        
         // replace built in uniform
+        // do gl_ModelViewMatrixInverse to avoid conflicts with gl_ModelViewMatrix
+#ifdef USE_TRANS_STACK_UBO
+        State_Utils::replace(source, "gl_ModelViewMatrixInverse", "osg.ModelViewMatrixInverse");
+        State_Utils::replace(source, "gl_ModelViewMatrix", "osg.ModelViewMatrix");
+        State_Utils::replace(source, "gl_ModelViewProjectionMatrix", "osg.ModelViewProjectionMatrix");
+        State_Utils::replace(source, "gl_ProjectionMatrix", "osg.ProjectionMatrix");
+        State_Utils::replace(source, "gl_NormalMatrix", "osg.NormalMatrix");
+#else
+        State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ModelViewMatrixInverse", "osg_ModelViewMatrixInverse", "uniform mat4 ");
         State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ModelViewMatrix", "osg_ModelViewMatrix", "uniform mat4 ");
         State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ModelViewProjectionMatrix", "osg_ModelViewProjectionMatrix", "uniform mat4 ");
         State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ProjectionMatrix", "osg_ProjectionMatrix", "uniform mat4 ");
         State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_NormalMatrix", "osg_NormalMatrix", "uniform mat3 ");
+#endif
     }
 
-    if (_useVertexAttributeAliasing)
+    if (_useVertexAttributeAliasing && shader_type == Shader::VERTEX)
     {
         State_Utils::replaceAndInsertDeclaration(source, declPos, _vertexAlias._glName,         _vertexAlias._osgName,         _vertexAlias._declaration);
         State_Utils::replaceAndInsertDeclaration(source, declPos, _normalAlias._glName,         _normalAlias._osgName,         _normalAlias._declaration);
@@ -1485,6 +1670,17 @@ bool State::convertVertexShaderSourceToOsgBuiltIns(std::string& source) const
         }
     }
 
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ObjectPlaneS", "osg_ObjectPlaneS", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ObjectPlaneT", "osg_ObjectPlaneT", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ObjectPlaneR", "osg_ObjectPlaneR", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_ObjectPlaneQ", "osg_ObjectPlaneQ", "uniform vec4 ", "[8]");
+
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_EyePlaneS", "osg_EyePlaneS", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_EyePlaneT", "osg_EyePlaneT", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_EyePlaneR", "osg_EyePlaneR", "uniform vec4 ", "[8]");
+    State_Utils::replaceAndInsertDeclaration(source, declPos, "gl_EyePlaneQ", "osg_EyePlaneQ", "uniform vec4 ", "[8]");
+
+
     OSG_INFO<<"-------- Converted source "<<std::endl<<source<<std::endl<<"----------------"<<std::endl;
 
     return true;
@@ -1495,6 +1691,58 @@ void State::setUpVertexAttribAlias(VertexAttribAlias& alias, GLuint location, co
     alias = VertexAttribAlias(location, glName, osgName, declaration);
     _attributeBindingList[osgName] = location;
     // OSG_NOTICE<<"State::setUpVertexAttribAlias("<<location<<" "<<glName<<" "<<osgName<<")"<<std::endl;
+}
+
+void State::applyProjectionAndModelViewMatrix(const osg::RefMatrix* projection_matrix, const osg::RefMatrix*model_view_matrix)
+{
+   if (_projection != projection_matrix)
+   {
+      if (projection_matrix)
+      {
+         _projection = projection_matrix;
+      }
+      else
+      {
+         _projection = _identity;
+      }
+#ifdef   USE_TRANS_STACK_UBO
+      _transformStackUBO->ProjectionMatrix = *_projection;
+#else
+      if (_projectionMatrixUniform.valid()) {
+         _projectionMatrixUniform->set(*_projection);
+      }
+#endif
+   }
+
+   if (_modelView != model_view_matrix)
+   {
+      if (model_view_matrix)
+      {
+         _modelView = model_view_matrix;
+      }
+      else
+      {
+         _modelView = _identity;
+      }
+
+#ifdef  USE_TRANS_STACK_UBO
+      _transformStackUBO->ModelViewMatrix = *_modelView;
+      _transformStackUBO->ModelViewMatrixInverse = osg::RefMatrix::inverse(*_modelView);
+#else
+      if (_modelViewMatrixUniform.valid()){
+         _modelViewMatrixUniform->set(*_modelView);
+      }
+      if (_modelViewMatrixInverseUniform.valid()){
+         _modelViewMatrixInverseUniform->set(osg::RefMatrix::inverse(*_modelView));
+      }
+#endif
+   }
+
+   if (_useModelViewAndProjectionUniforms)
+   {
+      updateModelViewAndProjectionMatrixUniforms();
+   }
+
 }
 
 void State::applyProjectionMatrix(const osg::RefMatrix* matrix)
@@ -1510,11 +1758,17 @@ void State::applyProjectionMatrix(const osg::RefMatrix* matrix)
             _projection=_identity;
         }
 
+#ifdef  USE_TRANS_STACK_UBO
+        _transformStackUBO->ProjectionMatrix = *_projection;
+        updateModelViewAndProjectionMatrixUniforms();
+#else
         if (_useModelViewAndProjectionUniforms)
         {
             if (_projectionMatrixUniform.valid()) _projectionMatrixUniform->set(*_projection);
             updateModelViewAndProjectionMatrixUniforms();
         }
+#endif 
+
 #ifdef OSG_GL_MATRICES_AVAILABLE
         glMatrixMode( GL_PROJECTION );
             glLoadMatrix(_projection->ptr());
@@ -1525,10 +1779,21 @@ void State::applyProjectionMatrix(const osg::RefMatrix* matrix)
 
 void State::loadModelViewMatrix()
 {
+
     if (_useModelViewAndProjectionUniforms)
     {
-        if (_modelViewMatrixUniform.valid()) _modelViewMatrixUniform->set(*_modelView);
-        updateModelViewAndProjectionMatrixUniforms();
+#ifdef USE_TRANS_STACK_UBO
+       _transformStackUBO->ModelViewMatrix = *_modelView;
+       _transformStackUBO->ModelViewMatrixInverse = osg::RefMatrix::inverse(*_modelView);
+#else
+       if (_modelViewMatrixUniform.valid()){
+          _modelViewMatrixUniform->set(*_modelView);
+       }
+       if (_modelViewMatrixInverseUniform.valid()){
+          _modelViewMatrixInverseUniform->set(osg::RefMatrix::inverse(*_modelView));
+       }
+#endif
+       updateModelViewAndProjectionMatrixUniforms();
     }
 
 #ifdef OSG_GL_MATRICES_AVAILABLE
@@ -1565,21 +1830,34 @@ void State::applyModelViewMatrix(const osg::Matrix& matrix)
 
 void State::updateModelViewAndProjectionMatrixUniforms()
 {
-    if (_modelViewProjectionMatrixUniform.valid()) _modelViewProjectionMatrixUniform->set((*_modelView) * (*_projection));
-    if (_normalMatrixUniform.valid())
-    {
-        Matrix mv(*_modelView);
-        mv.setTrans(0.0, 0.0, 0.0);
+#ifdef  USE_TRANS_STACK_UBO
+   _transformStackUBO->ModelViewProjectionMatrix = (*_modelView) * (*_projection);
+#else 
+   if (_modelViewProjectionMatrixUniform.valid()) {
+      _modelViewProjectionMatrixUniform->set((*_modelView) * (*_projection));
+   }
+#endif
+   Matrix mv(*_modelView);
+   mv.setTrans(0.0, 0.0, 0.0);
 
-        Matrix matrix;
-        matrix.invert(mv);
+   Matrix matrix;
+   matrix.invert(mv);
 
-        Matrix3 normalMatrix(matrix(0,0), matrix(1,0), matrix(2,0),
-                             matrix(0,1), matrix(1,1), matrix(2,1),
-                             matrix(0,2), matrix(1,2), matrix(2,2));
-
-        _normalMatrixUniform->set(normalMatrix);
-    }
+#ifdef  USE_TRANS_STACK_UBO
+   _transformStackUBO->NormalMatrix.set(
+      matrix(0, 0), matrix(1, 0), matrix(2, 0), 0,
+      matrix(0, 1), matrix(1, 1), matrix(2, 1), 0,
+      matrix(0, 2), matrix(1, 2), matrix(2, 2), 0,
+      0,0,0,1);
+#else 
+   if (_normalMatrixUniform.valid())
+   {
+      _normalMatrixUniform->set(Matrix3(
+         matrix(0, 0), matrix(1, 0), matrix(2, 0),
+         matrix(0, 1), matrix(1, 1), matrix(2, 1),
+         matrix(0, 2), matrix(1, 2), matrix(2, 2)));
+   }
+#endif 
 }
 
 void State::drawQuads(GLint first, GLsizei count, GLsizei primCount)
@@ -1831,6 +2109,30 @@ bool State::DefineMap::updateCurrentDefines()
                 }
             }
         }
+
+        //VRVantage patch to improve performance, all defines are always passed to the shader
+        char defineBuf[4096];
+        int idx = 0;
+        StateSet::DefineList::const_iterator cd_itr = currentDefines.begin();
+        StateSet::DefineList::const_iterator cd_nd = currentDefines.end();
+        for(;cd_itr != cd_nd; cd_itr++)
+        {
+           const StateSet::DefinePair& dp = cd_itr->second;
+           idx += sprintf(defineBuf + idx, "#define %s", cd_itr->first.c_str());
+           if (!dp.first.empty())
+           {
+              idx += sprintf(defineBuf + idx, " %s", dp.first.c_str());
+           }
+           //patch for fixing defines on windows         
+#ifdef WIN32
+           idx += sprintf(defineBuf + idx, "\r\n");
+#else
+           idx += sprintf(defineBuf + idx, "\n");
+#endif
+
+        }
+        shaderDefineString = defineBuf;
+        changed = false;
         return true;
     }
     else
@@ -1839,42 +2141,77 @@ bool State::DefineMap::updateCurrentDefines()
     }
 }
 
-std::string State::getDefineString(const osg::ShaderDefines& shaderDefines)
+// VRV_PATCH BEGIN
+bool defineMapChanged(const State::DefineMap& curr)
 {
-    if (_defineMap.changed) _defineMap.updateCurrentDefines();
+   static State::DefineMap::DefineStackMap prevMap;
+   const State::DefineMap::DefineStackMap& currMap = curr.map;
 
-    const StateSet::DefineList& currentDefines = _defineMap.currentDefines;
+   if (currMap.size() != prevMap.size())
+   {
+      prevMap = currMap;
+      return true; // yup, the defines are different
+   }
 
-    ShaderDefines::const_iterator sd_itr = shaderDefines.begin();
-    StateSet::DefineList::const_iterator cd_itr = currentDefines.begin();
+   State::DefineMap::DefineStackMap::const_iterator currItr = currMap.begin();
+   State::DefineMap::DefineStackMap::const_iterator prevItr = prevMap.begin();
+   State::DefineMap::DefineStackMap::const_iterator currEnd = currMap.end();
+   State::DefineMap::DefineStackMap::const_iterator prevEnd = prevMap.end();
 
-    std::string shaderDefineStr;
+   for (; currItr != currEnd && prevItr != prevEnd;
+      ++currItr, ++prevItr)
+   {
+      const State::DefineStack::DefineVec& currDV = currItr->second.defineVec;
+      const State::DefineStack::DefineVec& prevDV = prevItr->second.defineVec;
 
-    while(sd_itr != shaderDefines.end() && cd_itr != currentDefines.end())
-    {
-        if ((*sd_itr) < cd_itr->first) ++sd_itr;
-        else if (cd_itr->first < (*sd_itr)) ++cd_itr;
-        else
-        {
-            const StateSet::DefinePair& dp = cd_itr->second;
-            shaderDefineStr += "#define ";
-            shaderDefineStr += cd_itr->first;
-            if (dp.first.empty())
-            {
-                shaderDefineStr += "\n";
-            }
-            else
-            {
-                shaderDefineStr += " ";
-                shaderDefineStr += dp.first;
-                shaderDefineStr += "\n";
-            }
+      const unsigned int currVecSize = currDV.size();
 
-            ++sd_itr;
-            ++cd_itr;
-        }
-    }
-    return shaderDefineStr;
+      // Names match?
+      if (currItr->first != prevItr->first)
+      {
+         prevMap = currMap;
+         return true;
+      }
+
+      if (currVecSize != prevDV.size())
+      {
+         prevMap = currMap;
+         return true;
+      }
+
+      for (unsigned int i = 0; i < currVecSize; ++i)
+      {
+         const StateSet::DefinePair& currPair = currDV[i];
+         const StateSet::DefinePair& prevPair = prevDV[i];
+
+         if (currPair.first != prevPair.first)
+         {
+            prevMap = currMap;
+            return true;
+         }
+
+         if (currPair.second != prevPair.second)
+         {
+            prevMap = currMap;
+            return true;
+         }
+      }
+   }
+
+   return false; // no change
+}
+// VRV_PATCH END
+
+const std::string & State::getDefineString(const osg::ShaderDefines& shaderDefines)
+{
+   // VRV_PATCH BEGIN
+   if (_defineMap.changed && defineMapChanged(_defineMap))
+   // VRV_PATCH END
+   {
+      _defineMap.updateCurrentDefines();
+   }
+   //VRVantage patch to improve performance, all defines are always passed to the shader
+   return _defineMap.shaderDefineString;
 }
 
 bool State::supportsShaderRequirements(const osg::ShaderDefines& shaderRequirements)
@@ -1899,3 +2236,21 @@ bool State::supportsShaderRequirement(const std::string& shaderRequirement)
     const StateSet::DefineList& currentDefines = _defineMap.currentDefines;
     return (currentDefines.find(shaderRequirement)!=currentDefines.end());
 }
+
+bool 
+State::getUseUboTransformStack()
+{
+#ifdef USE_TRANS_STACK_UBO
+   return true;
+#endif
+   return false;
+}
+
+// VRV_PATCH
+void
+State::setContextID(unsigned int contextID)
+{ 
+   _contextID = contextID; 
+   _nonSharedContextID = s_nonSharedContextIDCounter++;
+}
+// VRV_PATCH

@@ -23,46 +23,53 @@
 using namespace ive;
 
 void LightPoint::write(DataOutputStream* out){
-    // Write LightPoint's identification.
-    out->writeInt(IVELIGHTPOINT);
+   // Write LightPoint's identification.
+   out->writeInt(IVELIGHTPOINT);
 
-    // Write LightPoint's properties.
-    out->writeBool(_on);
-    out->writeVec3(_position);
-    out->writeVec4(_color);
-    out->writeFloat(_intensity);
-    out->writeFloat(_radius);
+   // Write LightPoint's properties.
+   out->writeBool(_on);
+   out->writeVec3(_position);
+   out->writeVec4(_color);
+   out->writeFloat(_intensity);
+   out->writeFloat(_radius);
 
-    // Write out osgSim::sector.
-    out->writeBool(_sector.valid());
-    if(_sector.valid()){
-        if(dynamic_cast<osgSim::AzimElevationSector*>(_sector.get())){
-            ((ive::AzimElevationSector*)(_sector.get()))->write(out);
-        }
-        else if(dynamic_cast<osgSim::ElevationSector*>(_sector.get())){
-            ((ive::ElevationSector*)(_sector.get()))->write(out);
-        }
-        else if(dynamic_cast<osgSim::AzimSector*>(_sector.get())){
-            ((ive::AzimSector*)(_sector.get()))->write(out);
-        }
-        else if(dynamic_cast<osgSim::ConeSector*>(_sector.get())){
-            ((ive::ConeSector*)(_sector.get()))->write(out);
-        }
-        else if(dynamic_cast<osgSim::DirectionalSector*>(_sector.get())){
-            ((ive::DirectionalSector*)(_sector.get()))->write(out);
-        }
-        else
-            out_THROW_EXCEPTION("Unknown sector in LightPoint::write()");
-    }
+   // Write out osgSim::sector.
+   out->writeBool(_sector.valid());
+   if (_sector.valid()){
+      if (dynamic_cast<osgSim::AzimElevationSector*>(_sector.get())){
+         ((ive::AzimElevationSector*)(_sector.get()))->write(out);
+      }
+      else if (dynamic_cast<osgSim::ElevationSector*>(_sector.get())){
+         ((ive::ElevationSector*)(_sector.get()))->write(out);
+      }
+      else if (dynamic_cast<osgSim::AzimSector*>(_sector.get())){
+         ((ive::AzimSector*)(_sector.get()))->write(out);
+      }
+      else if (dynamic_cast<osgSim::ConeSector*>(_sector.get())){
+         ((ive::ConeSector*)(_sector.get()))->write(out);
+      }
+      else if (dynamic_cast<osgSim::DirectionalSector*>(_sector.get())){
+         ((ive::DirectionalSector*)(_sector.get()))->write(out);
+      }
+      else
+         out_THROW_EXCEPTION("Unknown sector in LightPoint::write()");
+   }
 
-    // Write out osgSim::BlinkSequence.
-    out->writeBool(_blinkSequence.valid());
-    if(_blinkSequence.valid()){
-        ((ive::BlinkSequence*)(_blinkSequence.get()))->write(out);
-    }
+   // Write out osgSim::BlinkSequence.
+   out->writeBool(_blinkSequence.valid());
+   if (_blinkSequence.valid()){
+      ((ive::BlinkSequence*)(_blinkSequence.get()))->write(out);
+   }
 
-    // Write out blendingMode.
-    out->writeInt(_blendingMode);
+   // Write out blendingMode.
+   out->writeInt(_blendingMode);
+
+   //VRV Patch to add support for type names being passed down.
+   if (out->getVersion() >= VERSION_0046)
+   {
+      out->writeString(_typeName);
+   }
+   //End VRV Patch
 }
 
 void LightPoint::read(DataInputStream* in){
@@ -121,6 +128,13 @@ void LightPoint::read(DataInputStream* in){
 
         // Read in blendingMode.
         _blendingMode = (osgSim::LightPoint::BlendingMode)in->readInt();
+
+        //VRV Patch to add support for type names being passed down.
+        if (in->getVersion() >= VERSION_0046)
+        {
+           _typeName = in->readString();
+        }
+        //End VRV Patch
     }
     else{
         in_THROW_EXCEPTION("LightPoint::read(): Expected LightPoint identification.");

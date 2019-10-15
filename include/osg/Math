@@ -16,8 +16,8 @@
 
 #include <cmath>
 #include <cfloat>
-
 #include <osg/Export>
+
 
 namespace osg {
 
@@ -33,6 +33,7 @@ const double PI_4 = 0.78539816339744830962;
 const double LN_2 = 0.69314718055994530942;
 const double INVLN_2 = 1.0 / LN_2;
 
+class Vec3f;
 
 template<typename T>
 inline T absolute(T v) { return v<(T)0?-v:v; }
@@ -50,6 +51,14 @@ inline bool equivalent(float lhs,float rhs,float epsilon=1e-6)
 */
 inline bool equivalent(double lhs,double rhs,double epsilon=1e-6)
   { double delta = rhs-lhs; return delta<0.0?delta>=-epsilon:delta<=epsilon; }
+
+// VRV_PATCH BEGIN - Adding equivalent for Vec3
+/** return true if Vec3 lhs and rhs are equivalent,
+  * meaning that the difference between them is less than an epsilon value
+  * which defaults to 1e-6.
+*/
+extern OSG_EXPORT bool equivalent(const Vec3f& lhs, const Vec3f& rhs, double epsilon = 1e-6);
+// VRV_PATCH END
 
 /** return the minimum of two values, equivalent to std::min.
   * std::min not used because of STL implementation under IRIX not containing

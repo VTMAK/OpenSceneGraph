@@ -202,6 +202,8 @@ class OSG_EXPORT StateAttribute : public Object
 
             SHADERSTORAGEBUFFERBINDING,
 
+            EXTENDED_MATERIAL,
+
             CAPABILITY = 100
         };
 
@@ -362,7 +364,7 @@ class OSG_EXPORT StateAttribute : public Object
 
     protected:
 
-        virtual ~StateAttribute() {}
+        virtual ~StateAttribute();
 
         void addParent(osg::StateSet* object);
         void removeParent(osg::StateSet* object);

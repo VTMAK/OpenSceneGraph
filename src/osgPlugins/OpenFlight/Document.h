@@ -1,18 +1,18 @@
-/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield
+/* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield 
  *
- * This library is open source and may be redistributed and/or modified under
- * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
+ * This library is open source and may be redistributed and/or modified under  
+ * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or 
  * (at your option) any later version.  The full license is in LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- *
+ * 
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
  * OpenSceneGraph Public License for more details.
 */
 
 //
-// OpenFlightï¿½ loader for OpenSceneGraph
+// OpenFlight® loader for OpenSceneGraph
 //
 //  Copyright (C) 2005-2007  Brede Johansen
 //
@@ -26,19 +26,24 @@
 #include <osg/Geometry>
 #include <osg/PolygonOffset>
 #include <osg/Depth>
+#include <osg/CullFace>
+#include <osg/BlendFunc>
 #include <osgDB/ReaderWriter>
 #include <osgDB/Options>
 
 #include "Types.h"
 #include "Record.h"
 #include "Pools.h"
+#include "DtCDBSigSizeTable.h"
 
+#include <set>
 
 namespace flt {
 
 class Header;
 class PushLevel;
 class PopLevel;
+class Registry;
 
 enum Version
 {
@@ -95,6 +100,8 @@ class Document
         Document();
         virtual ~Document();
 
+        Registry* getRegistry();
+
         void setOptions(const osgDB::ReaderWriter::Options* options) { _options = options; }
         const osgDB::ReaderWriter::Options* getOptions() const { return _options.get(); }
 
@@ -144,10 +151,23 @@ class Document
         TexturePool* getOrCreateTexturePool();
         bool getTexturePoolParent() const { return _texturePoolParent; }
 
+        osg::CullFace* getOrCreateCullFaceAttribute();
+        osg::BlendFunc* getOrCreateBlendFuncAttribute();
+
+        void setMultiTexturePool(MultiTexturePool* tp, bool parent=false) { _multiTexturePool = tp; _multiTexturePoolParent=parent; }
+        MultiTexturePool* getMultiTexturePool() { return _multiTexturePool.get(); }
+        MultiTexturePool* getOrCreateMultiTexturePool();
+        bool getMultiTexturePoolParent() const { return _multiTexturePoolParent; }
+
         void setMaterialPool(MaterialPool* mp, bool parent=false) { _materialPool = mp; _materialPoolParent=parent; }
         MaterialPool* getMaterialPool() { return _materialPool.get(); }
         MaterialPool* getOrCreateMaterialPool();
         bool getMaterialPoolParent() const { return _materialPoolParent; }
+
+        void setExtendedMaterialPool(ExtendedMaterialPool* mp, bool parent = false) { _extendedMaterialPool = mp; _extendedMaterialPoolParent = parent; }
+        ExtendedMaterialPool* getExtendedMaterialPool() { return _extendedMaterialPool.get(); }
+        ExtendedMaterialPool* getOrCreateExtendedMaterialPool();
+        bool getExtendedMaterialPoolParent() const { return _extendedMaterialPoolParent; }
 
         void setLightSourcePool(LightSourcePool* lsp, bool parent=false) { _lightSourcePool = lsp; _lightSourcePoolParent=parent; }
         LightSourcePool* getLightSourcePool() { return _lightSourcePool.get(); }
@@ -193,8 +213,22 @@ class Document
         bool getUseBillboardCenter() const { return _useBillboardCenter; }
         void setDoUnitsConversion(bool flag) { _doUnitsConversion=flag; }
         bool getDoUnitsConversion() const { return _doUnitsConversion; }
+        void setIgnoreNonBaseTextures(bool flag) { _ignoreNonBaseTextures = flag; }
+        bool getIgnoreNonBaseTextures() const { return _ignoreNonBaseTextures; }
         void setDesiredUnits(CoordUnits units ) { _desiredUnits=units; }
         CoordUnits getDesiredUnits() const { return _desiredUnits; }
+        void setCdb(bool flag) { _cdb = flag; }
+        bool getCdb() const { return _cdb; }
+        void setMipMapOffset(int offset) { _mipMapOffset = offset; }
+        int getMipMapOffset() const { return _mipMapOffset; }
+
+        // VRV_PATCH BEGIN
+        void setUseReverseZBuffer(bool flag) { _useReverseZBuffer = flag; }
+        bool getUseReverseZBuffer() const { return _useReverseZBuffer; }
+        // VRV_PATCH END
+
+        void setSigSizeTable(makVrv::oe::CDB::CDBSigSizeTable* sigSizeTable) { _sigSizeTable = sigSizeTable; };
+        makVrv::oe::CDB::CDBSigSizeTable* getSigSizeTable() { return _sigSizeTable; };
 
         void setKeepExternalReferences( bool flag) { _keepExternalReferences=flag; }
         bool getKeepExternalReferences() const { return _keepExternalReferences; }
@@ -204,6 +238,9 @@ class Document
 
         void setPreserveNonOsgAttrsAsUserData(bool flag) { _preserveNonOsgAttrsAsUserData = flag; }
         bool getPreserveNonOsgAttrsAsUserData() const { return _preserveNonOsgAttrsAsUserData; }
+      
+        void setForcedOpaqueImages(const std::set<std::string>& aSet) { myForcedOpaqueImages = aSet;}
+        const std::set<std::string>& getForcedOpaqueImages() const { return myForcedOpaqueImages; }
 
     protected:
 
@@ -217,11 +254,19 @@ class Document
         bool                        _useTextureAlphaForTransparancyBinning;
         bool                        _useBillboardCenter;
         bool                        _doUnitsConversion;
+        bool								_ignoreNonBaseTextures;
         bool                        _readObjectRecordData;
         bool                        _preserveNonOsgAttrsAsUserData;
         CoordUnits                  _desiredUnits;
-
+        // *** from CDB ***
+        bool                        _cdb; // is the source FLT from a CDB database      
+        int                         _mipMapOffset; // CDB texture LOD offset
+        makVrv::oe::CDB::CDBSigSizeTable* _sigSizeTable;
+        
         bool                        _keepExternalReferences;
+        // VRV_PATCH BEGIN
+        bool                        _useReverseZBuffer; // is Vantage in reverse zbuffer mode
+        // VRV_PATCH END
 
         friend class Header;
         bool _done;
@@ -236,11 +281,16 @@ class Document
         osg::ref_ptr<VertexPool> _vertexPool;
         osg::ref_ptr<ColorPool> _colorPool;
         osg::ref_ptr<TexturePool> _texturePool;
+        osg::ref_ptr<MultiTexturePool> _multiTexturePool;
         osg::ref_ptr<MaterialPool> _materialPool;
+        osg::ref_ptr<ExtendedMaterialPool> _extendedMaterialPool;
         osg::ref_ptr<LightSourcePool> _lightSourcePool;
         osg::ref_ptr<LightPointAppearancePool> _lightPointAppearancePool;
         osg::ref_ptr<LightPointAnimationPool> _lightPointAnimationPool;
         osg::ref_ptr<ShaderPool> _shaderPool;
+
+        osg::ref_ptr<osg::CullFace> _cullFace;
+        osg::ref_ptr<osg::BlendFunc> _blendFunc;
 
         typedef std::map<int, osg::ref_ptr<osg::PolygonOffset> > SubSurfacePolygonOffsets;
         SubSurfacePolygonOffsets _subsurfacePolygonOffsets;
@@ -248,7 +298,9 @@ class Document
 
         bool _colorPoolParent;
         bool _texturePoolParent;
+        bool _multiTexturePoolParent;
         bool _materialPoolParent;
+        bool _extendedMaterialPoolParent;
         bool _lightSourcePoolParent;
         bool _lightPointAppearancePoolParent;
         bool _lightPointAnimationPoolParent;
@@ -262,6 +314,11 @@ class Document
 
         typedef std::map<int,osg::ref_ptr<osg::Node> > InstanceDefinitionMap;
         InstanceDefinitionMap _instanceDefinitionMap;
+
+        typedef std::set<std::string> ImageSet;
+        ImageSet myForcedOpaqueImages;
+
+        Registry* myRegistry;
 };
 
 
@@ -273,11 +330,26 @@ inline TexturePool* Document::getOrCreateTexturePool()
 }
 
 
+inline MultiTexturePool* Document::getOrCreateMultiTexturePool()
+{
+   if (!_multiTexturePool.valid())
+      _multiTexturePool = new MultiTexturePool;
+   return _multiTexturePool.get();
+}
+
+
 inline MaterialPool* Document::getOrCreateMaterialPool()
 {
     if (!_materialPool.valid())
         _materialPool = new MaterialPool;
     return _materialPool.get();
+}
+
+inline ExtendedMaterialPool* Document::getOrCreateExtendedMaterialPool()
+{
+   if (!_extendedMaterialPool.valid())
+      _extendedMaterialPool = new ExtendedMaterialPool;
+   return _extendedMaterialPool.get();
 }
 
 

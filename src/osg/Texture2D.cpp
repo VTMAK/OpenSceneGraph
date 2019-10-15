@@ -16,7 +16,14 @@
 #include <osg/State>
 #include <osg/Notify>
 
+#include <iostream>
+
+
+//VRV_PATCH#
+#include <osg/ConcurrencyViewerMacros>
+
 using namespace osg;
+
 
 Texture2D::Texture2D():
             _textureWidth(0),
@@ -156,6 +163,174 @@ bool Texture2D::textureObjectValid(State& state) const
 }
 
 
+//VRV_PATCH
+void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::TextureObject *textureObject)
+{
+   // note this only happens for 2d textures currently
+   if (textureObject->_currentMipMapToApply >= 0)
+   {
+      osg::Texture::TextureObjectManager * tom = osg::Texture::getTextureObjectManager(state.getContextID()).get();
+      bool havent_hit_limit = false;
+      if (tom->getElapsedTimeBudget() < tom->getCurrentTimeElapsed()) {
+         havent_hit_limit = true;
+      }
+      const osg::Image * image = texture->getImage(0);
+      const GLExtensions* extensions = state.get<GLExtensions>();
+      int numMipmapLevels = image->getNumMipmapLevels();
+      int width = texture->getTextureWidth();
+      int height = texture->getTextureHeight();
+
+      const int MIN_STREAM_SIZED = 32;
+      {
+
+         // select the internalFormat required for the texture.
+         bool compressed_image = texture->isCompressedInternalFormat((GLenum)image->getPixelFormat());
+
+         GLint blockSize, size;
+         for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
+         {
+            if (width == 0)
+               width = 1;
+            if (height == 0)
+               height = 1;
+
+            if ((textureObject->_currentMipMapToApply) == k)
+            {
+               bool should_apply = false;
+               if (width <= MIN_STREAM_SIZED && height <= MIN_STREAM_SIZED) {
+                  should_apply = true;
+               }
+               if (!should_apply) 
+               {
+                  if (tom->getTimeManagementActive() && tom->getCurrentTimeElapsed() > tom->getElapsedTimeBudget())
+                  {
+                     //                     std::cout << "out of time to send" << image->getFileName() << " streaming mip: " << k << "/" << numMipmapLevels
+                     //                        << " " << width << "x" << height << " format: " << image->getPixelFormat() << std::endl;
+                     break;
+                  }
+               }
+
+
+               
+               float ratio = 0;
+               int rowsToCopy = height;
+               int currentRow = 0;
+               int ptrOffset = 0;
+               // try and adapt slightly to how wide the texture is
+               int mipRowLimit = 1024;
+               if (width > 4096) {
+                  mipRowLimit = 256;
+               }
+               else if(width > 2048){
+                  mipRowLimit = 512;
+               }
+               osg::CVMarkerSeries series("Render Tasks");
+
+               if (osg::CVMarkerSeries::sMarkersActive)
+               {
+                  if (image->getName().length())
+                  {
+                     series.write_alert("image: %s mip:%i %ix%i chunk %i/%i", image->getName().c_str(), 
+                        k, width, height, textureObject->_subCurrentMipMapToApply, width / mipRowLimit);
+                  }
+                  else if (texture->getName().length()) {
+                     series.write_alert("texture: %s mip:%i %ix%i chunk %i/%i", texture->getName().c_str(),
+                        k, width, height, textureObject->_subCurrentMipMapToApply, width / mipRowLimit);
+                  }
+               }
+
+               if (height > mipRowLimit)
+               {
+                  currentRow = textureObject->_subCurrentMipMapToApply;
+                  ratio = currentRow* ((float)mipRowLimit / height);
+                  
+                  rowsToCopy = mipRowLimit;
+                  ptrOffset = (int)(ratio*(image->getMipmapOffset(k+1)- image->getMipmapOffset(k)));
+               }
+
+               osg::ElapsedTime elapsedTimer;
+               if (compressed_image)
+               {
+                  osg::CVSpan UpdateTick(series, 4, "sendCompressedMipmap");
+                  texture->getCompressedSize(image->getInternalTextureFormat(), width, rowsToCopy, 1, blockSize, size);
+
+                  //state.checkGLErrors("before extensions->glCompressedTexSubImage2D(");
+                  //std::cout << image->getFileName() << " streaming mip: " << k << "/" << numMipmapLevels << 
+                  //   " chunk: " << currentChunk << " " << width << "x" << height << " y:" << currentChunk*chunkSize << "-"<< chunkSize + currentChunk*chunkSize <<"/" << height <<
+                  //   " format: " << image->getPixelFormat() << std::endl;
+                  extensions->glCompressedTexSubImage2D(GL_TEXTURE_2D, k,
+                     0, currentRow*rowsToCopy,
+                     width, rowsToCopy,
+                     (GLenum)image->getPixelFormat(),
+                     size,
+                     ((unsigned char*)image->getDataPointer()) + image->getMipmapOffset(k) + ptrOffset);
+               }
+               else
+               {
+
+                  osg::CVSpan UpdateTick(series, 4, "sendMipmap");
+                  glTexSubImage2D(GL_TEXTURE_2D, k,
+                     0, currentRow*rowsToCopy,
+                     width, rowsToCopy,
+                     (GLenum)image->getPixelFormat(),
+                     (GLenum)image->getDataType(),
+                     ((unsigned char*)image->getDataPointer()) + image->getMipmapOffset(k) + ptrOffset);
+               }
+                
+#define GL_TEXTURE_BASE_LEVEL             0x813C
+
+               glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, textureObject->_currentMipMapToApply);
+               if (height > mipRowLimit) {
+                  textureObject->_subCurrentMipMapToApply++;
+                  if (textureObject->_subCurrentMipMapToApply == height / mipRowLimit) {
+                     textureObject->_currentMipMapToApply--;
+                     textureObject->_subCurrentMipMapToApply = 0;
+                  }
+               }
+               else {
+                  textureObject->_currentMipMapToApply--;
+               }
+               if (tom->getTimeManagementActive())
+               {
+                  tom->incrementTimeElapsed(elapsedTimer.elapsedTime());
+                  if (!havent_hit_limit && tom->getCurrentTimeElapsed() > tom->getElapsedTimeBudget()) {
+                     havent_hit_limit = true;
+
+                     series.write_alert("budget hit");
+
+                     //                  std::cout << "Budget hit sending" << image->getFileName() << " streaming mip: " << k << "/" << numMipmapLevels
+   //                     << " " << width << "x" << height << " format: " << image->getPixelFormat() << std::endl;
+                  }
+               }
+
+               break;
+            }
+            //state.checkGLErrors("after extensions->glCompressedTexSubImage2D(");
+            width >>= 1;
+            height >>= 1;
+         }
+      }
+
+      if (width <= MIN_STREAM_SIZED && height <= MIN_STREAM_SIZED && textureObject->_currentMipMapToApply >= 0)
+      { // do it again till the smallest maps are sent
+         sendMipmap(state, texture, textureObject);
+      }
+	  
+	  // free memory if download is finished // one texture pointer seemed to disappear not sure why
+      if (textureObject->isDownloaded() && texture->getImage(0))
+      {
+         if (texture->getUnRefImageDataAfterApply() &&
+            texture->areAllTextureObjectsLoaded() &&
+            texture->getImage(0)->getDataVariance() == osg::Object::STATIC)
+         {
+            osg::Texture* nonConstTexture = const_cast<osg::Texture*>(texture);
+
+            nonConstTexture->setImage(0,0);
+         }
+      }
+   }
+}
+
 void Texture2D::apply(State& state) const
 {
 
@@ -217,6 +392,11 @@ void Texture2D::apply(State& state) const
             _readPBuffer->bindPBufferToTexture(GL_FRONT);
         }
 
+//VRV_PATCH
+        if (_image.valid()) {
+           // this shouldn't happen but I guess it does
+           sendMipmap(state, this, textureObject);
+        }
     }
     else if (_subloadCallback.valid())
     {
@@ -229,6 +409,8 @@ void Texture2D::apply(State& state) const
         _subloadCallback->load(*this,state);
 
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
+
+        sendMipmap(state, this, textureObject);
 
         // in theory the following line is redundent, but in practice
         // have found that the first frame drawn doesn't apply the textures
@@ -270,13 +452,16 @@ void Texture2D::apply(State& state) const
                                  _textureWidth, _textureHeight, _numMipmapLevels);
 
             textureObject->setAllocated(true);
+            
         }
+
+        sendMipmap(state, this, textureObject);
 
         // update the modified tag to show that it is up to date.
         getModifiedCount(contextID) = image->getModifiedCount();
 
         // unref image data?
-        if (isSafeToUnrefImageData(state) && image->getDataVariance()==STATIC)
+        if (isSafeToUnrefImageData(state) && textureObject->isDownloaded() && image->getDataVariance()==STATIC)
         {
             Texture2D* non_const_this = const_cast<Texture2D*>(this);
             non_const_this->_image = NULL;

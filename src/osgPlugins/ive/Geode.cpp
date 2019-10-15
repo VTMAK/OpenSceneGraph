@@ -71,19 +71,27 @@ void Geode::read(DataInputStream* in){
         // Read number of drawables.
         int size = in->readInt();
         // Read the drawables.
-        for(int i = 0; i<size; i++){
+        for(int i = 0; i<size; i++)
+        {
+           osg::Drawable* drawable = NULL;
 #if 0
             int id = in->peekInt();
-            osg::Drawable* drawable;
             if(id == IVEGEOMETRY){
                 drawable = new osg::Geometry();
                 ((Geometry*)(drawable))->read(in);
                 addDrawable(drawable);
             }
-            else
-                in_THROW_EXCEPTION("Unknown drawable identification in Geode::read()");
+            else{
+               in_THROW_EXCEPTION("Unknown drawable identification in Geode::read()");
+            }
 #else
-            addDrawable(in->readDrawable());
+           drawable = in->readDrawable();
+           /*if (drawable->getName().length() == 0){
+              char buff[20];
+              sprintf_s(buff, 20, " - %i", i);
+              drawable->setName(getName() + buff);
+           }*/
+           addDrawable(drawable);
 #endif
         }
     }

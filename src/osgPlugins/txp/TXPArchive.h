@@ -1,17 +1,17 @@
-/***************************************************************************
+/*************************************************************************** 
  * December 2003
  *
- * This TerraPage loader was re-written in a fashion to use PagedLOD
- * to manage paging entirely, also includes a version of Terrex's smart mesh
- * adapted to work with PagedLOD. The essential code by Boris Bralo is still present,
+ * This TerraPage loader was re-written in a fashion to use PagedLOD 
+ * to manage paging entirely, also includes a version of Terrex's smart mesh 
+ * adapted to work with PagedLOD. The essential code by Boris Bralo is still present, 
  * slight modified.
  * nick at terrex dot com
- *
+ * 
  * Ported to PagedLOD technology by Trajce Nikolov (Nick) & Robert Osfield
  *****************************************************************************/
 
 /***************************************************************************
- * OpenSceneGraph loader for Terrapage format database
+ * OpenSceneGraph loader for Terrapage format database 
  * by Boris Bralo 2002
  *
  * based on/modifed  sgl (Scene Graph Library) loader by Bryan Walsh
@@ -45,6 +45,7 @@
 #include <osg/Node>
 #include <osg/PagedLOD>
 #include <osg/Array>
+#include <osgDB/Options>
 #include <osgSim/LightPointNode>
 #include <osgText/Font>
 
@@ -120,7 +121,7 @@ namespace txp
         };
         struct TileLocationInfo
         {
-            TileLocationInfo() : x( -1 ), y( -1 ), lod( -1 )
+            TileLocationInfo() : x( -1 ), y( -1 ), lod( -1 ), zmin( 0.0f ), zmax( 0.0f )  //VRV_PATCH
             {}
             TileLocationInfo(int gx, int gy, int glod, const trpgwAppAddress& gaddr, float gzmin = 0.0f, float gzmax = 0.0f):
                     x( gx ), y( gy ), lod( glod ), addr( gaddr ), zmin( gzmin ), zmax( gzmax )
@@ -129,6 +130,16 @@ namespace txp
             trpgwAppAddress addr;
             float zmin, zmax;
         };
+
+        inline void setOptions(osgDB::Options* options)
+        {
+           _options = options;
+        }
+
+        inline osgDB::Options* getOptions()
+        {
+           return _options;
+        }
 
         bool getTileInfo(int x, int y, int lod, TileInfo& info);
         bool getTileInfo(const TileLocationInfo& loc, TileInfo& info);
@@ -281,6 +292,7 @@ namespace txp
 
         bool _loadMaterialsToStateSet;
 
+        osg::ref_ptr<osgDB::Options> _options;
     };
 
 } // namespace

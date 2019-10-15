@@ -210,12 +210,12 @@ class VertexCNT : public Record
 
             if (!normal.valid())
             {
-                OSG_NOTICE<<"Warning: data error detected in VertexCNT::readRecord normal="<<normal.x()<<" "<<normal.y()<<" "<<normal.z()<<std::endl;
+                OSG_INFO<<"Warning: data error detected in VertexCNT::readRecord normal="<<normal.x()<<" "<<normal.y()<<" "<<normal.z()<<std::endl;
             }
 
             if (!uv.valid())
             {
-                OSG_NOTICE<<"Warning: data error detected in VertexCNT::readRecord uv="<<uv.x()<<" "<<uv.y()<<std::endl;
+                OSG_INFO<<"Warning: data error detected in VertexCNT::readRecord uv="<<uv.x()<<" "<<uv.y()<<std::endl;
             }
 
             // color

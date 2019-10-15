@@ -111,8 +111,8 @@ class OSGTERRAIN_EXPORT GeometryPool : public osg::Referenced
                 if (sx<rhs.sx) return true;
                 if (sx>rhs.sx) return false;
 
-                if (sx<rhs.sx) return true;
-                if (sx>rhs.sx) return false;
+                if (sy<rhs.sy) return true;
+                if (sy>rhs.sy) return false;
 
                 if (y<rhs.y) return true;
                 if (y>rhs.y) return false;

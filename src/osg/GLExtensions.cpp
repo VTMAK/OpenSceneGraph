@@ -443,13 +443,21 @@ GLExtensions::GLExtensions(unsigned int contextID)
     glVersion = findAsciiToFloat( version );
     glslLanguageVersion = 0.0f;
 
-    bool shadersBuiltIn = OSG_GLES2_FEATURES || OSG_GL3_FEATURES;
+    // vantage change
+    isNsightCompatable = 1;
+
+bool shadersBuiltIn = OSG_GLES2_FEATURES || OSG_GL3_FEATURES;
 
     isShaderObjectsSupported = shadersBuiltIn || osg::isGLExtensionSupported(contextID,"GL_ARB_shader_objects");
     isVertexShaderSupported = shadersBuiltIn || osg::isGLExtensionSupported(contextID,"GL_ARB_vertex_shader");
     isFragmentShaderSupported = shadersBuiltIn || osg::isGLExtensionSupported(contextID,"GL_ARB_fragment_shader");
     isLanguage100Supported = shadersBuiltIn || osg::isGLExtensionSupported(contextID,"GL_ARB_shading_language_100");
     isGeometryShader4Supported = osg::isGLExtensionSupported(contextID,"GL_EXT_geometry_shader4");
+
+    if (isNsightCompatable){
+        isGeometryShader4Supported = 0;
+    }
+
     isGpuShader4Supported = osg::isGLExtensionSupported(contextID,"GL_EXT_gpu_shader4");
     areTessellationShadersSupported = osg::isGLExtensionSupported(contextID, "GL_ARB_tessellation_shader");
     isUniformBufferObjectSupported = osg::isGLExtensionSupported(contextID,"GL_ARB_uniform_buffer_object");
@@ -717,7 +725,10 @@ GLExtensions::GLExtensions(unsigned int contextID)
     setGLExtensionFuncPtr(glMultiTexCoord2fv, "glMultiTexCoord2fv","glMultiTexCoord2fvARB");
     setGLExtensionFuncPtr(glMultiTexCoord3fv, "glMultiTexCoord3fv","glMultiTexCoord3fvARB");
     setGLExtensionFuncPtr(glMultiTexCoord4fv, "glMultiTexCoord4fv","glMultiTexCoord4fvARB");
-    setGLExtensionFuncPtr(glMultiTexCoord1d, "glMultiTexCoord1d","glMultiTexCoorddfARB");
+    // BEGIN VRV_PATCH
+    setGLExtensionFuncPtr(glMultiTexCoord1d, "glMultiTexCoord1d","glMultiTexCoord1dARB");
+    setGLExtensionFuncPtr(glMultiTexCoord1dv, "glMultiTexCoord1dv", "glMultiTexCoord1dvARB");
+    // END VRV_PATCH
     setGLExtensionFuncPtr(glMultiTexCoord2dv, "glMultiTexCoord2dv","glMultiTexCoord2dvARB");
     setGLExtensionFuncPtr(glMultiTexCoord3dv, "glMultiTexCoord3dv","glMultiTexCoord3dvARB");
     setGLExtensionFuncPtr(glMultiTexCoord4dv, "glMultiTexCoord4dv","glMultiTexCoord4dvARB");
@@ -1002,8 +1013,14 @@ GLExtensions::GLExtensions(unsigned int contextID)
     setGLExtensionFuncPtr(glGenRenderbuffers, "glGenRenderbuffers", "glGenRenderbuffersEXT", "glGenRenderbuffersOES");
     setGLExtensionFuncPtr(glRenderbufferStorage, "glRenderbufferStorage", "glRenderbufferStorageEXT", "glRenderbufferStorageOES");
     setGLExtensionFuncPtr(glRenderbufferStorageMultisample, "glRenderbufferStorageMultisample", "glRenderbufferStorageMultisampleEXT", "glRenderbufferStorageMultisampleOES");
-    setGLExtensionFuncPtr(glRenderbufferStorageMultisampleCoverageNV, "glRenderbufferStorageMultisampleCoverageNV");
-    setGLExtensionFuncPtr(glBindFramebuffer, "glBindFramebuffer", "glBindFramebufferEXT", "glBindFramebufferOES");
+	if (isNsightCompatable){
+		glRenderbufferStorageMultisampleCoverageNV = NULL;
+	}
+	else{
+		setGLExtensionFuncPtr(glRenderbufferStorageMultisampleCoverageNV, "glRenderbufferStorageMultisampleCoverageNV");
+	}
+
+	setGLExtensionFuncPtr(glBindFramebuffer, "glBindFramebuffer", "glBindFramebufferEXT", "glBindFramebufferOES");
     setGLExtensionFuncPtr(glDeleteFramebuffers, "glDeleteFramebuffers", "glDeleteFramebuffersEXT", "glDeleteFramebuffersOES");
     setGLExtensionFuncPtr(glGenFramebuffers, "glGenFramebuffers", "glGenFramebuffersEXT", "glGenFramebuffersOES");
     setGLExtensionFuncPtr(glCheckFramebufferStatus, "glCheckFramebufferStatus", "glCheckFramebufferStatusEXT", "glCheckFramebufferStatusOES");
@@ -1078,6 +1095,16 @@ GLExtensions::GLExtensions(unsigned int contextID)
     osg::setGLExtensionFuncPtr(glDeleteVertexArrays,"glDeleteVertexArrays");
     osg::setGLExtensionFuncPtr(glIsVertexArray,"glIsVertexArray");
     
+    // VANTAGE CHANGES
+    osg::setGLExtensionFuncPtr(glObjectLabel, "glObjectLabel");
+    osg::setGLExtensionFuncPtr(glGetObjectLabel, "glGetObjectLabel");
+    
+    osg::setGLExtensionFuncPtr(glPushDebugGroup, "glPushDebugGroup");
+    osg::setGLExtensionFuncPtr(glPopDebugGroup, "glPopDebugGroup");
+
+    osg::setGLExtensionFuncPtr(glViewportIndexedf, "glViewportIndexedf");
+    osg::setGLExtensionFuncPtr(glViewportIndexedfv, "glViewportIndexedfv");
+
 }
 
 

@@ -35,6 +35,7 @@ using namespace osg;
 unsigned int Drawable::s_numberDrawablesReusedLastInLastFrame = 0;
 unsigned int Drawable::s_numberNewDrawablesInLastFrame = 0;
 unsigned int Drawable::s_numberDeletedDrawablesInLastFrame = 0;
+bool Drawable::s_useVertexBufferObjectsDefault = false;
 
 // static cache of deleted display lists which can only
 // by completely deleted once the appropriate OpenGL context
@@ -248,24 +249,28 @@ bool Drawable::EventCallback::run(osg::Object* object, osg::Object* data)
 
 Drawable::Drawable()
 {
-    _boundingBoxComputed = false;
+   _boundingBoxComputed = false;
 
-    // Note, if your are defining a subclass from drawable which is
-    // dynamically updated then you should set both the following to
-    // to false in your constructor.  This will prevent any display
-    // lists from being automatically created and safeguard the
-    // dynamic updating of data.
+   // Note, if your are defining a subclass from drawable which is
+   // dynamically updated then you should set both the following to
+   // to false in your constructor.  This will prevent any display
+   // lists from being automatically created and safeguard the
+   // dynamic updating of data.
 #ifdef OSG_GL_DISPLAYLISTS_AVAILABLE
-    _supportsDisplayList = true;
-    _useDisplayList = true;
+   _supportsDisplayList = true;
+   _useDisplayList = true;
 #else
-    _supportsDisplayList = false;
-    _useDisplayList = false;
+   _supportsDisplayList = false;
+   _useDisplayList = false;
 #endif
+   _supportsVertexBufferObjects = true;
 
-    _supportsVertexBufferObjects = false;
-    _useVertexBufferObjects = false;
-    // _useVertexBufferObjects = true;
+	_useVertexBufferObjects = false;
+
+   if (s_useVertexBufferObjectsDefault){
+      _useVertexBufferObjects = true;
+      _useDisplayList = false;
+   }
 }
 
 Drawable::Drawable(const Drawable& drawable,const CopyOp& copyop):
@@ -466,8 +471,6 @@ void Drawable::setUseDisplayList(bool flag)
 
 void Drawable::setUseVertexBufferObjects(bool flag)
 {
-    // _useVertexBufferObjects = true;
-
     // OSG_NOTICE<<"Drawable::setUseVertexBufferObjects("<<flag<<")"<<std::endl;
 
     // if value unchanged simply return.

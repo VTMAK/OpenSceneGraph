@@ -9,7 +9,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * OpenSceneGraph Public License for more details.
-*/
+ */
 
 //
 // OpenFlight (R) loader for OpenSceneGraph
@@ -25,240 +25,600 @@
 #include <osgSim/LightPointNode>
 #include <osgDB/ReadFile>
 #include <osgDB/FileUtils>
+#include <osgDB/FileNameUtils>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/path.hpp>
 #include "Registry.h"
 #include "Document.h"
 #include "AttrData.h"
 #include "RecordInputStream.h"
 
 #if defined(OSG_GLES1_AVAILABLE) || defined(OSG_GLES2_AVAILABLE)
-    #define GL_RGB5                     0x8050
-    #define GL_RGBA4                    0x8056
-    #define GL_RGBA8                    0x8058
-    #define GL_RGBA12                   0x805A
-    #define GL_RGB12                    0x8053
-    #define GL_LUMINANCE12_ALPHA4       0x8046
-    #define GL_LUMINANCE12_ALPHA12      0x8047
-    #define GL_INTENSITY16              0x804D
+#define GL_RGB5                     0x8050
+#define GL_RGBA4                    0x8056
+#define GL_RGBA8                    0x8058
+#define GL_RGBA12                   0x805A
+#define GL_RGB12                    0x8053
+#define GL_LUMINANCE12_ALPHA4       0x8046
+#define GL_LUMINANCE12_ALPHA12      0x8047
+#define GL_INTENSITY16              0x804D
 #endif
 
 #if defined(OSG_GL3_AVAILABLE)
-    #define GL_LUMINANCE12_ALPHA4       0x8046
-    #define GL_LUMINANCE12_ALPHA12      0x8047
-    #define GL_INTENSITY16              0x804D
+#define GL_LUMINANCE12_ALPHA4       0x8046
+#define GL_LUMINANCE12_ALPHA12      0x8047
+#define GL_INTENSITY16              0x804D
 #endif
+
+static const size_t positionOfUxxx = 26;
+static const size_t positionOfFirst_BeforeTextureName = 30;
 
 namespace flt {
 
-class VertexPalette : public Record
-{
-public:
+   class VertexPalette : public Record
+   {
+   public:
 
-    VertexPalette() {}
+      VertexPalette() {}
 
-    META_Record(VertexPalette)
+      META_Record(VertexPalette)
 
-protected:
+   protected:
 
-    virtual ~VertexPalette() {}
+      virtual ~VertexPalette() {}
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        uint32 paletteSize = in.readUInt32();
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         uint32 paletteSize = in.readUInt32();
 
-        // Entries in vertex pool found by offset from start of this record.
-        const uint32 RECORD_HEADER_SIZE = 4;
-        const uint32 OFFSET = RECORD_HEADER_SIZE+sizeof(paletteSize);
+         // Entries in vertex pool found by offset from start of this record.
+         const uint32 RECORD_HEADER_SIZE = 4;
+         const uint32 OFFSET = RECORD_HEADER_SIZE + sizeof(paletteSize);
 
-        std::string buffer(paletteSize,'\0');
-        if (OFFSET < paletteSize)
-        {
-            in.read(&buffer[OFFSET], paletteSize-OFFSET);
-        }
+         std::string buffer(paletteSize, '\0');
+         if (OFFSET < paletteSize)
+         {
+            in.read(&buffer[OFFSET], paletteSize - OFFSET);
+         }
 
-        // Keep a copy of the vertex pool in memory for later reference.
-        document.setVertexPool(new VertexPool(buffer));
-    }
-};
+         // Keep a copy of the vertex pool in memory for later reference.
+         document.setVertexPool(new VertexPool(buffer));
+      }
+   };
 
-REGISTER_FLTRECORD(VertexPalette, VERTEX_PALETTE_OP)
+   REGISTER_FLTRECORD(VertexPalette, VERTEX_PALETTE_OP)
 
 
 
-class ColorPalette : public Record
-{
-public:
+   class ColorPalette : public Record
+   {
+   public:
 
-    ColorPalette() {}
+      ColorPalette() {}
 
-    META_Record(ColorPalette)
+      META_Record(ColorPalette)
 
-protected:
+   protected:
 
-    virtual ~ColorPalette() {}
+      virtual ~ColorPalette() {}
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getColorPoolParent())
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getColorPoolParent())
             // Using parent's color pool -- ignore this record.
             return;
 
-        if (document.version() > VERSION_13)
-        {
+         if (document.version() > VERSION_13)
+         {
             bool oldVersion = false;
             bool colorNameSection = in.getRecordSize() > 4228;
-            int maxColors = (document.version()>=VERSION_15_1) ? 1024 : 512;
+            int maxColors = (document.version() >= VERSION_15_1) ? 1024 : 512;
 
             // It might be less.
             if (!colorNameSection)
             {
-                // Max colors calculated by record size.
-                int maxColorsByRecordSize = (in.getRecordBodySize()-128) / 4;
-                if (maxColorsByRecordSize < maxColors)
-                    maxColors = maxColorsByRecordSize;
+               // Max colors calculated by record size.
+               int maxColorsByRecordSize = (in.getRecordBodySize() - 128) / 4;
+               if (maxColorsByRecordSize < maxColors)
+                  maxColors = maxColorsByRecordSize;
             }
 
-            ColorPool* cp = new ColorPool(oldVersion,maxColors);
+            ColorPool* cp = new ColorPool(oldVersion, maxColors);
             document.setColorPool(cp);
 
             in.forward(128);
-            for (int i=0; i<maxColors; i++)
+            for (int i = 0; i < maxColors; i++)
             {
-                uint8 alpha = in.readUInt8(1);
-                uint8 blue  = in.readUInt8(1);
-                uint8 green = in.readUInt8(1);
-                uint8 red   = in.readUInt8(1);
+               uint8 alpha = in.readUInt8(1);
+               uint8 blue = in.readUInt8(1);
+               uint8 green = in.readUInt8(1);
+               uint8 red = in.readUInt8(1);
 
-                (*cp)[i] = osg::Vec4((float)red/255,(float)green/255,(float)blue/255,(float)alpha/255);
+               (*cp)[i] = osg::Vec4((float)red / 255, (float)green / 255, (float)blue / 255, (float)alpha / 255);
             }
-        }
-        else // version <= 13
-        {
+         }
+         else // version <= 13
+         {
             bool oldVersion = true;
-            int maxColors = 32+56;
+            int maxColors = 32 + 56;
 
-            ColorPool* cp = new ColorPool(oldVersion,maxColors);
+            ColorPool* cp = new ColorPool(oldVersion, maxColors);
             document.setColorPool(cp);
 
             // variable intensity
-            for (int i=0; i < 32; i++)
+            for (int i = 0; i < 32; i++)
             {
-                uint16 red   = in.readUInt16(1);
-                uint16 green = in.readUInt16(1);
-                uint16 blue  = in.readUInt16(1);
-                (*cp)[i] = osg::Vec4((float)red/255,(float)green/255,(float)blue/255,1);
+               uint16 red = in.readUInt16(1);
+               uint16 green = in.readUInt16(1);
+               uint16 blue = in.readUInt16(1);
+               (*cp)[i] = osg::Vec4((float)red / 255, (float)green / 255, (float)blue / 255, 1);
             }
 
             // fixed intensity
-            for (int i=0; i < 56; i++)
+            for (int i = 0; i < 56; i++)
             {
-                uint16 red   = in.readUInt16(1);
-                uint16 green = in.readUInt16(1);
-                uint16 blue  = in.readUInt16(1);
-                (*cp)[i+32] = osg::Vec4((float)red/255,(float)green/255,(float)blue/255,1);
+               uint16 red = in.readUInt16(1);
+               uint16 green = in.readUInt16(1);
+               uint16 blue = in.readUInt16(1);
+               (*cp)[i + 32] = osg::Vec4((float)red / 255, (float)green / 255, (float)blue / 255, 1);
             }
-        }
-    }
-};
+         }
+      }
+   };
 
 
-REGISTER_FLTRECORD(ColorPalette, COLOR_PALETTE_OP)
-
-
-
-class NameTable : public Record
-{
-public:
-
-    NameTable() {}
-
-    META_Record(NameTable)
-
-protected:
-
-    virtual ~NameTable() {}
-
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
-    {
-    }
-};
-
-REGISTER_FLTRECORD(NameTable, NAME_TABLE_OP)
+   REGISTER_FLTRECORD(ColorPalette, COLOR_PALETTE_OP)
 
 
 
-class MaterialPalette : public Record
-{
-public:
+   class NameTable : public Record
+   {
+   public:
 
-    MaterialPalette() {}
+      NameTable() {}
 
-    META_Record(MaterialPalette)
+      META_Record(NameTable)
 
-protected:
+   protected:
 
-    virtual ~MaterialPalette() {}
+      virtual ~NameTable() {}
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getMaterialPoolParent())
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
+      {
+      }
+   };
+
+   REGISTER_FLTRECORD(NameTable, NAME_TABLE_OP)
+
+
+
+   class MaterialPalette : public Record
+   {
+   public:
+
+      MaterialPalette() {}
+
+      META_Record(MaterialPalette)
+
+   protected:
+
+      virtual ~MaterialPalette() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getMaterialPoolParent())
             // Using parent's material pool -- ignore this record.
             return;
 
-        int32 index = in.readInt32();
-        std::string name = in.readString(12);
-        /*uint32 flags =*/ in.readUInt32();
-        osg::Vec3f ambient = in.readVec3f();
-        osg::Vec3f diffuse = in.readVec3f();
-        osg::Vec3f specular = in.readVec3f();
-        osg::Vec3f emissive = in.readVec3f();
-        float32 shininess = in.readFloat32();
-        float32 alpha = in.readFloat32();
+         int32 index = in.readInt32();
+         std::string name = in.readString(12);
+         /*uint32 flags =*/ in.readUInt32();
+         osg::Vec3f ambient = in.readVec3f();
+         osg::Vec3f diffuse = in.readVec3f();
+         osg::Vec3f specular = in.readVec3f();
+         osg::Vec3f emissive = in.readVec3f();
+         float32 shininess = in.readFloat32();
+         float32 alpha = in.readFloat32();
 
-        osg::Material* material = new osg::Material;
-        material->setName(name);
-        material->setAmbient(osg::Material::FRONT_AND_BACK,osg::Vec4(ambient,alpha));
-        material->setDiffuse (osg::Material::FRONT_AND_BACK,osg::Vec4(diffuse,alpha));
-        material->setSpecular(osg::Material::FRONT_AND_BACK,osg::Vec4(specular,alpha));
-        material->setEmission(osg::Material::FRONT_AND_BACK,osg::Vec4(emissive,alpha));
-        
-        if (shininess>=0.0f)
-        {        
-            material->setShininess(osg::Material::FRONT_AND_BACK,shininess);
-        }
-        else
-        {
-            OSG_INFO<<"Warning: OpenFlight shininess value out of range: "<<shininess<<std::endl;
-        }
+         osg::Material* material = new osg::Material;
+         material->setName(name);
+         material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(ambient, alpha));
+         material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(diffuse, alpha));
+         material->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4(specular, alpha));
+         material->setEmission(osg::Material::FRONT_AND_BACK, osg::Vec4(emissive, alpha));
 
-        MaterialPool* mp = document.getOrCreateMaterialPool();
-        (*mp)[index] = material;
-    }
-};
+         if (shininess >= 0.0f)
+         {
+            material->setShininess(osg::Material::FRONT_AND_BACK, shininess);
+         }
+         else
+         {
+            OSG_INFO << "Warning: OpenFlight shininess value out of range: " << shininess << std::endl;
+         }
 
-REGISTER_FLTRECORD(MaterialPalette, MATERIAL_PALETTE_OP)
+         MaterialPool* mp = document.getOrCreateMaterialPool();
+         (*mp)[index] = material;
+      }
+   };
+
+   REGISTER_FLTRECORD(MaterialPalette, MATERIAL_PALETTE_OP)
 
 
+   class ExtendedMaterialHeader : public Record
+   {
+   public:
 
-class OldMaterialPalette : public Record
-{
-public:
+      ExtendedMaterialHeader() {}
 
-    OldMaterialPalette() {}
+      META_Record(ExtendedMaterialHeader)
 
-    META_Record(OldMaterialPalette)
+   protected:
 
-protected:
+      virtual ~ExtendedMaterialHeader() {}
 
-    virtual ~OldMaterialPalette() {}
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getExtendedMaterialPoolParent())
+            // Using parent's extended material pool -- ignore this record.
+            return;
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getMaterialPoolParent())
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         int32 index = in.readInt32();
+         mp->setCurrentExtendedMaterialIndex(index);
+
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            MaterialPool* baseMaterialmp = document.getOrCreateMaterialPool();
+            if (baseMaterialmp->get(index))
+            {
+               //If the base material exist, use the alpha from it, other the default value 1.0 will be used
+               extendMaterial->setGlobalAlpha(baseMaterialmp->get(index)->getDiffuse(osg::Material::FRONT_AND_BACK).a());
+            }
+            std::string name = in.readString(12);
+            int32 flags = in.readInt32();
+            int32 shadeModel = in.readInt32();
+            extendMaterial->setName(name);
+            extendMaterial->setUsed(flags == 0);
+            extendMaterial->setShadedModel((osg::ExtendedMaterial::ShadeModel)shadeModel);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialHeader, EXTENDED_MATERIAL_HEADER_OP)
+
+   class ExtendedMaterialAmbient : public Record
+   {
+   public:
+
+      ExtendedMaterialAmbient() {}
+
+      META_Record(ExtendedMaterialAmbient)
+
+   protected:
+
+      virtual ~ExtendedMaterialAmbient() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            osg::Vec3f ambient = in.readVec3f();
+            int32 textureIndex0 = in.readInt32();
+            /*int32 uvSet0 =*/ in.readInt32();
+            extendMaterial->setAmbientFrontAndBack(ambient);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::AMBIENT_LAYER,textureIndex0);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialAmbient, EXTENDED_MATERIAL_AMBIENT_OP)
+
+   class ExtendedMaterialDiffuse : public Record
+   {
+   public:
+
+      ExtendedMaterialDiffuse() {}
+
+      META_Record(ExtendedMaterialDiffuse)
+
+   protected:
+
+      virtual ~ExtendedMaterialDiffuse() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            osg::Vec3f diffuse = in.readVec3f();
+            int32 textureIndex0 = in.readInt32();
+            /*int32 uvSet0 =*/ in.readInt32();
+            extendMaterial->setDiffuseFrontAndBack(diffuse);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::DIFFUSE_LAYER, textureIndex0);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialDiffuse, EXTENDED_MATERIAL_DIFFUSE_OP)
+
+   class ExtendedMaterialSpecular : public Record
+   {
+   public:
+
+      ExtendedMaterialSpecular() {}
+
+      META_Record(ExtendedMaterialSpecular)
+
+   protected:
+
+      virtual ~ExtendedMaterialSpecular() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            float32 shininess = in.readFloat32();
+            osg::Vec3f specular = in.readVec3f();
+            int32 textureIndex0 = in.readInt32();
+            /*int32 uvSet0 = */in.readInt32();
+            extendMaterial->setShininessFrontAndBack(shininess);
+            extendMaterial->setSpecularFrontAndBack(specular);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::SPECULAR_LAYER, textureIndex0);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialSpecular, EXTENDED_MATERIAL_SPECULAR_OP)
+
+   class ExtendedMaterialEmissive : public Record
+   {
+   public:
+
+      ExtendedMaterialEmissive() {}
+
+      META_Record(ExtendedMaterialEmissive)
+
+   protected:
+
+      virtual ~ExtendedMaterialEmissive() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            osg::Vec3f emissive = in.readVec3f();
+            int32 textureIndex0 = in.readInt32();
+            /*int32 uvSet0 = */in.readInt32();
+            extendMaterial->setEmissiveFrontAndBack(emissive);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::EMISSIVE_LAYER, textureIndex0);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialEmissive, EXTENDED_MATERIAL_EMISSIVE_OP)
+
+   class ExtendedMaterialAlpha : public Record
+   {
+   public:
+
+      ExtendedMaterialAlpha() {}
+
+      META_Record(ExtendedMaterialAlpha)
+
+   protected:
+
+      virtual ~ExtendedMaterialAlpha() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            float32 alpha = in.readFloat32();
+            int32 textureIndex0 = in.readInt32();
+            /*int32 uvSet0 = */in.readInt32();
+            //skip layer 1,2,3
+            in.forward(8 * 3);
+            int32 alphaQuality = in.readInt32();
+            extendMaterial->setAlphaFrontAndBack(alpha);
+            extendMaterial->setAlphaQuality((osg::ExtendedMaterial::AlphaQuality)alphaQuality);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::ALPHA_LAYER, textureIndex0);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialAlpha, EXTENDED_MATERIAL_ALPHA_OP)
+
+   class ExtendedMaterialLightMap : public Record
+   {
+   public:
+
+      ExtendedMaterialLightMap() {}
+
+      META_Record(ExtendedMaterialLightMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialLightMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            float32 maximumIntensity = in.readFloat32();
+            int32 textureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            extendMaterial->setLightMapMaximumIntensity(maximumIntensity);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::LIGHT_MAP_LAYER, textureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialLightMap, EXTENDED_MATERIAL_LIGHT_MAP_OP)
+
+   class ExtendedMaterialNormalMap : public Record
+   {
+   public:
+
+      ExtendedMaterialNormalMap() {}
+
+      META_Record(ExtendedMaterialNormalMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialNormalMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            int32 textureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::NORMAL_MAP_LAYER, textureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialNormalMap, EXTENDED_MATERIAL_NORMAL_MAP_OP)
+
+   class ExtendedMaterialBumpMap : public Record
+   {
+   public:
+
+      ExtendedMaterialBumpMap() {}
+
+      META_Record(ExtendedMaterialBumpMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialBumpMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            int32 textureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            /*int32 tangentuvSet=*/ in.readInt32();
+            /*int32 binormaluvSet =*/ in.readInt32();
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::BUMP_MAP_LAYER, textureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialBumpMap, EXTENDED_MATERIAL_BUMP_MAP_OP)
+
+   class ExtendedMaterialShadowMap : public Record
+   {
+   public:
+
+      ExtendedMaterialShadowMap() {}
+
+      META_Record(ExtendedMaterialShadowMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialShadowMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            float32 maximumIntensity = in.readFloat32();
+            int32 textureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            extendMaterial->setShadowMapMaximumIntensity(maximumIntensity);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::SHADOW_MAP_LAYER, textureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialShadowMap, EXTENDED_MATERIAL_SHADOW_MAP_OP)
+
+   class ExtendedMaterialReflectionMap : public Record
+   {
+   public:
+
+      ExtendedMaterialReflectionMap() {}
+
+      META_Record(ExtendedMaterialReflectionMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialReflectionMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            osg::Vec3f tint = in.readVec3f();
+            int32 maskTextureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            int32 baseTextureIndex = in.readInt32();
+            extendMaterial->setReflectionTintColor(tint);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::REFLECTION_BASE_LAYER, baseTextureIndex);
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::REFLECTION_MASK_LAYER, maskTextureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialReflectionMap, EXTENDED_MATERIAL_REFLECTION_MAP_OP)
+
+   class ExtendedMaterialPhysicalMap : public Record
+   {
+   public:
+
+      ExtendedMaterialPhysicalMap() {}
+
+      META_Record(ExtendedMaterialPhysicalMap)
+
+   protected:
+
+      virtual ~ExtendedMaterialPhysicalMap() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         ExtendedMaterialPool* mp = document.getOrCreateExtendedMaterialPool();
+         osg::ExtendedMaterial* extendMaterial = mp->currentExtendedMaterial();
+         if (extendMaterial)
+         {
+            int32 textureIndex = in.readInt32();
+            /*int32 uvSet = */in.readInt32();
+            extendMaterial->setEffectTextureIndex(osg::ExtendedMaterial::PHYSICAL_MAP_LAYER, textureIndex);
+         }
+      }
+   };
+   REGISTER_FLTRECORD(ExtendedMaterialPhysicalMap, EXTENDED_MATERIAL_PHYSICAL_MATERIAL_OP)
+
+
+   class OldMaterialPalette : public Record
+   {
+   public:
+
+      OldMaterialPalette() {}
+
+      META_Record(OldMaterialPalette)
+
+   protected:
+
+      virtual ~OldMaterialPalette() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getMaterialPoolParent())
             // Using parent's material pool -- ignore this record.
             return;
 
-        for (int i=0; i < 64; i++)
-        {
+         for (int i = 0; i < 64; i++)
+         {
             osg::Vec3f ambient = in.readVec3f();
             osg::Vec3f diffuse = in.readVec3f();
             osg::Vec3f specular = in.readVec3f();
@@ -267,134 +627,144 @@ protected:
             float32 alpha = in.readFloat32();
             /*uint32 flags =*/ in.readUInt32();
             std::string name = in.readString(12);
-            in.forward(4*28);
+            in.forward(4 * 28);
 
             osg::Material* material = new osg::Material;
-            material->setAmbient(osg::Material::FRONT_AND_BACK,osg::Vec4(ambient,alpha));
-            material->setDiffuse (osg::Material::FRONT_AND_BACK,osg::Vec4(diffuse,alpha));
-            material->setSpecular(osg::Material::FRONT_AND_BACK,osg::Vec4(specular,alpha));
-            material->setEmission(osg::Material::FRONT_AND_BACK,osg::Vec4(emissive,alpha));
+            material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(ambient, alpha));
+            material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(diffuse, alpha));
+            material->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4(specular, alpha));
+            material->setEmission(osg::Material::FRONT_AND_BACK, osg::Vec4(emissive, alpha));
 
-            if (shininess>=0.0f)
-            {        
-                material->setShininess(osg::Material::FRONT_AND_BACK,shininess);
+            if (shininess >= 0.0f)
+            {
+               material->setShininess(osg::Material::FRONT_AND_BACK, shininess);
             }
             else
             {
-                OSG_INFO<<"Warning: OpenFlight shininess value out of range: "<<shininess<<std::endl;
+               OSG_INFO << "Warning: OpenFlight shininess value out of range: " << shininess << std::endl;
             }
 
             MaterialPool* mp = document.getOrCreateMaterialPool();
             (*mp)[i] = material;
-        }
-    }
+         }
+      }
 
-};
+   };
 
-REGISTER_FLTRECORD(OldMaterialPalette, OLD_MATERIAL_PALETTE_OP)
+   REGISTER_FLTRECORD(OldMaterialPalette, OLD_MATERIAL_PALETTE_OP)
 
 
 
-class TexturePalette : public Record
-{
-public:
+   class TexturePalette : public Record
+   {
+   public:
 
-    TexturePalette() {}
+      TexturePalette() {}
 
-    META_Record(TexturePalette)
+      META_Record(TexturePalette)
 
-protected:
+   protected:
 
-    virtual ~TexturePalette() {}
+      virtual ~TexturePalette() {}
 
-    osg::Texture2D::WrapMode convertWrapMode(int32 attrWrapMode, const Document& document) const
-    {
-        osg::Texture2D::WrapMode osgWrapMode = osg::Texture2D::REPEAT;
-        switch (attrWrapMode)
-        {
-        case AttrData::WRAP_CLAMP:
+      osg::Texture2D::WrapMode convertWrapMode(int32 attrWrapMode, const Document& document) const
+      {
+         osg::Texture2D::WrapMode osgWrapMode = osg::Texture2D::REPEAT;
+         switch (attrWrapMode)
+         {
+         case AttrData::WRAP_CLAMP:
             if (document.getReplaceClampWithClampToEdge())
-                osgWrapMode = osg::Texture2D::CLAMP_TO_EDGE;
+               osgWrapMode = osg::Texture2D::CLAMP_TO_EDGE;
             else
-                osgWrapMode = osg::Texture2D::CLAMP;
+               osgWrapMode = osg::Texture2D::CLAMP;
             break;
-        case AttrData::WRAP_MIRRORED_REPEAT:
+         case AttrData::WRAP_MIRRORED_REPEAT:
             osgWrapMode = osg::Texture2D::MIRROR;
             break;
-        case AttrData::WRAP_REPEAT:
+         case AttrData::WRAP_REPEAT:
             osgWrapMode = osg::Texture2D::REPEAT;
             break;
-        }
+         }
 
-        return osgWrapMode;
-    }
+         return osgWrapMode;
+      }
 
-    osg::StateSet* readTexture(const std::string& filename, const Document& document) const
-    {
-        osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(filename,document.getOptions());
-        if (!image) return NULL;
+      // Read the texture directly from a file
+      // readTexture() was separated in two calls to support CDB databases (where some flt and textures are in zip files)
+      osg::StateSet* readTexture(const std::string& filename, const Document& document) const
+      {
+         osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(filename, document.getOptions());
+         if (!image) return NULL;
+         return readTexture(image, filename, document);
+      }
 
-        // Create stateset to hold texture and attributes.
-        osg::StateSet* stateset = new osg::StateSet;
+      // use this readTexture call to read a texture directly from an image in memory instead of a filename
+      // this can happen when reading texture from CDB databases where the texture are in a zip file
+      osg::StateSet* readTexture(osg::ref_ptr<osg::Image> image, const std::string& filename, const Document& document) const
+      {
+         if (!image) return NULL;
 
-        osg::Texture2D* texture = new osg::Texture2D;
-        texture->setWrap(osg::Texture2D::WRAP_S,osg::Texture2D::REPEAT);
-        texture->setWrap(osg::Texture2D::WRAP_T,osg::Texture2D::REPEAT);
-        texture->setResizeNonPowerOfTwoHint(true);
-        texture->setImage(image.get());
-        stateset->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+         // Create stateset to hold texture and attributes.
+         osg::StateSet* stateset = new osg::StateSet;
 
-        // Read attribute file
-        std::string attrname = filename + ".attr";
-        osg::ref_ptr<AttrData> attr = dynamic_cast<AttrData*>(osgDB::readObjectFile(attrname,document.getOptions()));
-        if (attr.valid())
-        {
+         osg::Texture2D* texture = new osg::Texture2D;
+         texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
+         texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
+         texture->setResizeNonPowerOfTwoHint(true);
+         texture->setImage(image.get());
+         stateset->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+
+         // Read attribute file
+         std::string attrname = filename + ".attr";
+         osg::ref_ptr<AttrData> attr = dynamic_cast<AttrData*>(osgDB::readObjectFile(attrname, document.getOptions()));
+         if (attr.valid())
+         {
             // Wrap mode
-            osg::Texture2D::WrapMode wrap_s = convertWrapMode(attr->wrapMode_u,document);
-            texture->setWrap(osg::Texture2D::WRAP_S,wrap_s);
+            osg::Texture2D::WrapMode wrap_s = convertWrapMode(attr->wrapMode_u, document);
+            texture->setWrap(osg::Texture2D::WRAP_S, wrap_s);
 
-            osg::Texture2D::WrapMode wrap_t = convertWrapMode(attr->wrapMode_v,document);
-            texture->setWrap(osg::Texture2D::WRAP_T,wrap_t);
+            osg::Texture2D::WrapMode wrap_t = convertWrapMode(attr->wrapMode_v, document);
+            texture->setWrap(osg::Texture2D::WRAP_T, wrap_t);
 
             // Min filter
             switch (attr->minFilterMode)
             {
             case AttrData::MIN_FILTER_POINT:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
+               break;
             case AttrData::MIN_FILTER_BILINEAR:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR);
+               break;
             case AttrData::MIN_FILTER_MIPMAP_POINT:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_NEAREST);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_NEAREST);
+               break;
             case AttrData::MIN_FILTER_MIPMAP_LINEAR:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_LINEAR);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_LINEAR);
+               break;
             case AttrData::MIN_FILTER_MIPMAP_BILINEAR:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
+               break;
             case AttrData::MIN_FILTER_MIPMAP_TRILINEAR:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
+               break;
             case AttrData::MIN_FILTER_BICUBIC:
             case AttrData::MIN_FILTER_BILINEAR_GEQUAL:
             case AttrData::MIN_FILTER_BILINEAR_LEQUAL:
             case AttrData::MIN_FILTER_BICUBIC_GEQUAL:
             case AttrData::MIN_FILTER_BICUBIC_LEQUAL:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
+               break;
             default:
-                texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
-                break;
+               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
+               break;
             }
 
             // Mag filter
             switch (attr->magFilterMode)
             {
             case AttrData::MAG_FILTER_POINT:
-                texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
-                break;
+               texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
+               break;
             case AttrData::MAG_FILTER_BILINEAR:
             case AttrData::MAG_FILTER_BILINEAR_GEQUAL:
             case AttrData::MAG_FILTER_BILINEAR_LEQUAL:
@@ -404,465 +774,660 @@ protected:
             case AttrData::MAG_FILTER_BICUBIC_LEQUAL:
             case AttrData::MAG_FILTER_ADD_DETAIL:
             case AttrData::MAG_FILTER_MODULATE_DETAIL:
-                texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
-                break;
+               texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
+               break;
             }
 
             // Internal mode
-            switch(attr->intFormat)
+            switch (attr->intFormat)
             {
             case AttrData::INTERNAL_FORMAT_TX_I_12A_4:
-                texture->setInternalFormat(GL_LUMINANCE12_ALPHA4);
-                break;
+               texture->setInternalFormat(GL_LUMINANCE12_ALPHA4);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_IA_8:
-                texture->setInternalFormat(GL_LUMINANCE_ALPHA);
-                break;
+               texture->setInternalFormat(GL_LUMINANCE_ALPHA);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_RGB_5:
-                texture->setInternalFormat(GL_RGB5);
-                break;
+               texture->setInternalFormat(GL_RGB5);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_RGBA_4:
-                texture->setInternalFormat(GL_RGBA4);
-                break;
+               texture->setInternalFormat(GL_RGBA4);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_IA_12:
-                texture->setInternalFormat(GL_LUMINANCE12_ALPHA12);
-                break;
+               texture->setInternalFormat(GL_LUMINANCE12_ALPHA12);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_RGBA_8:
-                texture->setInternalFormat(GL_RGBA8);
-                break;
+               texture->setInternalFormat(GL_RGBA8);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_RGBA_12:
-                texture->setInternalFormat(GL_RGBA12);
-                break;
+               texture->setInternalFormat(GL_RGBA12);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_I_16:
-                texture->setInternalFormat(GL_INTENSITY16);
-                break;
+               texture->setInternalFormat(GL_INTENSITY16);
+               break;
             case AttrData::INTERNAL_FORMAT_TX_RGB_12:
-                texture->setInternalFormat(GL_RGB12);
-                break;
+               texture->setInternalFormat(GL_RGB12);
+               break;
             case AttrData::INTERNAL_FORMAT_DEFAULT:
             default:
-                // Do nothing, just use the image data format
-                break;
+               // Do nothing, just use the image data format
+               break;
             }
 
             osg::TexEnv* texenv = new osg::TexEnv;
             switch (attr->texEnvMode)
             {
             case AttrData::TEXENV_MODULATE:
-                texenv->setMode(osg::TexEnv::MODULATE);
-                break;
+               texenv->setMode(osg::TexEnv::MODULATE);
+               break;
             case AttrData::TEXENV_BLEND:
-                texenv->setMode(osg::TexEnv::BLEND);
-                break;
+               texenv->setMode(osg::TexEnv::BLEND);
+               break;
             case AttrData::TEXENV_DECAL:
-                texenv->setMode(osg::TexEnv::DECAL);
-                break;
+               texenv->setMode(osg::TexEnv::DECAL);
+               break;
             case AttrData::TEXENV_COLOR:
-                texenv->setMode(osg::TexEnv::REPLACE);
-                break;
+               texenv->setMode(osg::TexEnv::REPLACE);
+               break;
             case AttrData::TEXENV_ADD:
-                texenv->setMode(osg::TexEnv::ADD);
-                break;
+               texenv->setMode(osg::TexEnv::ADD);
+               break;
             }
             stateset->setTextureAttribute(0, texenv);
-        }
+         }
 
-        return stateset;
-    }
+         return stateset;
+      }
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getTexturePoolParent())
+      virtual bool isCdbBaseTexture(std::string& TextureFilename)
+      {
+         // search for CDB component selector 1 with S001 = year around texture
+         std::size_t pos = TextureFilename.find("_S001_");
+         if (pos != std::string::npos)
+            return true;
+         else
+            return false;
+      }
+
+      //skip CDB Raster Material for now
+      virtual bool isCdbRasterMaterialTexture(std::string& TextureFilename)
+      {
+         std::size_t pos = TextureFilename.find("D504_");
+         if (pos != std::string::npos)
+            return true;
+         else
+            return false;
+      }
+
+      virtual bool isCdbGSTexture(Document& document, std::string& pathname)
+      {
+         // check if its a CDB GS texture
+         if (document.getCdb() && pathname.empty() && isCdbGTTexture(pathname) == false)
+         {
+            return true;
+         }
+         else
+         {
+            return false;
+         }
+      }
+
+      // Check if it's a CDB GT texture
+      virtual bool isCdbGTTexture(std::string& TextureFilename)
+      {
+         // check if the CDB texture is a GT texture (to avoid trying to build a zip filename if we have a missing GT texture)
+         if (TextureFilename.find("GTModel") != std::string::npos)
+         {
+            return true;
+         }
+         else
+         {
+            return false;
+         }         
+      }
+
+      // Optimize GS texture usage by removing column and row in texture name
+      virtual bool getGsOptimizedTextureName(std::string& TextureFilename)
+      {
+         // optimization to reuse identical GS texture among the same LOD but in different tiles 
+         // (this happen with CDB 3.0 before the introduction of GS models using GT texture in CDB 3.2)
+         // ex. remove the Uxx_Rxx from the texture filename N33W118_D301_S001_T001_L01_U0_R1_roof_white_generic.rgb
+         // to become N33W118_D301_S001_T001_L01_roof_white_generic.rgb
+         // another potential optimization would be to remove the lat/lon but this become more
+         // incline to texture error since every geocell can be publish separately            
+         std::string optimizeTextureName = TextureFilename.substr(0, positionOfUxxx);
+         size_t pos = TextureFilename.find("_R", positionOfUxxx + 1);
+         if (pos != std::string::npos)
+         {
+            pos = TextureFilename.find("_", pos + 1);
+            if (pos != std::string::npos)
+            {
+               optimizeTextureName = optimizeTextureName + TextureFilename.substr(pos, TextureFilename.length() - pos);
+               TextureFilename = optimizeTextureName;
+               return true;
+            }
+         }
+         return false;
+      }
+
+      virtual void CdbLowerResolutionTexture(std::string& pathname, Document& document)
+      {         
+         int mipmapOffset = document.getMipMapOffset();
+         if (document.getCdb() && mipmapOffset != 0)
+         {            
+            std::string simpleFilename = osgDB::getSimpleFileName(pathname);
+            size_t pos = simpleFilename.find("_W");
+            if (pos != std::string::npos)
+            {
+               //std::string tempPathname = pathname;
+               std::string replace_string = simpleFilename.substr(pos + 2, 2);
+               int cdb_texture_lod = atoi(replace_string.c_str()) - mipmapOffset; // substract the mipmap lod offset
+               if (cdb_texture_lod >= 1)
+               {
+                  cdb_texture_lod--;
+                  replace_string = "_W" + replace_string;
+                  std::stringstream new_lod;
+                  new_lod << "_W" << std::setfill('0') << std::setw(2) << cdb_texture_lod;
+                  pos = pathname.rfind(replace_string);
+                  if (pos != std::string::npos)
+                  {
+                     pathname.replace(pos, 4, new_lod.str());
+                  }                  
+               }
+            }            
+         }
+      }
+
+      // Get the CDB archive name for a GS texture
+      virtual void getGsArchicheName(const std::string& filename, std::string& pathname, Document& document)
+      {
+         // find the position of the filename in the path
+         // we need to recreate the name of the zip file containing
+         // the texture. (ex. for N33W118_D301_S001_T001_L07_U26_R77_LIGHTHOUSE.rgb
+         // the zip will be N33W118_D301_S001_T001_L07_U26_R77.zip)
+         // note: "N33W118_D301_S001_T001_L07_" this portion is fix size
+         // but not the Uxx_Rxx
+         // note 2: a file N33W118_D301_S099_T003_L07_U26_R77_LIGHTHOUSE_LMAP.rgb will
+         // be saved in N33W118_D301_S001_T001_L07_U26_R77.zip
+         std::size_t filenamepos = filename.rfind("/");
+         if (filenamepos == std::string::npos)
+            filenamepos = filename.rfind("\\");
+         // texture filename
+         std::string texturename = osgDB::getSimpleFileName(filename);
+
+         // find the first "_" before the texture name
+         std::size_t texturepos = filename.find("_", filenamepos + positionOfFirst_BeforeTextureName);
+         // find the second "_" before the texture name
+         if (texturepos != std::string::npos)
+            texturepos = filename.find("_", texturepos + 1);
+
+         // Check to replace non S001_T001 selectors in the zip name
+         std::string zipfilename = filename;
+         std::size_t selectorpos = filename.find("S001_T001_");
+         if (selectorpos == std::string::npos)
+         {
+            selectorpos = zipfilename.find("_S");
+            if (selectorpos != std::string::npos)
+               zipfilename.replace(selectorpos, 11, "_S001_T001_");
+         }
+
+         pathname = zipfilename.substr(0, texturepos) + ".zip";
+         pathname = osgDB::findDataFile(pathname, document.getOptions());
+         pathname += "cdb";
+      }
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getTexturePoolParent())
             // Using parent's texture pool -- ignore this record.
             return;
 
-        int maxLength = (document.version() < VERSION_14) ? 80 : 200;
-        std::string filename = in.readString(maxLength);
-        int32 index = in.readInt32(-1);
-        /*int32 x =*/ in.readInt32();
-        /*int32 y =*/ in.readInt32();
+         int maxLength = (document.version() < VERSION_14) ? 80 : 200;
+         std::string filename = in.readString(maxLength);
+         int32 index = in.readInt32(-1);
+         /*int32 x =*/ in.readInt32();
+         /*int32 y =*/ in.readInt32();
 
-        // Need full path for unique key in local texture cache.
-        std::string pathname = osgDB::findDataFile(filename,document.getOptions());
-        if (pathname.empty())
-        {
-            OSG_WARN << "Can't find texture (" << index << ") " << filename << std::endl;
-            return;
-        }
+         // Need full path for unique key in local texture cache.
+         std::string pathname = osgDB::findDataFile(filename, document.getOptions());
+         pathname = boost::filesystem::system_complete(pathname).string();
+         osg::StateSet* stateset = NULL;
 
-        // Is texture in local cache?
-        osg::StateSet* stateset = flt::Registry::instance()->getTextureFromLocalCache(pathname);
+         // for archive CDB textures files
+         if (document.getCdb() && pathname.empty())
+         {
+            std::string simpleFilename = osgDB::getSimpleFileName(filename);
 
-        // Read file if not in cache.
-        if (!stateset)
-        {
-            stateset = readTexture(pathname,document);
+            //skip CDB Raster Material for now (used for sensors)
+            if (isCdbRasterMaterialTexture(simpleFilename))
+            {
+               return;
+            }
 
-            // Add to texture cache.
-            flt::Registry::instance()->addTextureToLocalCache(pathname,stateset);
-        }
+            // get the optimized texture filename
+            std::string optimizeTextureName = simpleFilename;
+            getGsOptimizedTextureName(optimizeTextureName);
+            stateset = document.getRegistry()->getTextureFromLocalCache(optimizeTextureName);
+            
+            // Read file if not in cache.
+            if (!stateset)
+            {
+               getGsArchicheName(filename, pathname, document);
 
-        // Add to texture pool.
-        TexturePool* tp = document.getOrCreateTexturePool();
-        (*tp)[index] = stateset;
-    }
-};
+               // Read file from zip
+               osgDB::ReaderWriter* rw = osgDB::Registry::instance()->getReaderWriterForExtension("zipcdb");  // TODO put this in the constructor so we don't have to retrieve it on all textures
+               if (rw != NULL)
+               {
+                  // Setup appropriate options
+                  osg::ref_ptr<osgDB::ReaderWriter::Options> local_opt = new osgDB::ReaderWriter::Options(*document.getOptions());
+                  std::string optionString = document.getOptions()->getOptionString() + " TEXTUREFILENAME=\"" + simpleFilename + "\"";
+                  local_opt->setOptionString(optionString);
+                  local_opt->getDatabasePathList().push_front(osgDB::getFilePath(pathname));
+                  osg::ref_ptr<osg::Image> image = readImageFile(pathname, local_opt.get());
+                  stateset = readTexture(image, simpleFilename, document);                  
 
-REGISTER_FLTRECORD(TexturePalette, TEXTURE_PALETTE_OP)
+                  // Add to texture cache.           
+                  document.getRegistry()->addTextureToLocalCache(optimizeTextureName, stateset);
+               }
+               else
+               {
+                  OSG_WARN << "Can't find CDB texture (" << index << ") " << simpleFilename << std::endl;
+                  return;
+               }
+            }
+         }
+         else
+         {
+            if (pathname.empty())
+            {
+               OSG_WARN << "Can't find texture (" << index << ") " << filename << std::endl;
+               return;
+            }
 
+            //skip CDB Raster Material for now
+            if (isCdbRasterMaterialTexture(pathname))
+            {
+               return;
+            }
 
+            // Do we want a lower CDB texture resolution?
+            CdbLowerResolutionTexture(pathname, document);
 
-class EyepointAndTrackplanePalette : public Record
-{
-public:
+            // Is texture in local cache?           
+            stateset = document.getRegistry()->getTextureFromLocalCache(pathname);
 
-    EyepointAndTrackplanePalette() {}
+            // Read file if not in cache.
+            if (!stateset)
+            {
+               stateset = readTexture(pathname, document);
 
-    META_Record(EyepointAndTrackplanePalette)
+               // Add to texture cache.
+               document.getRegistry()->addTextureToLocalCache(pathname, stateset);
+            }
+         }
+         // Add to texture pool.
+         TexturePool* tp = document.getOrCreateTexturePool();
+         (*tp)[index] = stateset;
 
-protected:
+      }
+   };
 
-    virtual ~EyepointAndTrackplanePalette() {}
-
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
-};
-
-REGISTER_FLTRECORD(EyepointAndTrackplanePalette, EYEPOINT_AND_TRACKPLANE_PALETTE_OP)
-
-
-
-class LinkagePalette : public Record
-{
-public:
-
-    LinkagePalette() {}
-
-    META_Record(LinkagePalette)
-
-protected:
-
-    virtual ~LinkagePalette() {}
-
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
-};
-
-REGISTER_FLTRECORD(LinkagePalette, LINKAGE_PALETTE_OP)
-
-
-
-class SoundPalette : public Record
-{
-public:
-
-    SoundPalette() {}
-
-    META_Record(SoundPalette)
-
-protected:
-
-    virtual ~SoundPalette() {}
-
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
-};
-
-REGISTER_FLTRECORD(SoundPalette, SOUND_PALETTE_OP)
+   REGISTER_FLTRECORD(TexturePalette, TEXTURE_PALETTE_OP)
 
 
 
-class LightSourcePalette : public Record
-{
-public:
+   class EyepointAndTrackplanePalette : public Record
+   {
+   public:
 
-    LightSourcePalette() {}
+      EyepointAndTrackplanePalette() {}
 
-    META_Record(LightSourcePalette)
+      META_Record(EyepointAndTrackplanePalette)
 
-    enum LightType
-    {
-        INFINITE_LIGHT = 0,
-        LOCAL_LIGHT = 1,
-        SPOT_LIGHT = 2
-    };
+   protected:
 
-protected:
+      virtual ~EyepointAndTrackplanePalette() {}
 
-    virtual ~LightSourcePalette() {}
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
+   };
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getLightSourcePoolParent())
+   REGISTER_FLTRECORD(EyepointAndTrackplanePalette, EYEPOINT_AND_TRACKPLANE_PALETTE_OP)
+
+
+
+   class LinkagePalette : public Record
+   {
+   public:
+
+      LinkagePalette() {}
+
+      META_Record(LinkagePalette)
+
+   protected:
+
+      virtual ~LinkagePalette() {}
+
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
+   };
+
+   REGISTER_FLTRECORD(LinkagePalette, LINKAGE_PALETTE_OP)
+
+
+
+   class SoundPalette : public Record
+   {
+   public:
+
+      SoundPalette() {}
+
+      META_Record(SoundPalette)
+
+   protected:
+
+      virtual ~SoundPalette() {}
+
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/) {}
+   };
+
+   REGISTER_FLTRECORD(SoundPalette, SOUND_PALETTE_OP)
+
+
+
+   class LightSourcePalette : public Record
+   {
+   public:
+
+      LightSourcePalette() {}
+
+      META_Record(LightSourcePalette)
+
+      enum LightType
+      {
+         INFINITE_LIGHT = 0,
+         LOCAL_LIGHT = 1,
+         SPOT_LIGHT = 2
+      };
+
+   protected:
+
+      virtual ~LightSourcePalette() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getLightSourcePoolParent())
             // Using parent's texture pool -- ignore this record.
             return;
 
-        int32 index = in.readInt32(-1);
-        in.forward(2*4);
-        std::string name = in.readString(20);
-        in.forward(4);
-        osg::Vec4f ambient = in.readVec4f();
-        osg::Vec4f diffuse = in.readVec4f();
-        osg::Vec4f specular = in.readVec4f();
-        int32 type = in.readInt32();
-        in.forward(4*10);
-        float32 spotExponent = in.readFloat32();
-        float32 spotCutoff = in.readFloat32();
-        /*float32 yaw =*/ in.readFloat32();
-        /*float32 pitch =*/ in.readFloat32();
-        float32 constantAttenuation = in.readFloat32();
-        float32 linearAttenuation = in.readFloat32();
-        float32 quadraticAttenuation = in.readFloat32();
-        /*int32 active =*/ in.readInt32();
+         int32 index = in.readInt32(-1);
+         in.forward(2 * 4);
+         std::string name = in.readString(20);
+         in.forward(4);
+         osg::Vec4f ambient = in.readVec4f();
+         osg::Vec4f diffuse = in.readVec4f();
+         osg::Vec4f specular = in.readVec4f();
+         int32 type = in.readInt32();
+         in.forward(4 * 10);
+         float32 spotExponent = in.readFloat32();
+         float32 spotCutoff = in.readFloat32();
+         /*float32 yaw =*/ in.readFloat32();
+         /*float32 pitch =*/ in.readFloat32();
+         float32 constantAttenuation = in.readFloat32();
+         float32 linearAttenuation = in.readFloat32();
+         float32 quadraticAttenuation = in.readFloat32();
+         /*int32 active =*/ in.readInt32();
 
-        osg::ref_ptr<osg::Light> light = new osg::Light;
-        light->setAmbient(ambient);
-        light->setDiffuse(diffuse);
-        light->setSpecular(specular);
+         osg::ref_ptr<osg::Light> light = new osg::Light;
+         light->setAmbient(ambient);
+         light->setDiffuse(diffuse);
+         light->setSpecular(specular);
 
-        switch (type)
-        {
-        case INFINITE_LIGHT:
-            light->setPosition(osg::Vec4(0.0f,0.0f,1.0f,0.0f));
+         switch (type)
+         {
+         case INFINITE_LIGHT:
+            light->setPosition(osg::Vec4(0.0f, 0.0f, 1.0f, 0.0f));
             break;
-        case LOCAL_LIGHT:
-            light->setPosition(osg::Vec4(0.0f,0.0f,0.0f,1.0f));
+         case LOCAL_LIGHT:
+            light->setPosition(osg::Vec4(0.0f, 0.0f, 0.0f, 1.0f));
             light->setConstantAttenuation(constantAttenuation);
             light->setLinearAttenuation(linearAttenuation);
             light->setQuadraticAttenuation(quadraticAttenuation);
             break;
-        case SPOT_LIGHT:
-            light->setPosition(osg::Vec4(0.0f,0.0f,0.0f,1.0f));
-            light->setDirection(osg::Vec3(0.0f,1.0f,0.0f));
+         case SPOT_LIGHT:
+            light->setPosition(osg::Vec4(0.0f, 0.0f, 0.0f, 1.0f));
+            light->setDirection(osg::Vec3(0.0f, 1.0f, 0.0f));
             light->setConstantAttenuation(constantAttenuation);
             light->setLinearAttenuation(linearAttenuation);
             light->setQuadraticAttenuation(quadraticAttenuation);
             light->setSpotExponent(spotExponent);
             light->setSpotCutoff(spotCutoff);
             break;
-        }
+         }
 
-        // Add to pool
-        LightSourcePool* pool = document.getOrCreateLightSourcePool();
-        (*pool)[index] = light.get();
-    }
-};
+         // Add to pool
+         LightSourcePool* pool = document.getOrCreateLightSourcePool();
+         (*pool)[index] = light.get();
+      }
+   };
 
-REGISTER_FLTRECORD(LightSourcePalette, LIGHT_SOURCE_PALETTE_OP)
+   REGISTER_FLTRECORD(LightSourcePalette, LIGHT_SOURCE_PALETTE_OP)
 
 
 
-class LightPointAppearancePalette : public Record
-{
-public:
+   class LightPointAppearancePalette : public Record
+   {
+   public:
 
-    LightPointAppearancePalette() {}
+      LightPointAppearancePalette() {}
 
-    META_Record(LightPointAppearancePalette)
+      META_Record(LightPointAppearancePalette)
 
-protected:
+   protected:
 
-    virtual ~LightPointAppearancePalette() {}
+      virtual ~LightPointAppearancePalette() {}
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getLightPointAppearancePoolParent())
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getLightPointAppearancePoolParent())
             // Using parent's light point appearance pool -- ignore this record.
             return;
 
-        osg::ref_ptr<LPAppearance> appearance = new LPAppearance;
+         osg::ref_ptr<LPAppearance> appearance = new LPAppearance;
 
-        in.forward(4);
-        appearance->name = in.readString(256);
-        appearance->index = in.readInt32(-1);
-        appearance->materialCode = in.readInt16();
-        appearance->featureID = in.readInt16();
+         in.forward(4);
+         appearance->name = in.readString(256);
+         appearance->index = in.readInt32(-1);
+         appearance->materialCode = in.readInt16();
+         appearance->featureID = in.readInt16();
 
-        int32 backColorIndex = in.readInt32();
-        appearance->backColor = document.getColorPool() ?
-                            document.getColorPool()->getColor(backColorIndex) :
-                            osg::Vec4(1.0f, 1.0f, 1.0f, 1.0f);
+         int32 backColorIndex = in.readInt32();
+         appearance->backColor = document.getColorPool() ?
+            document.getColorPool()->getColor(backColorIndex) :
+            osg::Vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-        appearance->displayMode = in.readInt32();
-        appearance->intensityFront = in.readFloat32();
-        appearance->intensityBack = in.readFloat32();
-        appearance->minDefocus = in.readFloat32();
-        appearance->maxDefocus = in.readFloat32();
-        appearance->fadingMode = in.readInt32();
-        appearance->fogPunchMode = in.readInt32();
-        appearance->directionalMode = in.readInt32();
-        appearance->rangeMode = in.readInt32();
-        appearance->minPixelSize = in.readFloat32();
-        appearance->maxPixelSize = in.readFloat32();
-        appearance->actualPixelSize = in.readFloat32();
-        appearance->transparentFalloffPixelSize = in.readFloat32();
-        appearance->transparentFalloffExponent = in.readFloat32();
-        appearance->transparentFalloffScalar = in.readFloat32();
-        appearance->transparentFalloffClamp = in.readFloat32();
-        appearance->fogScalar = in.readFloat32();
-        appearance->fogIntensity = in.readFloat32();
-        appearance->sizeDifferenceThreshold = in.readFloat32();
-        appearance->directionality = in.readInt32();
-        appearance->horizontalLobeAngle = in.readFloat32();
-        appearance->verticalLobeAngle = in.readFloat32();
-        appearance->lobeRollAngle = in.readFloat32();
-        appearance->directionalFalloffExponent = in.readFloat32();
-        appearance->directionalAmbientIntensity = in.readFloat32();
-        appearance->significance = in.readFloat32();
-        appearance->flags = in.readUInt32();
-        appearance->visibilityRange = in.readFloat32();
-        appearance->fadeRangeRatio = in.readFloat32();
-        appearance->fadeInDuration = in.readFloat32();
-        appearance->fadeOutDuration = in.readFloat32();
-        appearance->LODRangeRatio = in.readFloat32();
-        appearance->LODScale = in.readFloat32();
+         appearance->displayMode = in.readInt32();
+         appearance->intensityFront = in.readFloat32();
+         appearance->intensityBack = in.readFloat32();
+         appearance->minDefocus = in.readFloat32();
+         appearance->maxDefocus = in.readFloat32();
+         appearance->fadingMode = in.readInt32();
+         appearance->fogPunchMode = in.readInt32();
+         appearance->directionalMode = in.readInt32();
+         appearance->rangeMode = in.readInt32();
+         appearance->minPixelSize = in.readFloat32();
+         appearance->maxPixelSize = in.readFloat32();
+         appearance->actualPixelSize = in.readFloat32();
+         appearance->transparentFalloffPixelSize = in.readFloat32();
+         appearance->transparentFalloffExponent = in.readFloat32();
+         appearance->transparentFalloffScalar = in.readFloat32();
+         appearance->transparentFalloffClamp = in.readFloat32();
+         appearance->fogScalar = in.readFloat32();
+         appearance->fogIntensity = in.readFloat32();
+         appearance->sizeDifferenceThreshold = in.readFloat32();
+         appearance->directionality = in.readInt32();
+         appearance->horizontalLobeAngle = in.readFloat32();
+         appearance->verticalLobeAngle = in.readFloat32();
+         appearance->lobeRollAngle = in.readFloat32();
+         appearance->directionalFalloffExponent = in.readFloat32();
+         appearance->directionalAmbientIntensity = in.readFloat32();
+         appearance->significance = in.readFloat32();
+         appearance->flags = in.readUInt32();
+         appearance->visibilityRange = in.readFloat32();
+         appearance->fadeRangeRatio = in.readFloat32();
+         appearance->fadeInDuration = in.readFloat32();
+         appearance->fadeOutDuration = in.readFloat32();
+         appearance->LODRangeRatio = in.readFloat32();
+         appearance->LODScale = in.readFloat32();
 
-        if(document.version() > VERSION_15_8)
+         if (document.version() > VERSION_15_8)
             appearance->texturePatternIndex = in.readInt16(-1);
-        else
-           appearance->texturePatternIndex = -1;
+         else
+            appearance->texturePatternIndex = -1;
 
-        // The final short is reserved; don't bother reading it.
+         // The final short is reserved; don't bother reading it.
 
-        // Add to pool
-        LightPointAppearancePool* lpaPool = document.getOrCreateLightPointAppearancePool();
-        (*lpaPool)[appearance->index] = appearance.get();
-    }
+         // Add to pool
+         LightPointAppearancePool* lpaPool = document.getOrCreateLightPointAppearancePool();
+         (*lpaPool)[appearance->index] = appearance.get();
+      }
 
-};
+   };
 
-REGISTER_FLTRECORD(LightPointAppearancePalette, LIGHT_POINT_APPEARANCE_PALETTE_OP)
+   REGISTER_FLTRECORD(LightPointAppearancePalette, LIGHT_POINT_APPEARANCE_PALETTE_OP)
 
 
 
-class LightPointAnimationPalette : public Record
-{
-public:
+   class LightPointAnimationPalette : public Record
+   {
+   public:
 
-    LightPointAnimationPalette() {}
+      LightPointAnimationPalette() {}
 
-    META_Record(LightPointAnimationPalette)
+      META_Record(LightPointAnimationPalette)
 
-protected:
+   protected:
 
-    virtual ~LightPointAnimationPalette() {}
+      virtual ~LightPointAnimationPalette() {}
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
          if (document.getLightPointAnimationPoolParent())
             // Using parent's light point animation pool -- ignore this record.
             return;
 
-        osg::ref_ptr<LPAnimation> animation = new LPAnimation;
+         osg::ref_ptr<LPAnimation> animation = new LPAnimation;
 
-        in.forward(4);
-        animation->name = in.readString(256);
-        animation->index = in.readInt32(-1);
-        // Rotating or strobe
-        animation->animationPeriod = in.readFloat32();
-        animation->animationPhaseDelay = in.readFloat32();
-        animation->animationEnabledPeriod = in.readFloat32();
-        animation->axisOfRotation = in.readVec3f();
-        animation->flags = in.readUInt32();
-        animation->animationType = in.readInt32();
+         in.forward(4);
+         animation->name = in.readString(256);
+         animation->index = in.readInt32(-1);
+         // Rotating or strobe
+         animation->animationPeriod = in.readFloat32();
+         animation->animationPhaseDelay = in.readFloat32();
+         animation->animationEnabledPeriod = in.readFloat32();
+         animation->axisOfRotation = in.readVec3f();
+         animation->flags = in.readUInt32();
+         animation->animationType = in.readInt32();
 
-        // Morse code
-        animation->morseCodeTiming = in.readInt32();
-        animation->wordRate = in.readInt32();
-        animation->characterRate = in.readInt32();
-        animation->morseCodeString = in.readString(1024);
+         // Morse code
+         animation->morseCodeTiming = in.readInt32();
+         animation->wordRate = in.readInt32();
+         animation->characterRate = in.readInt32();
+         animation->morseCodeString = in.readString(1024);
 
-        // Flashing sequence
-        int32 numberOfSequences = in.readInt32();
-        for (int n=0; n<numberOfSequences; ++n)
-        {
+         // Flashing sequence
+         int32 numberOfSequences = in.readInt32();
+         for (int n = 0; n < numberOfSequences; ++n)
+         {
             LPAnimation::Pulse pulse;
             pulse.state = in.readUInt32();
             pulse.duration = in.readFloat32();
             pulse.color = in.readColor32();
 
             animation->sequence.push_back(pulse);
-        }
+         }
 
-        // Add to pool
-        LightPointAnimationPool* lpaPool = document.getOrCreateLightPointAnimationPool();
-        (*lpaPool)[animation->index] = animation.get();
-    }
-};
+         // Add to pool
+         LightPointAnimationPool* lpaPool = document.getOrCreateLightPointAnimationPool();
+         (*lpaPool)[animation->index] = animation.get();
+      }
+   };
 
-REGISTER_FLTRECORD(LightPointAnimationPalette, LIGHT_POINT_ANIMATION_PALETTE_OP)
-
-
-
-class LineStylePalette : public Record
-{
-public:
-
-    LineStylePalette() {}
-
-    META_Record(LineStylePalette)
-
-protected:
-
-    virtual ~LineStylePalette() {}
-
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
-    {
-    }
-};
-
-REGISTER_FLTRECORD(LineStylePalette, LINE_STYLE_PALETTE_OP)
+   REGISTER_FLTRECORD(LightPointAnimationPalette, LIGHT_POINT_ANIMATION_PALETTE_OP)
 
 
 
-class TextureMappingPalette : public Record
-{
-public:
+   class LineStylePalette : public Record
+   {
+   public:
 
-    TextureMappingPalette() {}
+      LineStylePalette() {}
 
-    META_Record(TextureMappingPalette)
+      META_Record(LineStylePalette)
 
-protected:
+   protected:
 
-    virtual ~TextureMappingPalette() {}
+      virtual ~LineStylePalette() {}
 
-    virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
-    {
-    }
-};
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
+      {
+      }
+   };
 
-REGISTER_FLTRECORD(TextureMappingPalette, TEXTURE_MAPPING_PALETTE_OP)
+   REGISTER_FLTRECORD(LineStylePalette, LINE_STYLE_PALETTE_OP)
 
 
 
-class ShaderPalette : public Record
-{
-public:
+   class TextureMappingPalette : public Record
+   {
+   public:
 
-    ShaderPalette() {}
+      TextureMappingPalette() {}
 
-    META_Record(ShaderPalette)
+      META_Record(TextureMappingPalette)
 
-    enum ShaderType
-    {
-        CG=0,
-        CGFX=1,
-        GLSL=2
-    };
+   protected:
 
-protected:
+      virtual ~TextureMappingPalette() {}
 
-    virtual ~ShaderPalette() {}
+      virtual void readRecord(RecordInputStream& /*in*/, Document& /*document*/)
+      {
+      }
+   };
 
-    virtual void readRecord(RecordInputStream& in, Document& document)
-    {
-        if (document.getShaderPoolParent())
+   REGISTER_FLTRECORD(TextureMappingPalette, TEXTURE_MAPPING_PALETTE_OP)
+
+
+
+   class ShaderPalette : public Record
+   {
+   public:
+
+      ShaderPalette() {}
+
+      META_Record(ShaderPalette)
+
+      enum ShaderType
+      {
+         CG = 0,
+         CGFX = 1,
+         GLSL = 2
+      };
+
+   protected:
+
+      virtual ~ShaderPalette() {}
+
+      virtual void readRecord(RecordInputStream& in, Document& document)
+      {
+         if (document.getShaderPoolParent())
             // Using parent's shader pool -- ignore this record.
             return;
 
-        int32 index = in.readInt32(-1);
-        int32 type = in.readInt32(-1);
-        std::string name = in.readString(1024);
+         int32 index = in.readInt32(-1);
+         int32 type = in.readInt32(-1);
+         std::string name = in.readString(1024);
 
-        if (type == CG)
-        {
+         if (type == CG)
+         {
             // CG support is currently not implemented. Just parse.
             std::string vertexProgramFilename = in.readString(1024);
             std::string fragmentProgramFilename = in.readString(1024);
@@ -870,17 +1435,17 @@ protected:
             /*int32 fragmentProgramProfile =*/ in.readInt32();
             std::string vertexProgramEntry = in.readString(256);
             std::string fragmentProgramEntry = in.readString(256);
-        }
-        else if (type == GLSL)
-        {
+         }
+         else if (type == GLSL)
+         {
             int32 vertexProgramFileCount(1);
             int32 fragmentProgramFileCount(1);
 
             if (document.version() >= VERSION_16_1)
             {
-                // In 16.1, possibly multiple filenames for each vertex and fragment program.
-                vertexProgramFileCount = in.readInt32();
-                fragmentProgramFileCount = in.readInt32();
+               // In 16.1, possibly multiple filenames for each vertex and fragment program.
+               vertexProgramFileCount = in.readInt32();
+               fragmentProgramFileCount = in.readInt32();
             }
             // else 16.0
             //   Technically, 16.0 didn't support GLSL, but this plugin
@@ -892,41 +1457,41 @@ protected:
 
             // Read vertex programs
             int idx;
-            for( idx=0; idx<vertexProgramFileCount; idx++)
+            for (idx = 0; idx < vertexProgramFileCount; idx++)
             {
-                std::string vertexProgramFilename = in.readString(1024);
+               std::string vertexProgramFilename = in.readString(1024);
 
-                std::string vertexProgramFilePath = osgDB::findDataFile(vertexProgramFilename,document.getOptions());
-                if (!vertexProgramFilePath.empty())
-                {
-                    osg::Shader* vertexShader = osg::Shader::readShaderFile(osg::Shader::VERTEX, vertexProgramFilePath);
-                    if (vertexShader)
-                        program->addShader( vertexShader );
-                }
+               std::string vertexProgramFilePath = osgDB::findDataFile(vertexProgramFilename, document.getOptions());
+               if (!vertexProgramFilePath.empty())
+               {
+                  osg::Shader* vertexShader = osg::Shader::readShaderFile(osg::Shader::VERTEX, vertexProgramFilePath);
+                  if (vertexShader)
+                     program->addShader(vertexShader);
+               }
             }
 
             // Read fragment programs
-            for( idx=0; idx<fragmentProgramFileCount; idx++)
+            for (idx = 0; idx < fragmentProgramFileCount; idx++)
             {
-                std::string fragmentProgramFilename = in.readString(1024);
+               std::string fragmentProgramFilename = in.readString(1024);
 
-                std::string fragmentProgramFilePath = osgDB::findDataFile(fragmentProgramFilename,document.getOptions());
-                if (!fragmentProgramFilePath.empty())
-                {
-                    osg::Shader* fragmentShader = osg::Shader::readShaderFile(osg::Shader::FRAGMENT, fragmentProgramFilePath);
-                    if (fragmentShader)
-                        program->addShader( fragmentShader );
-                }
+               std::string fragmentProgramFilePath = osgDB::findDataFile(fragmentProgramFilename, document.getOptions());
+               if (!fragmentProgramFilePath.empty())
+               {
+                  osg::Shader* fragmentShader = osg::Shader::readShaderFile(osg::Shader::FRAGMENT, fragmentProgramFilePath);
+                  if (fragmentShader)
+                     program->addShader(fragmentShader);
+               }
             }
 
             // Add to shader pool
             ShaderPool* shaderPool = document.getOrCreateShaderPool();
             (*shaderPool)[index] = program;
-        }
-    }
-};
+         }
+      }
+   };
 
-REGISTER_FLTRECORD(ShaderPalette, SHADER_PALETTE_OP)
+   REGISTER_FLTRECORD(ShaderPalette, SHADER_PALETTE_OP)
 
 
 } // end namespace

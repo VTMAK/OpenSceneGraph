@@ -54,6 +54,10 @@
     #endif
 #endif
 
+//VRV_PATCH to help get occlusion culling to work
+namespace osgUtil {
+class RenderLeaf;
+}
 namespace osg {
 
 /** macro for use with osg::StateAttribute::apply methods for detecting and
@@ -144,12 +148,27 @@ class OSG_EXPORT State : public Referenced
          *
          *  Typical settings for ContextID are 0,1,2,3... up to the maximum
          *  number of graphics contexts you have set up. By default contextID is 0.
-         */
-        inline void setContextID(unsigned int contextID) { _contextID=contextID; }
-
+         // VRV_PATCH
+         *  Also sets the _nonSharedContextID, because this call implicitly represents when a new window is created/opengl context created
+         *  See getNonSharedContextID()
+         // VRV_PATCH
+        */
+        void setContextID(unsigned int contextID);
+		  
         /** Get the current OpenGL context unique ID.*/
         inline unsigned int getContextID() const { return _contextID; }
-
+        
+        // VRV_PATCH
+        /** Get the id that corresponds to the actual OpenGL context ID (i.e. id corresponding to wglGetCurrentContext()/glXGetCurrentContext)
+         *  This is not the actual gl context id, but an id representing a one on one mapping to the actual gl context id, 
+         *  implemented via an internal counter whenever setContextID is called. See setContextID
+         *  We need this id, because in our custom drawables, middleware (triton, sl), we use vaos, which need to be gl context id specific (e.g. multiple windows)
+         *  and the getContexID() above is the same even across multiple windows because they represent a 'shared' context, which in this
+         *  case means they share vbos, textures, etc, and this is no use for VAOs, because they can't be 'shared' and need to be unique for
+         *  each actual gl context
+        */
+        inline unsigned int getNonSharedContextID() const { return _nonSharedContextID; }
+        // VRV_PATCH
 
         // ExtensionMap contains GL Extentsions objects used by StateAttribue to call OpenGL extensions/advanced features
         typedef std::map<const std::type_info*, osg::ref_ptr<osg::Referenced> > ExtensionMap;
@@ -257,6 +276,7 @@ class OSG_EXPORT State : public Referenced
         inline const osg::Matrix& getInitialViewMatrix() const { return *_initialViewMatrix; }
         inline const osg::Matrix& getInitialInverseViewMatrix() const { return _initialInverseViewMatrix; }
 
+        void applyProjectionAndModelViewMatrix(const osg::RefMatrix* model_view_matrix, const osg::RefMatrix* projection_matrix);
         void applyProjectionMatrix(const osg::RefMatrix* matrix);
 
         inline const osg::Matrix& getProjectionMatrix() const { return *_projection; }
@@ -280,7 +300,9 @@ class OSG_EXPORT State : public Referenced
 
 
         Polytope getViewFrustum() const;
-
+//VRV_PATCH perf improvement
+        static bool getUseUboTransformStack();
+        static const char * getTransformUboDeclaration();
 
         void setUseVertexAttributeAliasing(bool flag) { _useVertexAttributeAliasing = flag; }
         bool getUseVertexAttributeAliasing() const { return _useVertexAttributeAliasing ; }
@@ -318,7 +340,8 @@ class OSG_EXPORT State : public Referenced
         void  setAttributeBindingList(const Program::AttribBindingList& attribBindingList) { _attributeBindingList = attribBindingList; }
         const Program::AttribBindingList&  getAttributeBindingList() { return _attributeBindingList; }
 
-        bool convertVertexShaderSourceToOsgBuiltIns(std::string& source) const;
+        // VRV_PATCH
+        bool convertShaderSourceToOsgBuiltIns(osg::Shader::Type shader_type, std::string & source) const;
 
 
         /** Apply stateset.*/
@@ -333,6 +356,9 @@ class OSG_EXPORT State : public Referenced
         /** Apply any shader composed state.*/
         void applyShaderComposition();
 
+		// Added to allow materials to quickly apply themselves to a state
+        inline void applyUniformList(const StateSet::UniformList& uniformList);
+        
         /** Set whether a particular OpenGL mode is valid in the current graphics context.
           * Use to disable OpenGL modes that are not supported by current graphics drivers/context.*/
         inline void setModeValidity(StateAttribute::GLMode mode,bool valid)
@@ -1364,6 +1390,18 @@ class OSG_EXPORT State : public Referenced
         }
         inline const Program::PerContextProgram* getLastAppliedProgramObject() const { return _lastAppliedProgramObject; }
 
+        //save off the current framebuffer in the state
+        inline void setLastAppliedFboId(const GLuint fboId)
+        {
+            _lastAppliedFboId = fboId;
+        }
+
+        //get the last set framebuffer id
+        inline const GLuint getLastAppliedFboId() const
+        {
+            return _lastAppliedFboId;
+        }
+
         inline GLint getUniformLocation( unsigned int uniformNameID ) const { return _lastAppliedProgramObject ? _lastAppliedProgramObject->getUniformLocation(uniformNameID) : -1; }
         /**
           * Alternative version of getUniformLocation( unsigned int uniformNameID )
@@ -1543,6 +1581,12 @@ class OSG_EXPORT State : public Referenced
                 changed = false;
                 last_applied_value = false;
                 global_default_value = false;
+                //VRV_PATCH
+                //TDG:When dirty all modes or have applied mode is called this flag is used to 
+                // make sure that the openGL mode is updated to match the OSG state
+                // the next time applyMode is called.
+                dirtyDueToExternalApply = true;
+                //END VRV_PATCH
             }
 
             void print(std::ostream& fout) const;
@@ -1551,6 +1595,12 @@ class OSG_EXPORT State : public Referenced
             bool        changed;
             bool        last_applied_value;
             bool        global_default_value;
+            //VRV_PATCH
+            //TDG:When dirty all modes or have applied mode is called this flag is used to 
+            // make sure that the openGL mode is updated to match the OSG state
+            // the next time applyMode is called.
+            bool        dirtyDueToExternalApply;
+            //END VRV_PATCH
             ValueVec    valueVec;
         };
 
@@ -1610,7 +1660,7 @@ class OSG_EXPORT State : public Referenced
             DefineStackMap map;
             bool changed;
             StateSet::DefineList currentDefines;
-
+            std::string shaderDefineString;
             bool updateCurrentDefines();
 
         };
@@ -1634,9 +1684,13 @@ class OSG_EXPORT State : public Referenced
         inline const TextureModeMapList&                                getTextureModeMapList() const {return _textureModeMapList;}
         inline const TextureAttributeMapList&                           getTextureAttributeMapList() const {return _textureAttributeMapList;}
 
-        std::string getDefineString(const osg::ShaderDefines& shaderDefines);
+        const std::string & getDefineString(const osg::ShaderDefines& shaderDefines);
         bool supportsShaderRequirements(const osg::ShaderDefines& shaderRequirements);
         bool supportsShaderRequirement(const std::string& shaderRequirement);
+
+        //  VRV_PATCH
+        osgUtil::RenderLeaf *  getCurrentRenderLeaf(){return _currentRenderLeaf;};
+        void setCurrentRenderLeaf(osgUtil::RenderLeaf * crl ){_currentRenderLeaf = crl;};
 
     protected:
 
@@ -1644,6 +1698,11 @@ class OSG_EXPORT State : public Referenced
 
         GraphicsContext*            _graphicsContext;
         unsigned int                _contextID;
+
+        // VRV_PATCH
+        unsigned int                _nonSharedContextID;
+        static unsigned int         s_nonSharedContextIDCounter;
+        osgUtil::RenderLeaf *                _currentRenderLeaf;
 
         bool                            _shaderCompositionEnabled;
         bool                            _shaderCompositionDirty;
@@ -1661,9 +1720,13 @@ class OSG_EXPORT State : public Referenced
 
         bool                        _useModelViewAndProjectionUniforms;
         ref_ptr<Uniform>            _modelViewMatrixUniform;
+        ref_ptr<Uniform>            _modelViewMatrixInverseUniform;
         ref_ptr<Uniform>            _projectionMatrixUniform;
         ref_ptr<Uniform>            _modelViewProjectionMatrixUniform;
         ref_ptr<Uniform>            _normalMatrixUniform;
+        // vantage change for better performance
+        unsigned int                _transformStackID;
+        struct osg_TransformStack   *_transformStackUBO;
 
         Matrix                      _initialInverseViewMatrix;
 
@@ -1695,8 +1758,14 @@ class OSG_EXPORT State : public Referenced
         */
         inline bool applyMode(StateAttribute::GLMode mode,bool enabled,ModeStack& ms)
         {
-            if (ms.valid && ms.last_applied_value != enabled)
+            //VRV_PATCH
+            //TDG:When dirty all modes or have applied mode is called this flag is used to 
+            // make sure that the openGL mode is updated to match the OSG state
+            // the next time applyMode is called.
+            if (ms.valid && (ms.last_applied_value != enabled || ms.dirtyDueToExternalApply))
             {
+                ms.dirtyDueToExternalApply = false;
+                //END VRV_PATCH
                 ms.last_applied_value = enabled;
 
                 if (enabled) glEnable(mode);
@@ -1712,12 +1781,18 @@ class OSG_EXPORT State : public Referenced
 
         inline bool applyModeOnTexUnit(unsigned int unit,StateAttribute::GLMode mode,bool enabled,ModeStack& ms)
         {
-            if (ms.valid && ms.last_applied_value != enabled)
-            {
+            //VRV_PATCH
+            //TDG:When dirty all modes or have applied mode is called this flag is used to 
+            // make sure that the openGL mode is updated to match the OSG state
+            // the next time applyMode is called.
+            if (ms.valid && (ms.last_applied_value != enabled || ms.dirtyDueToExternalApply))
+            { 
+                ms.dirtyDueToExternalApply = false;
+                //END VRV_PATCH
                 if (setActiveTextureUnit(unit))
                 {
                     ms.last_applied_value = enabled;
-
+                    
                     if (enabled) glEnable(mode);
                     else glDisable(mode);
 
@@ -1842,10 +1917,14 @@ class OSG_EXPORT State : public Referenced
         UniformMap                                                      _uniformMap;
         DefineMap                                                       _defineMap;
 
+
         TextureModeMapList                                              _textureModeMapList;
         TextureAttributeMapList                                         _textureAttributeMapList;
 
         const Program::PerContextProgram*                               _lastAppliedProgramObject;
+        
+        //VR-Vantage patch to allow us to get the last set fbo id
+        GLuint                                                          _lastAppliedFboId;
 
         StateSetStack                                                   _stateStateStack;
 
@@ -2667,6 +2746,11 @@ inline void State::applyAttributeListOnTexUnit(unsigned int unit,AttributeMap& a
 
 }
 
+inline void State::applyUniformList(const StateSet::UniformList& uniformList)
+{
+    applyUniformList(_uniformMap, uniformList);
+}
+
 inline void State::applyUniformList(UniformMap& uniformMap,const StateSet::UniformList& uniformList)
 {
     if (!_lastAppliedProgramObject) return;
@@ -2719,8 +2803,11 @@ inline void State::applyUniformList(UniformMap& uniformMap,const StateSet::Unifo
     }
 
     // iterator over the remaining state attributes to apply any previous changes.
+    // BEGIN VRV_PATCH
+    UniformMap::const_iterator uniformMapEnd = uniformMap.end();
     for(;
-        this_aitr!=uniformMap.end();
+        this_aitr!=uniformMapEnd;
+    // END VRV_PATCH
         ++this_aitr)
     {
         // note attribute type = this_aitr->first
@@ -2732,8 +2819,11 @@ inline void State::applyUniformList(UniformMap& uniformMap,const StateSet::Unifo
     }
 
     // iterator over the remaining incoming attribute to apply any new attribute.
+    // BEGIN VRV_PATCH
+    StateSet::UniformList::const_iterator uniformListEnd = uniformList.end();
     for(;
-        ds_aitr!=uniformList.end();
+        ds_aitr!=uniformListEnd;
+    // END VRV_PATCH
         ++ds_aitr)
     {
         _lastAppliedProgramObject->apply(*(ds_aitr->second.first.get()));

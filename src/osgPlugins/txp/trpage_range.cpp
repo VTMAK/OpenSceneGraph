@@ -149,7 +149,7 @@ bool trpgRange::operator == (const trpgRange &in) const
             return false;
     } else {
         if ((subCategory && !in.subCategory) ||
-            (subCategory && in.subCategory))
+            (!subCategory && in.subCategory))   //VRV_PATCH
             return false;
     }
     if(handle != in.handle)

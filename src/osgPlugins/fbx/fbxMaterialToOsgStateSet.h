@@ -7,6 +7,7 @@
 #include <osg/StateSet>
 #include <osgDB/Options>
 #include <osg/Texture2D>
+#include <osg/ExtendedMaterial>
 
 #if defined(_MSC_VER)
 #pragma warning( disable : 4505 )
@@ -16,6 +17,15 @@
 
 //The only things we need to create a new StateSet are texture and materials. So we store that in a pair.
 //We Don't store directly in stateSet because getOrCreateStateSet function set some parameters.
+const std::string kDIFFUSE_TEXTURE_UNIT = "DIFFUSE_TEXTURE_UNIT";
+const std::string kOPACITY_TEXTURE_UNIT = "OPACITY_TEXTURE_UNIT";
+const std::string kREFLECTION_TEXTURE_UNIT = "REFLECTION_TEXTURE_UNIT";
+const std::string kEMISSIVE_TEXTURE_UNIT = "EMISSIVE_TEXTURE_UNIT";
+const std::string kAMBIENT_TEXTURE_UNIT = "AMBIENT_TEXTURE_UNIT";
+const std::string kNORMAL_TEXTURE_UNIT = "NORMAL_TEXTURE_UNIT";
+const std::string kBUMP_TEXTURE_UNIT = "BUMP_TEXTURE_UNIT";
+const std::string kSPECULAR_TEXTURE_UNIT = "SPECULAR_TEXTURE_UNIT";
+const std::string kGLOSS_TEXTURE_UNIT = "GLOSS_TEXTURE_UNIT";
 
 struct StateSetContent
 {
@@ -23,7 +33,24 @@ struct StateSetContent
         : diffuseFactor(1.0),
         reflectionFactor(1.0),
         emissiveFactor(1.0),
-        ambientFactor(1.0)
+        ambientFactor(1.0),
+        normalFactor(1.0),
+        diffuseScaleU(1.0),
+        diffuseScaleV(1.0),
+        opacityScaleU(1.0),
+        opacityScaleV(1.0),
+        emissiveScaleU(1.0),
+        emissiveScaleV(1.0),
+        ambientScaleU(1.0),
+        ambientScaleV(1.0),
+        normalScaleU(1.0),
+        normalScaleV(1.0),
+        bumpScaleU(1.0),
+        bumpScaleV(1.0),
+        specularScaleU(1.0),
+        specularScaleV(1.0),
+        glossScaleU(1.0),
+        glossScaleV(1.0)
     {
     }
 
@@ -36,6 +63,10 @@ struct StateSetContent
     osg::ref_ptr<osg::Texture2D> emissiveTexture;
     osg::ref_ptr<osg::Texture2D> ambientTexture;
     // more textures types here...
+    osg::ref_ptr<osg::Texture2D> normalTexture;
+    osg::ref_ptr<osg::Texture2D> bumpTexture;
+    osg::ref_ptr<osg::Texture2D> specularTexture;
+    osg::ref_ptr<osg::Texture2D> glossTexture; // shininess 
 
     // textures maps channels names...
     std::string diffuseChannel;
@@ -44,6 +75,10 @@ struct StateSetContent
     std::string emissiveChannel;
     std::string ambientChannel;
     // more channels names here...
+    std::string normalChannel;
+    std::string bumpChannel;
+    std::string specularChannel;
+    std::string glossChannel;
 
     // combining factors...
     double diffuseFactor;
@@ -51,6 +86,7 @@ struct StateSetContent
     double emissiveFactor;
     double ambientFactor;
     // more combining factors here...
+    double normalFactor;
 
     double diffuseScaleU;
     double diffuseScaleV;
@@ -60,17 +96,16 @@ struct StateSetContent
     double emissiveScaleV;
     double ambientScaleU;
     double ambientScaleV;
+    double normalScaleU;
+    double normalScaleV;
+    double bumpScaleU;
+    double bumpScaleV;
+    double specularScaleU;
+    double specularScaleV;
+    double glossScaleU;
+    double glossScaleV;
 
-    // texture units (eventually used for each texture map)...
-    enum TextureUnit
-    {
-        DIFFUSE_TEXTURE_UNIT = 0,
-        OPACITY_TEXTURE_UNIT,
-        REFLECTION_TEXTURE_UNIT,
-        EMISSIVE_TEXTURE_UNIT,
-        AMBIENT_TEXTURE_UNIT
-        // more texture units here...
-    };
+    osg::ref_ptr<osg::ExtendedMaterial> extendedmaterial;
 };
 
 //We use the pointers set by the importer to not duplicate materials and textures.

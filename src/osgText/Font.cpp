@@ -98,7 +98,7 @@ std::string osgText::findFontFile(const std::string& str)
     }
     else
     {
-        filename = osgText::findFontFile(std::string("fonts/")+filename);
+        filename = osgText::findFontFile(std::string("Fonts/")+filename);
         if (!filename.empty()) return filename;
     }
 

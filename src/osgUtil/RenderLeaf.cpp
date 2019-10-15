@@ -20,7 +20,6 @@ using namespace osgUtil;
 void RenderLeaf::render(osg::RenderInfo& renderInfo,RenderLeaf* previous)
 {
     osg::State& state = *renderInfo.getState();
-
     // don't draw this leaf if the abort rendering flag has been set.
     if (state.getAbortRendering())
     {
@@ -28,6 +27,7 @@ void RenderLeaf::render(osg::RenderInfo& renderInfo,RenderLeaf* previous)
         return;
     }
 
+    state.setCurrentRenderLeaf(this);
     if (previous)
     {
 
@@ -66,7 +66,8 @@ void RenderLeaf::render(osg::RenderInfo& renderInfo,RenderLeaf* previous)
     {
         // apply matrices if required.
         state.applyProjectionMatrix(_projection.get());
-        state.applyModelViewMatrix(_modelview.get());
+        state.applyModelViewMatrix(_modelview.get()); 
+
 
         // apply state if required.
         StateGraph::moveStateGraph(state,NULL,_parent->_parent);
@@ -85,6 +86,7 @@ void RenderLeaf::render(osg::RenderInfo& renderInfo,RenderLeaf* previous)
     {
         state.decrementDynamicObjectCount();
     }
+    state.setCurrentRenderLeaf(NULL);
 
     // OSG_NOTICE<<"RenderLeaf "<<_drawable->getName()<<" "<<_depth<<std::endl;
 }

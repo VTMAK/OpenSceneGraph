@@ -102,7 +102,9 @@ bool osgParticle::Particle::update(double dt, bool onlyTimeStamp)
     if (onlyTimeStamp) return true;
 
     //Compute the current texture tile based on our normalized age
-    int currentTile = _start_tile + static_cast<int>(x * getNumTiles());
+    // BEGIN VRV_PATCH
+    const int currentTile = _start_tile + static_cast<int>(x * getNumTiles());
+    // END VRV_PATCH
 
     //If the current texture tile is different from previous, then compute new texture coords
     if(currentTile != _cur_tile)
@@ -119,12 +121,19 @@ bool osgParticle::Particle::update(double dt, bool onlyTimeStamp)
     _prev_angle = _angle;
     _angle += _angul_arvel * dt;
 
-    if (_angle.x() > osg::PI*2) _angle.x() -= osg::PI*2;
-    if (_angle.x() < -osg::PI*2) _angle.x() += osg::PI*2;
-    if (_angle.y() > osg::PI*2) _angle.y() -= osg::PI*2;
-    if (_angle.y() < -osg::PI*2) _angle.y() += osg::PI*2;
-    if (_angle.z() > osg::PI*2) _angle.z() -= osg::PI*2;
-    if (_angle.z() < -osg::PI*2) _angle.z() += osg::PI*2;
+    // BEGIN VRV_PATCH
+    const float pi2 = osg::PI * 2.0f;
+    float& angleX = _angle.x();
+    float& angleY = _angle.y();
+    float& angleZ = _angle.z();
+
+    if (angleX > pi2) angleX -= pi2;
+    if (angleX < -pi2) angleX += pi2;
+    if (angleY > pi2) angleY -= pi2;
+    if (angleY < -pi2) angleY += pi2;
+    if (angleZ > pi2) angleZ -= pi2;
+    if (angleZ < -pi2) angleZ += pi2;
+    // END VRV_PATCH
 
     return true;
 }
@@ -136,13 +145,27 @@ void osgParticle::Particle::render(osg::GLBeginEndAdapter* gl, const osg::Vec3& 
                 _current_color.z(),
                 _current_color.w() * _current_alpha);
 
-    osg::Vec3 p1(px * _current_size * scale);
-    osg::Vec3 p2(py * _current_size * scale);
+    const float sizeScale = _current_size * scale;
+    const osg::Vec3 p1(px * sizeScale);
+    const osg::Vec3 p2(py * sizeScale);
+
+    //VRV PATCH lets get a reasonable normal for the particle instead of just using 1,0,0 or in some cases not setting it at all.
+    osg::Vec3 normal(px ^ py);
+    gl->Normal3fv(normal.ptr());
+
+    // Don't retrieve x,y,z all the time - store it
+    const float xposX = xpos.x();
+    const float xposY = xpos.y();
+    const float xposZ = xpos.z();
+    //VRV PATCH END
+
 
     switch (_shape)
     {
     case POINT:
-        gl->Vertex3f(xpos.x(), xpos.y(), xpos.z());
+        //VRV PATCH
+        gl->Vertex3f(xposX, xposY, xposZ);
+        //VRV PATCH END
         break;
 
     case QUAD:
@@ -158,7 +181,9 @@ void osgParticle::Particle::render(osg::GLBeginEndAdapter* gl, const osg::Vec3& 
 
     case QUAD_TRIANGLESTRIP:
         gl->PushMatrix();
-        gl->Translatef(xpos.x(), xpos.y(), xpos.z());
+        //VRV PATCH
+        gl->Translatef(xposX, xposY, xposZ);
+        //VRV PATCH END
         // we must gl.Begin() and gl.End() here, because each particle is a single strip
         gl->Begin(GL_TRIANGLE_STRIP);
         gl->TexCoord2f(_s_coord+_s_tile, _t_coord+_t_tile);
@@ -175,7 +200,9 @@ void osgParticle::Particle::render(osg::GLBeginEndAdapter* gl, const osg::Vec3& 
 
     case HEXAGON:
         gl->PushMatrix();
-        gl->Translatef(xpos.x(), xpos.y(), xpos.z());
+        //VRV PATCH
+        gl->Translatef(xposX, xposY, xposZ);
+        //VRV PATCH END
         // we must gl.Begin() and gl.End() here, because each particle is a single fan
         gl->Begin(GL_TRIANGLE_FAN);
         gl->TexCoord2f(_s_coord + _s_tile * 0.5f, _t_coord + _t_tile * 0.5f);
@@ -204,12 +231,16 @@ void osgParticle::Particle::render(osg::GLBeginEndAdapter* gl, const osg::Vec3& 
             // calculation of one of the linesegment endpoints.
             float vl = _velocity.length();
             if (vl != 0) {
-                osg::Vec3 v = _velocity * _current_size * scale / vl;
+                //VRV PATCH
+                float velScale = _current_size * scale / vl;
+                osg::Vec3 v = _velocity * velScale;
+                const float* vArr = v.ptr();
 
                 gl->TexCoord1f(0);
-                gl->Vertex3f(xpos.x(), xpos.y(), xpos.z());
+                gl->Vertex3f(xposX, xposY, xposZ);
                 gl->TexCoord1f(1);
-                gl->Vertex3f(xpos.x() + v.x(), xpos.y() + v.y(), xpos.z() + v.z());
+                gl->Vertex3f(xposX + vArr[0], xposY + vArr[1], xposZ + vArr[2]);
+                //VRV PATCH END
             }
         }
         break;

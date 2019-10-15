@@ -58,7 +58,7 @@ void PointSprite::apply(osg::State& state) const
 {
     const GLExtensions* extensions = state.get<GLExtensions>();
 #if defined( OSG_GL3_AVAILABLE )
-
+    if (!extensions->isPointSpriteSupported) return;
     extensions->glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, _coordOriginMode);
 
 #elif defined( OSG_GLES1_AVAILABLE ) //point sprites don't exist on es 2.0

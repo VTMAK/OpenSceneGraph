@@ -11,6 +11,7 @@
 
 #include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
+#include <osgUtil/ShaderGen>
 #include <osg/CoordinateSystemNode>
 
 #include <osg/Switch>
@@ -169,12 +170,23 @@ int main(int argc, char** argv)
         return 1;
     }
 
-
     // optimize the scene graph, remove redundant nodes and state etc.
     osgUtil::Optimizer optimizer;
     optimizer.optimize(loadedModel.get());
 
-    viewer.setSceneData( loadedModel.get() );
+    osgUtil::ShaderGenVisitor sgv;
+    loadedModel.get()->getOrCreateStateSet();
+    loadedModel.get()->accept(sgv);
+
+    // same as 
+    /*
+    loadedModel.get()->getOrCreateStateSet()->setAttribute(osg::Program::getFixedFunctionProgram(osg::Program::Normal_Drawing), osg::StateAttribute::ON);
+    loadedModel.get()->getOrCreateStateSet()->addUniform(new osg::Uniform("diffuseMap", 0));
+    loadedModel.get()->getOrCreateStateSet()->addUniform(new osg::Uniform("ufrm_diffuse_map_enabled", 1));
+
+*/
+
+    viewer.setSceneData(loadedModel.get());
 
     viewer.realize();
 

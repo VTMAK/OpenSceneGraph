@@ -45,6 +45,8 @@ class Matrix;
 #define META_setMultitexture(imp) virtual void setMultitexture(osg::StateSet& multitexture) { if (imp.valid()) imp->getOrCreateStateSet()->merge(multitexture); }
 #define META_addChild(imp) virtual void addChild(osg::Node& child) { if (imp.valid()) imp->addChild(&child); }
 #define META_dispose(imp) virtual void dispose(Document&) { if (imp.valid() && _matrix.valid()) insertMatrixTransform(*imp,*_matrix,_numberOfReplications); }
+#define META_getNumChildren(imp) virtual unsigned int getNumChildren() const { if (imp.valid()) return imp->getNumChildren(); else return 0; }
+#define META_getChild(imp) osg::Node* getChild(unsigned  int i) { if (imp.valid()) return imp->getChild(i);  else return NULL;}
 
 // pure virtual base class
 class Record : public osg::Referenced
@@ -73,20 +75,22 @@ class PrimaryRecord : public Record
 {
 public:
 
-    PrimaryRecord();
+   PrimaryRecord();
 
-    virtual void read(RecordInputStream& in, Document& document);
-    virtual void dispose(Document& /*document*/) {}
+   virtual void read(RecordInputStream& in, Document& document);
+   virtual void dispose(Document& /*document*/) {}
 
-    // Ancillary operations
-    virtual void setID(const std::string& /*id*/) {}
-    virtual void setComment(const std::string& /*comment*/) {}
-    virtual void setMultitexture(osg::StateSet& /*multitexture*/) {}
-    virtual void addChild(osg::Node& /*child*/) {}
-    virtual void addVertex(Vertex& /*vertex*/) {}
-    virtual void addVertexUV(int /*layer*/,const osg::Vec2& /*uv*/) {}
-    virtual void addMorphVertex(Vertex& /*vertex0*/, Vertex& /*vertex100*/) {}
-    virtual void setMultiSwitchValueName(unsigned int /*switchSet*/, const std::string& /*name*/) {}
+   // Ancillary operations
+   virtual void setID(const std::string& /*id*/) {}
+   virtual void setComment(const std::string& /*comment*/) {}
+   virtual void setMultitexture(osg::StateSet& /*multitexture*/) {}
+   virtual void addChild(osg::Node& /*child*/) {}
+   virtual void addVertex(Vertex& /*vertex*/) {}
+   virtual void addVertexUV(int /*layer*/, const osg::Vec2& /*uv*/) {}
+   virtual void addMorphVertex(Vertex& /*vertex0*/, Vertex& /*vertex100*/) {}
+   virtual void setMultiSwitchValueName(unsigned int /*switchSet*/, const std::string& /*name*/) {}   
+   virtual unsigned int getNumChildren() const { return 0; }
+   virtual osg::Node* getChild(unsigned  int i) { return NULL; }
 
     void setNumberOfReplications(int num) { _numberOfReplications = num; }
     void setMatrix(const osg::Matrix& matrix) { _matrix = new osg::RefMatrix(matrix); }

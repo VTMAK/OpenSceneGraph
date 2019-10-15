@@ -11,6 +11,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * OpenSceneGraph Public License for more details.
 */
+// Patch added 8-2-2010
+// Force linking in ODBC libraries on Windows for VC9 compatibility
+// Is VC9 still supported as of 03/2016?  MarcM
+#ifdef WIN32
+   #pragma comment ( lib, "odbc32.lib" )
+   #pragma comment ( lib, "odbccp32.lib" )
+#endif
+
 
 #include <osg/Image>
 #include <osg/Notify>

@@ -54,8 +54,13 @@
 #define VERSION_0043 43
 #define VERSION_0044 44
 #define VERSION_0045 45
+//VRV Patch Added for light point change to IVE files
+#define VERSION_0046 46 
+// added for FBX animation
+#define VERSION_0047 47
 
-#define VERSION VERSION_0045
+#define VERSION VERSION_0047
+//End VRV Patch
 
 /* The BYTE_SEX tag is used to check the endian
    of the IVE file being read in.  The IVE format

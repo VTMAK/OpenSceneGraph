@@ -113,7 +113,11 @@ void Light::captureLightState()
     glGetLightfv( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_LINEAR_ATTENUATION,   &_linear_attenuation );
     glGetLightfv( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_QUADRATIC_ATTENUATION,   &_quadratic_attenuation );
 #else
-    OSG_NOTICE<<"Warning: Light::captureLightState() - not supported."<<std::endl;
+   static int warn = 1;
+   if (warn){
+      warn = 0;
+      OSG_INFO << "Warning: Light::captureLightState() - not supported." << std::endl;
+   }
 #endif
 }
 
@@ -131,6 +135,10 @@ void Light::apply(State&) const
     glLightf ( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_LINEAR_ATTENUATION,    _linear_attenuation );
     glLightf ( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_QUADRATIC_ATTENUATION, _quadratic_attenuation );
 #else
-    OSG_NOTICE<<"Warning: Light::apply(State&) - not supported."<<std::endl;
+	static int warn = 1;
+	if (warn){
+		warn = 0;
+      OSG_INFO << "Warning: Light::apply(State&) - not supported." << std::endl;
+	}
 #endif
 }

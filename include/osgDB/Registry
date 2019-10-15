@@ -21,6 +21,7 @@
 #include <osg/KdTree>
 
 #include <osgDB/DynamicLibrary>
+#include <osgDB/DatabasePager>
 #include <osgDB/ReaderWriter>
 #include <osgDB/Options>
 #include <osgDB/DotOsgWrapper>
@@ -205,12 +206,19 @@ class OSGDB_EXPORT Registry : public osg::Referenced
         ReaderWriter::ReadResult readObject(const std::string& fileName,const Options* options, bool buildKdTreeIfRequired=true)
         {
             ReaderWriter::ReadResult result;
-            if (options && options->getReadFileCallback()) result = options->getReadFileCallback()->readObject(fileName,options);
-            else if (_readFileCallback.valid()) result = _readFileCallback->readObject(fileName,options);
-            else result = readObjectImplementation(fileName,options);
+            if (options && options->getReadFileCallback()){
+               result = options->getReadFileCallback()->readObject(fileName, options);
+            }
+            else if (_readFileCallback.valid()) {
+               result = _readFileCallback->readObject(fileName, options);
+            }
+            else {
+               result = readObjectImplementation(fileName, options);
+            }
 
-            if (buildKdTreeIfRequired) _buildKdTreeIfRequired(result, options);
-
+            if (buildKdTreeIfRequired) {
+               _buildKdTreeIfRequired(result, options);
+            }
             return result;
         }
         ReaderWriter::ReadResult readObjectImplementation(const std::string& fileName,const Options* options);

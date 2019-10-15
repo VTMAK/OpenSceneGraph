@@ -710,4 +710,8 @@ trpgrAppFileCache::OpenFile::OpenFile()
     afile = NULL;
     lastUsed = 0;
     id = -1;
+    //VRV_PATCH BEGIN
+    row = 0;
+    col = 0;
+    //VRV_PATCH END
 }

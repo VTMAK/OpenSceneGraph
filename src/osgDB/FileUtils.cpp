@@ -295,11 +295,28 @@ void osgDB::convertStringPathIntoFilePathList(const std::string& paths,FilePathL
 
 bool osgDB::fileExists(const std::string& filename)
 {
-#ifdef OSG_USE_UTF8_FILENAME
-    return _waccess( OSGDB_STRING_TO_FILENAME(filename).c_str(), F_OK ) == 0;
-#else
-    return access( filename.c_str(), F_OK ) == 0;
+#if WIN32
+    // turn off file not found popups on windows
+    // there's no GetErrorMode so the following two step sequence
+    // is necessary to respect the current error mode
+    UINT errorMode = SetErrorMode(SEM_NOOPENFILEERRORBOX |
+        SEM_FAILCRITICALERRORS);
+    SetErrorMode(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | errorMode);
 #endif
+
+#ifdef OSG_USE_UTF8_FILENAME
+    bool result =
+        _waccess( OSGDB_STRING_TO_FILENAME(filename).c_str(), F_OK ) == 0;
+#else
+    bool result =
+        access( filename.c_str(), F_OK ) == 0;
+#endif
+
+#if WIN32
+    SetErrorMode(errorMode);
+#endif
+
+    return result;
 }
 
 osgDB::FileType osgDB::fileType(const std::string& filename)
@@ -539,20 +556,27 @@ static void appendInstallationLibraryFilePaths(osgDB::FilePathList& filepath)
 
 #else
 
+    // Sort files in case-insensitive alphabetical order for
+    // compatibility with Windows
+    // Patched 6-1-2010 MB
     #include <dirent.h>
+    #include <sys/unistd.h>
+    #include <strings.h>
+
+    int alphasort_nocase(const void* a, const void* b)
+    {
+       return strcasecmp((*(dirent**)(a))->d_name, (*(dirent**)(b))->d_name);
+    }
+
     osgDB::DirectoryContents osgDB::getDirectoryContents(const std::string& dirName)
     {
         osgDB::DirectoryContents contents;
 
-        DIR *handle = opendir(dirName.c_str());
-        if (handle)
+        struct dirent** fileList;
+        int n = scandir(dirName.c_str(), &fileList, NULL,  (int(*)(const dirent**, const dirent**))alphasort_nocase);
+        for (int i = 0; i < n; i++)
         {
-            dirent *rc;
-            while((rc = readdir(handle))!=NULL)
-            {
-                contents.push_back(rc->d_name);
-            }
-            closedir(handle);
+           contents.push_back(fileList[i]->d_name);
         }
 
         return contents;
@@ -1167,7 +1191,7 @@ bool osgDB::containsCurrentWorkingDirectoryReference(const FilePathList& paths)
 
         appendInstallationLibraryFilePaths(filepath);
 
-#if defined(__ia64__) || defined(__x86_64__)
+#if defined(__ia64__) || defined(__x86_64__) || defined(_M_X64)
         convertStringPathIntoFilePathList("/usr/lib/:/usr/lib64/:/usr/local/lib/:/usr/local/lib64/",filepath);
 #else
         convertStringPathIntoFilePathList("/usr/lib/:/usr/local/lib/",filepath);

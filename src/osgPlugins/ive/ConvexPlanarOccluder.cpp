@@ -62,14 +62,15 @@ void ConvexPlanarOccluder::read(DataInputStream* in){
         osg::ConvexPlanarPolygon* cpp = &getOccluder();
         ((ive::ConvexPlanarPolygon*)(cpp))->read(in);
 
+        //VRV Patch 
         // Read hole list.
         int size = in->readInt();
         for(int i=0; i<size; i++){
-            osg::ConvexPlanarPolygon* cpp = new osg::ConvexPlanarPolygon();
-            ((ive::ConvexPlanarPolygon*)(cpp))->read(in);
-            addHole(*cpp);
+            osg::ConvexPlanarPolygon* cpp2 = new osg::ConvexPlanarPolygon();
+            ((ive::ConvexPlanarPolygon*)(cpp2))->read(in);
+            addHole(*cpp2);
         }
-
+        //End VRV Patch
     }
     else{
         in_THROW_EXCEPTION("ConvexPlanarOccluder::read(): Expected ConvexPlanarOccluder identification.");

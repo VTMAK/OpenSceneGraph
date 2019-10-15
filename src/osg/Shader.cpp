@@ -36,6 +36,65 @@
 #include <OpenThreads/ScopedLock>
 #include <OpenThreads/Mutex>
 
+// BEGIN VRV_PATCH - faster shader defines
+namespace osg
+{
+
+template<typename M>
+inline std::string::size_type find_first(const std::string& str, const M& match, std::string::size_type startpos, std::string::size_type endpos=std::string::npos)
+{
+    std::string::size_type endp = (endpos!=std::string::npos) ? endpos : str.size();
+
+    while(startpos<endp)
+    {
+        if (match(str[startpos])) return startpos;
+
+        ++startpos;
+    }
+    return endpos;
+}
+
+struct EqualTo
+{
+    EqualTo(char c): _c(c) {}
+    bool operator() (char rhs) const { return rhs==_c; }
+    char _c;
+};
+
+struct OneOf
+{
+    OneOf(const char* str) : _str(str) {}
+    bool operator() (char rhs) const
+    {
+        const char* ptr = _str;
+        while(*ptr!=0 && rhs!=*ptr) ++ptr;
+        return (*ptr!=0);
+    }
+    const char* _str;
+};
+
+struct NotEqualTo
+{
+    NotEqualTo(char c): _c(c) {}
+    bool operator() (char rhs) const { return rhs!=_c; }
+    char _c;
+};
+
+struct NoneOf
+{
+    NoneOf(const char* str) : _str(str) {}
+    bool operator() (char rhs) const
+    {
+        const char* ptr = _str;
+        while(*ptr!=0 && rhs!=*ptr) ++ptr;
+        return (*ptr==0);
+    }
+    const char* _str;
+};
+
+}
+// END VRV_PATCH
+
 using namespace osg;
 
 
@@ -177,8 +236,8 @@ void Shader::flushDeletedGlShaders(unsigned int contextID,double /*currentTime*/
     // if no time available don't try to flush objects.
     if (availableTime<=0.0) return;
 
-    const GLExtensions* extensions = GLExtensions::Get(contextID,true);
-    if( ! extensions->isGlslSupported ) return;
+    const GLExtensions* extensions = GLExtensions::Get(contextID, false);
+    if(!extensions || !extensions->isGlslSupported ) return;
 
     const osg::Timer& timer = *osg::Timer::instance();
     osg::Timer_t start_tick = timer.tick();
@@ -386,24 +445,21 @@ Shader::ShaderObjects::ShaderObjects(const osg::Shader* shader, unsigned int con
 
 Shader::PerContextShader* Shader::ShaderObjects::getPCS(const std::string& defineStr) const
 {
-    for(PerContextShaders::const_iterator itr = _perContextShaders.begin();
-        itr != _perContextShaders.end();
-        ++itr)
-    {
-        if ((*itr)->getDefineString()==defineStr)
-        {
-            // OSG_NOTICE<<"ShaderPtr = "<<_shader<<" FileName = '"<<_shader->getFileName()<<"' returning PCS "<<itr->get()<<" DefineString = "<<(*itr)->getDefineString()<<std::endl;
-            return itr->get();
-        }
-    }
+   //VRVantage Patch, switched to map for much better performance
+   PerContextShaders::const_iterator itr = _perContextShaders.find(defineStr);
+   if(itr != _perContextShaders.end())
+   {
+      return itr->second;
+   }
     // OSG_NOTICE<<"ShaderPtr = "<<_shader<<" FileName = '"<<_shader->getFileName()<<"' returning NULL"<<std::endl;
     return 0;
 }
 
 Shader::PerContextShader* Shader::ShaderObjects::createPerContextShader(const std::string& defineStr)
 {
+   //VRVantage Patch, switched to map for much better performance
     Shader::PerContextShader* pcs = new PerContextShader( _shader, _contextID );
-    _perContextShaders.push_back( pcs );
+    _perContextShaders[defineStr] = pcs;
     pcs->setDefineString(defineStr);
     // OSG_NOTICE<<"ShaderPtr = "<<_shader<<" FileName = '"<<_shader->getFileName()<<"' Creating PCS "<<pcs<<" DefineString = ["<<pcs->getDefineString()<<"]"<<std::endl;
     return pcs;
@@ -411,11 +467,12 @@ Shader::PerContextShader* Shader::ShaderObjects::createPerContextShader(const st
 
 void Shader::ShaderObjects::requestCompile()
 {
+   //VRVantage Patch, switched to map for much better performance
     for(PerContextShaders::const_iterator itr = _perContextShaders.begin();
         itr != _perContextShaders.end();
         ++itr)
     {
-        (*itr)->requestCompile();
+        itr->second->requestCompile();
     }
 }
 
@@ -523,14 +580,14 @@ void Shader::PerContextShader::requestCompile()
     _isCompiled = false;
 }
 
-namespace
-{
-    std::string insertLineNumbers(const std::string& source)
-    {
-        if (source.empty()) return source;
 
-        unsigned int lineNum = 1;       // Line numbers start at 1
-        std::ostringstream ostr;
+// static helper
+   std::string Shader::insertLineNumbers(const std::string& source)
+   {
+      if (source.empty()) return source;
+
+      unsigned int lineNum = 1;       // Line numbers start at 1
+      std::ostringstream ostr;
 
         std::string::size_type previous_pos = 0;
         do
@@ -550,14 +607,14 @@ namespace
 
         } while (previous_pos != std::string::npos);
 
-        return ostr.str();
-    }
-}
+      return ostr.str();
+   }
+
 
 void Shader::PerContextShader::compileShader(osg::State& state)
 {
-    if( ! _needsCompile ) return;
-    _needsCompile = false;
+   if (!_needsCompile) return;
+   _needsCompile = false;
 
 #if defined(OSG_GLES2_AVAILABLE)
     if (_shader->getShaderBinary())
@@ -610,9 +667,9 @@ void Shader::PerContextShader::compileShader(osg::State& state)
 #endif
 
     std::string source = _shader->getShaderSource();
-    if (_shader->getType()==osg::Shader::VERTEX && (state.getUseVertexAttributeAliasing() || state.getUseModelViewAndProjectionUniforms()))
+    if ((state.getUseVertexAttributeAliasing() || state.getUseModelViewAndProjectionUniforms()))
     {
-        state.convertVertexShaderSourceToOsgBuiltIns(source);
+        state.convertShaderSourceToOsgBuiltIns(_shader->getType(), source);
     }
 
 
@@ -629,6 +686,7 @@ void Shader::PerContextShader::compileShader(osg::State& state)
 
     if (_defineStr.empty())
     {
+       _shader->_shaderSourcePostTransform = source;
         const GLchar* sourceText = reinterpret_cast<const GLchar*>(source.c_str());
         _extensions->glShaderSource( _glShaderHandle, 1, &sourceText, NULL );
     }
@@ -649,7 +707,12 @@ void Shader::PerContextShader::compileShader(osg::State& state)
                 {
                     versionLine = source.substr(start_of_line, end_of_line-start_of_line+1);
                     if (source[source.size()-1]!='\n') source.push_back('\n');
-
+//patch for fixing defines on windows
+#ifdef WIN32
+                    versionLine += "\r\n";
+#else
+                    versionLine += "\n";
+#endif
                     source.insert(start_of_line, "// following version spec has been automatically reassigned to start of source list: ");
 
                     break;
@@ -673,7 +736,8 @@ void Shader::PerContextShader::compileShader(osg::State& state)
             sourceText[0] = reinterpret_cast<const GLchar*>(versionLine.c_str());
             sourceText[1] = reinterpret_cast<const GLchar*>(_defineStr.c_str());
             sourceText[2] = reinterpret_cast<const GLchar*>(source.c_str());
-            _extensions->glShaderSource( _glShaderHandle, 3, sourceText, NULL );
+            _shader->_shaderSourcePostTransform = versionLine + _defineStr + source;
+           _extensions->glShaderSource( _glShaderHandle, 3, sourceText, NULL );
         }
         else
         {
@@ -681,7 +745,8 @@ void Shader::PerContextShader::compileShader(osg::State& state)
             //OSG_NOTICE<<"glShaderSource() ["<<_defineStr<<"], ["<<sourceText<<"]"<<std::endl;
             sourceText[0] = reinterpret_cast<const GLchar*>(_defineStr.c_str());
             sourceText[1] = reinterpret_cast<const GLchar*>(source.c_str());
-            _extensions->glShaderSource( _glShaderHandle, 2, sourceText, NULL );
+            _shader->_shaderSourcePostTransform = _defineStr + source;
+            _extensions->glShaderSource(_glShaderHandle, 2, sourceText, NULL);
         }
     }
     _extensions->glCompileShader( _glShaderHandle );
@@ -690,14 +755,19 @@ void Shader::PerContextShader::compileShader(osg::State& state)
     _isCompiled = (compiled == GL_TRUE);
     if( ! _isCompiled )
     {
+        //Vantage Patch
+        OSG_WARN << "----------------------------------------------------------------------------------------" << std::endl << std::endl;
+
         OSG_WARN << _shader->getTypename() << " glCompileShader \""
             << _shader->getName() << "\" FAILED" << std::endl;
 
         std::string infoLog;
         if( getInfoLog(infoLog) )
         {
-            OSG_WARN << _shader->getTypename() << " Shader \""
-                << _shader->getName() << "\" infolog:\n" << infoLog << std::endl;
+         OSG_WARN << _shader->getTypename() << " Shader \""
+            << _shader->getName() << "\"\nFilename: \"\n" << _shader->getFileName() << "\"\n infolog:\n" << infoLog << std::endl;
+         //Vantage Patch
+         OSG_WARN << insertLineNumbers(_shader->_shaderSourcePostTransform) << std::endl;
         }
     }
     else
@@ -707,6 +777,9 @@ void Shader::PerContextShader::compileShader(osg::State& state)
         {
             OSG_INFO << _shader->getTypename() << " Shader \""
                 << _shader->getName() << "\" infolog:\n" << infoLog << std::endl;
+        }
+        if (_extensions->glObjectLabel){
+           _extensions->glObjectLabel(GL_SHADER, _glShaderHandle, _shader->getName().length(), _shader->getName().c_str());
         }
     }
 
@@ -733,18 +806,20 @@ void Shader::_parseShaderDefines(const std::string& str, ShaderDefines& defines)
     std::string::size_type start_of_parameter = 0;
     do
     {
-        // skip spaces, tabs, commans
-        start_of_parameter = str.find_first_not_of(" \t,", start_of_parameter);
+        // BEGIN VRV_PATCH - faster shader defines
+        // skip spaces, tabs, commas
+        start_of_parameter = find_first(str, NoneOf(" \t,"), start_of_parameter);
         if (start_of_parameter==std::string::npos) break;
 
         // find end of the parameter
-        std::string::size_type end_of_parameter = str.find_first_of(" \t,)", start_of_parameter);
+        std::string::size_type end_of_parameter = find_first(str, OneOf(" \t,)"), start_of_parameter);
 
         if (end_of_parameter!=std::string::npos)
         {
-            std::string::size_type start_of_open_brackets = str.find_first_of("(", start_of_parameter);
+            std::string::size_type start_of_open_brackets = find_first(str, EqualTo('('), start_of_parameter);
             if (start_of_open_brackets<end_of_parameter) ++end_of_parameter;
         }
+        // END VRV_PATCH
         else
         {
             end_of_parameter = str.size();
@@ -775,21 +850,22 @@ void Shader::_computeShaderDefines()
     {
         // skip over #pragma characters
         pos += 7;
-        std::string::size_type first_chararcter = _shaderSource.find_first_not_of(" \t", pos);
-        std::string::size_type eol = _shaderSource.find_first_of("\n\r", pos);
-        if (eol==std::string::npos) eol = _shaderSource.size();
+        // BEGIN VRV_PATCH - faster shader defines
+        std::string::size_type eol = find_first(_shaderSource, OneOf("\n\r"), pos);
+
+        std::string::size_type first_chararcter = find_first(_shaderSource, NoneOf(" \t"), pos, eol);
 
         OSG_INFO<<"\nFound pragma line ["<<_shaderSource.substr(first_chararcter, eol-first_chararcter)<<"]"<<std::endl;
 
         if (first_chararcter<eol)
         {
-            std::string::size_type end_of_keyword = _shaderSource.find_first_of(" \t(", first_chararcter);
+            std::string::size_type end_of_keyword = find_first(_shaderSource, OneOf(" \t("), first_chararcter, eol);
 
             std::string keyword = _shaderSource.substr(first_chararcter, end_of_keyword-first_chararcter);
 
-            std::string::size_type open_brackets = _shaderSource.find_first_of("(", end_of_keyword);
-
-            if ((open_brackets!=std::string::npos))
+            std::string::size_type open_brackets = find_first(_shaderSource, EqualTo('('), end_of_keyword, eol);
+            if (open_brackets<eol)
+        // END VRV_PATCH
             {
                 std::string str(_shaderSource, open_brackets+1, eol-open_brackets-1);
 
@@ -829,4 +905,3 @@ void Shader::_computeShaderDefines()
     }
 
 }
-

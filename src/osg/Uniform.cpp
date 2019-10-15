@@ -49,7 +49,10 @@ Uniform::Uniform(const Uniform& uniform, const CopyOp& copyop) :
     Object(uniform, copyop),
     _type(uniform._type),
     _updateCallback(copyop(uniform._updateCallback.get())),
-    _eventCallback(copyop(uniform._eventCallback.get()))
+    _eventCallback(copyop(uniform._eventCallback.get())),
+    // VRV_PATCH BEGIN
+    _modifiedCount(0)
+    // VRV_PATCH END
 {
     copyData(uniform);
 }

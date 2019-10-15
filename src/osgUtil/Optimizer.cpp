@@ -34,6 +34,8 @@
 #include <osg/Timer>
 #include <osg/TexMat>
 #include <osg/io_utils>
+//VRV_PATCH#
+#include <osg/ConcurrencyViewerMacros>
 
 #include <osgUtil/TransformAttributeFunctor>
 #include <osgUtil/TriStripVisitor>
@@ -148,6 +150,10 @@ void Optimizer::optimize(osg::Node* node)
 
 void Optimizer::optimize(osg::Node* node, unsigned int options)
 {
+   //VRV_PATCH#
+   osg::CVMarkerSeries series("SubloadTask");
+   osg::CVSpan UpdateTick(series, 4, "optimize");
+
     StatsVisitor stats;
 
     if (osg::getNotifyLevel()>=osg::INFO)
@@ -310,8 +316,30 @@ void Optimizer::optimize(osg::Node* node, unsigned int options)
 
         osg::Timer_t startTick = osg::Timer::instance()->tick();
 
+        //!VRV patch to allow user configuration of max verts in merged geometry
+        char *ptr;
+        //default to 65535 when there is no environment variable set
+        unsigned int targetMaximumNumberOfVertices = 65535;
+        if( (ptr = ::getenv("OSG_OPTIMIZER_MAX_VERTS")) != 0)
+        {
+           GLint envMaximum = atoi(ptr);
+
+           if (envMaximum>0)
+           {
+              OSG_INFO<<"osg::Optimizer: MergeGeometryVisitor target maximum number of vertices set to "<< envMaximum <<std::endl;
+
+              targetMaximumNumberOfVertices = (unsigned int)envMaximum;
+           }else
+           {
+              OSG_INFO<<"osg::Optimizer: Invalid OSG_OPTIMIZER_MAX_VERTS setting of " << ptr << " MergeGeometryVisitor target maximum number of vertices set to default ("<< targetMaximumNumberOfVertices << ")" << std::endl;
+           }
+        }else
+        {
+           OSG_INFO<<"osg::Optimizer: MergeGeometryVisitor target maximum number of vertices set to default ("<< targetMaximumNumberOfVertices << ")" << std::endl;
+        }
+        
         MergeGeometryVisitor mgv(this);
-        mgv.setTargetMaximumNumberOfVertices(10000);
+        mgv.setTargetMaximumNumberOfVertices(targetMaximumNumberOfVertices);
         node->accept(mgv);
 
         osg::Timer_t endTick = osg::Timer::instance()->tick();

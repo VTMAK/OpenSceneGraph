@@ -23,6 +23,8 @@ Geometry::Geometry():
     _containsDeprecatedData(false)
 {
     _supportsVertexBufferObjects = true;
+    //_useVertexBufferObjects = true;
+    //_useVertexBufferObjects = false;
     // temporary test
     // setSupportsDisplayList(false);
 }
@@ -37,6 +39,9 @@ Geometry::Geometry(const Geometry& geometry,const CopyOp& copyop):
     _containsDeprecatedData(geometry._containsDeprecatedData)
 {
     _supportsVertexBufferObjects = true;
+
+    //_useVertexBufferObjects = true;
+    //_useVertexBufferObjects = false;
     // temporary test
     // setSupportsDisplayList(false);
 
@@ -478,7 +483,9 @@ osg::VertexBufferObject* Geometry::getOrCreateVertexBufferObject()
         if (array->getVertexBufferObject()) return array->getVertexBufferObject();
     }
 
-    return new osg::VertexBufferObject;
+    osg::VertexBufferObject * vbo = new osg::VertexBufferObject;
+    vbo->setName(getName() + "-vbo");
+    return vbo;
 }
 
 osg::ElementBufferObject* Geometry::getOrCreateElementBufferObject()
@@ -495,7 +502,10 @@ osg::ElementBufferObject* Geometry::getOrCreateElementBufferObject()
         if (elements->getElementBufferObject()) return elements->getElementBufferObject();
     }
 
-    return new osg::ElementBufferObject;
+    osg::ElementBufferObject * ebo = new osg::ElementBufferObject;
+    ebo->setName(getName() + "-ebo");
+    return ebo;
+
 }
 
 void Geometry::setUseVertexBufferObjects(bool flag)
@@ -1519,7 +1529,7 @@ void Geometry::fixDeprecatedData()
             default:            primLength=0; break; // compute later when =0.
         }
 
-        // copy the vertex data across to the new arays
+        // copy the vertex data across to the new arrays
         switch(primitiveset->getType())
         {
             case(PrimitiveSet::DrawArraysPrimitiveType):

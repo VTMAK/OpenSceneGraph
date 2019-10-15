@@ -51,7 +51,13 @@ LightPointNode::LightPointNode():
     _lightSystem(0),
     _pointSprites(false)
 {
-    setStateSet(getSingletonLightPointSystemSet());
+   //setStateSet(getSingletonLightPointSystemSet());
+   //makOSG patch to fix bug caused by openFlight loader and lightPointNode
+   // interaction that causes multiple models to use the same textures on their
+   // light points. Also causes medftool to create medf files that use the
+   // wrong textures on their light points.
+   // Don't use the singleton light point state set.
+   getOrCreateStateSet()->setRenderBinDetails(20, "DepthSortedBin");
 }
 
 /** Copy constructor using CopyOp to manage deep vs shallow copy.*/
@@ -193,6 +199,7 @@ void LightPointNode::traverse(osg::NodeVisitor& nv)
         if (!drawable)
         {
             drawable = _pointSprites ? new LightPointSpriteDrawable : new LightPointDrawable;
+            
             rg->setUserData(drawable);
 
             if (cv->getFrameStamp())

@@ -191,6 +191,18 @@ bool XBaseParser::parse(int fd)
                 shapeAttributeList->push_back(osgSim::ShapeAttribute((const char *) it->_name, (double) number));
                 break;
             }
+            // BEGIN VRV_PATCH
+            case 'F':
+            {
+               char* number = new char[it->_fieldLength + 1];
+               memcpy(number, recordPtr, it->_fieldLength);
+               number[it->_fieldLength] = 0;
+               double value = atof(number);
+               shapeAttributeList->push_back(osgSim::ShapeAttribute((const char *)it->_name, value));
+               delete[] number;
+               break;
+            }
+            // END VRV_PATCH
             default:
             {
                 OSG_WARN << "ESRIShape::XBaseParser : record type "

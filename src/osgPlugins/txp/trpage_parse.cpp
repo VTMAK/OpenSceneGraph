@@ -40,6 +40,9 @@ trpgr_Token::trpgr_Token()
 {
     cb = NULL;
     destroy = true;
+    //VRV_PATCH BEGIN
+    Token = 0;
+    //VRV_PATCH END
 }
 trpgr_Token::~trpgr_Token()
 {

@@ -14,6 +14,7 @@
 #include <osg/Math>
 
 #include <string.h>
+#include <osg/Vec3>
 
 
 double osg::asciiToDouble(const char* str)
@@ -130,3 +131,13 @@ double osg::findAsciiToDouble(const char* str)
 
    return 0.0;
 }
+
+// VRV_PATCH BEGIN - Adding equivalent for Vec3
+bool osg::equivalent(const Vec3f& lhs, const Vec3f& rhs, double epsilon)
+{
+   double deltaX = rhs.x() - lhs.x();
+   double deltaY = rhs.y() - lhs.y();
+   double deltaZ = rhs.z() - lhs.z();
+   return ((std::abs(deltaX) < epsilon) && (std::abs(deltaY) < epsilon) && (std::abs(deltaZ) < epsilon));
+}
+// VRV_PATCH END

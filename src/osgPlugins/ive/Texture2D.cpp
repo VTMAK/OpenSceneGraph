@@ -54,6 +54,20 @@ void Texture2D::read(DataInputStream* in){
         osg::Image *image = in->readImage();
         if(image) {
             setImage(image);
+            //VRVPatch
+            if (image->getPixelFormat() == GL_LUMINANCE) {
+               //printf("fixing luminance %s !\n", image->getFileName().c_str());
+               setSwizzle(osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_GREEN));
+            }
+            if (image->getPixelFormat() == GL_LUMINANCE_ALPHA) {
+               //printf("fixing luminance alpha %s !\n", image->getFileName().c_str());
+               setSwizzle(osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_GREEN));
+            }
+            if (image->getInternalTextureFormat() == GL_COMPRESSED_RED_RGTC1_EXT) {
+               //printf("fixing r single chan %s !\n", image->getFileName().c_str());
+               setSwizzle(osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
+            }
+
         }
     }
     else{

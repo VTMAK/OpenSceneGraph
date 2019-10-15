@@ -257,6 +257,12 @@ namespace osgParticle
 
         ReadWriterMutex* getReadWriteMutex() const { return &_readWriteMutex; }
 
+        // BEGIN VRV_PATCH 
+        // Give a hint as to how many particles we are going to create in an emitter
+        // so that it does not trigger a resize when particles are pushed back
+        void setNumParticlesToCreateHint(unsigned int numParticles);
+        // END VRV_PATCH 
+
     protected:
 
         virtual ~ParticleSystem();
@@ -304,6 +310,14 @@ namespace osgParticle
         int _detail;
         SortMode _sortMode;
         double _visibilityDistance;
+
+        // BEGIN VRV_PATCH
+        // don't compute these each time, just store in class
+        const osg::Vec3 _xAxis;
+        const osg::Vec3 _yAxis;
+        const osg::Vec3 _zAxis;
+        const Particle::Shape _userShape;
+        // END VRV_PATCH
 
         mutable int _draw_count;
 
@@ -511,12 +525,13 @@ namespace osgParticle
 
             // remove the pointer from the death stack
             _deadparts.pop();
-            return P;
 
+            return P;
         } else {
 
             // add a new particle to the vector
             _particles.push_back(ptemplate? *ptemplate: _def_ptemp);
+
             return &_particles.back();
         }
     }

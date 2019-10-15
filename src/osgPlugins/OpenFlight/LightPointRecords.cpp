@@ -273,6 +273,10 @@ public:
 
         if (_appearance.valid())
         {
+            //VRV Patch for handling CDB and other light point types
+           lp._typeName = _appearance->name;
+           //End VRV Patch
+
             lp._position = vertex._coord;
             lp._radius = 0.5f * _appearance->actualPixelSize;
             lp._intensity = _appearance->intensityFront;
@@ -442,6 +446,9 @@ public:
 
     META_Record(LightPointSystem)
     META_addChild(_switch)
+    //VRV Patch so that the comments are passed down on the multiswitch from the light point system
+    META_setComment(_switch)
+    //End VRV Patch
 
 protected:
 
@@ -508,6 +515,18 @@ protected:
                 lpn->setLightPointSystem(_lps.get());
         }
     }
+
+    //VRV Patch for passing down the full long id for the light point system
+    // the long id is used by the Creator runway wizard to specify the runway name
+    virtual void setID(const std::string &id)
+    {
+       if (_switch.valid())
+       {
+          _switch->setName(id);
+       }
+    }
+    //END VRV Patch
+
 };
 
 REGISTER_FLTRECORD(LightPointSystem, LIGHT_POINT_SYSTEM_OP)

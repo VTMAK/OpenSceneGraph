@@ -16,6 +16,7 @@
 
 #include <osg/Vec4>
 #include <osg/StateAttribute>
+#include <osg/StateSet>
 
 #ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
     #define GL_AMBIENT                  0x1200
@@ -27,6 +28,9 @@
 #endif
 
 namespace osg {
+
+
+
 /** Material - encapsulates OpenGL glMaterial state.*/
 class OSG_EXPORT Material : public StateAttribute
 {
@@ -52,9 +56,18 @@ class OSG_EXPORT Material : public StateAttribute
             _emissionBack(mat._emissionBack),
             _shininessFrontAndBack(mat._shininessFrontAndBack),
             _shininessFront(mat._shininessFront),
-            _shininessBack(mat._shininessBack) {}
+            _shininessBack(mat._shininessBack),
+            //vantage note: this class doesn't really seem to be built to understand shallow vs deep copies
+            //don't see fixing that now, so there can be extra ubo's built
+            _dirty(1),
+            _ubo_index(0)
+        {
+           
+        }
 
         META_StateAttribute(osg, Material, MATERIAL);
+
+        virtual void releaseGLObjects(osg::State* state = 0) const;
 
         /** return -1 if *this < *rhs, 0 if *this==*rhs, 1 if *this>*rhs. */
         virtual int compare(const StateAttribute& sa) const
@@ -172,6 +185,9 @@ class OSG_EXPORT Material : public StateAttribute
         */
         void setAlpha(Face face,float alpha);
 
+        bool isDirty(void) const;
+        void setDirty(bool dirty);
+
     protected :
 
         virtual ~Material();
@@ -198,8 +214,37 @@ class OSG_EXPORT Material : public StateAttribute
         float  _shininessFront;                      // values 0 - 128.0
         float  _shininessBack;                       // values 0 - 128.0
 
+        mutable bool _dirty;
+
+        mutable unsigned int _ubo_index;
 };
 
-}
 
+//VRV PATCH handles the deletion of the material ubo buffer so that it is 
+// guaranteed to happen in the main thread when we have a valid context
+class OSG_EXPORT MaterialManager
+{
+public:
+   MaterialManager() {}
+   ~MaterialManager() {}
+
+   //Handles the deletion of material buffers. Should only be called in the main render thread
+   void cleanupMaterialBuffers(osg::ref_ptr<GLExtensions> extentions);
+
+   //Called by the ~Material() function so that a buffer is put on the list of buffers to delete
+   void pushMaterialBufferToDelete(unsigned int bufferToDelete);
+   
+   static MaterialManager theMaterialManager;
+
+protected:
+
+   std::vector<unsigned int> myMaterialsToDelete;
+   OpenThreads::Mutex myMutex;
+
+};
+
+//VRV Patch
+
+
+}
 #endif
