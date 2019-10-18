@@ -53,40 +53,41 @@ LightModel::~LightModel()
 void LightModel::apply(State& state) const
 {
 
-    #ifdef OSG_GLES1_AVAILABLE
-    #define glLightModeli glLightModelx
-    #endif
+#ifdef OSG_GLES1_AVAILABLE
+#define glLightModeli glLightModelx
+#endif
 
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT,_ambient.ptr());
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, _ambient.ptr());
 
-    if (state.get<GLExtensions>()->glVersion>=1.2)
+    if (state.get<GLExtensions>()->glVersion >= 1.2)
     {
-        if (_colorControl==SEPARATE_SPECULAR_COLOR)
+        if (_colorControl == SEPARATE_SPECULAR_COLOR)
         {
-            glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL,GL_SEPARATE_SPECULAR_COLOR);
+            glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SEPARATE_SPECULAR_COLOR);
         }
         else
         {
-            glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL,GL_SINGLE_COLOR);
+            glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SINGLE_COLOR);
         }
     }
 
-    #ifndef OSG_GLES1_AVAILABLE
-    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,_localViewer);
-    #endif
+#ifndef OSG_GLES1_AVAILABLE
+    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, _localViewer);
+#endif
 
-    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE,_twoSided);
+    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, _twoSided);
 }
 
 #else
-	static int i = 1;
-	if (i)
-	{
-		i = 0;
-		OSG_INFO<<"Warning: LightModel::apply(State&) - not supported."<<std::endl;
-	}
-#endif
+
+void LightModel::apply(State&) const
+{
+    static int i = 1;
+    if (i)
+    {
+        i = 0;
+        OSG_NOTICE << "Warning: LightModel::apply(State&) - not supported." << std::endl;
+    }
 }
 
 #endif
-

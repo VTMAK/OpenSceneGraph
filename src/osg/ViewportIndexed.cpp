@@ -40,10 +40,10 @@ void ViewportIndexed::apply(State& state) const
     if (extensions->glViewportIndexedf)
     {
         extensions->glViewportIndexedf(static_cast<GLuint>(_index),
-                                       static_cast<GLfloat>(_x),
-                                       static_cast<GLfloat>(_y),
-                                       static_cast<GLfloat>(_width),
-                                       static_cast<GLfloat>(_height));
+                                       static_cast<GLfloat>(_x[0]),
+                                       static_cast<GLfloat>(_y[0]),
+                                       static_cast<GLfloat>(_width[0]),
+                                       static_cast<GLfloat>(_height[0]));
     }
     else
     {

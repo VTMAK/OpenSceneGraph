@@ -209,28 +209,7 @@ GLuint Drawable::generateDisplayList(unsigned int contextID, unsigned int sizeHi
 
 void Drawable::deleteDisplayList(unsigned int contextID,GLuint globj, unsigned int sizeHint)
 {
-   _boundingBoxComputed = false;
-
-   // Note, if your are defining a subclass from drawable which is
-   // dynamically updated then you should set both the following to
-   // to false in your constructor.  This will prevent any display
-   // lists from being automatically created and safeguard the
-   // dynamic updating of data.
-#ifdef OSG_GL_DISPLAYLISTS_AVAILABLE
-   _supportsDisplayList = true;
-   _useDisplayList = true;
-#else
-   _supportsDisplayList = false;
-   _useDisplayList = false;
-#endif
-   _supportsVertexBufferObjects = true;
-   _useVertexBufferObjects = true;
-   _useVertexArrayObject = false;
-
-   if (s_useVertexBufferObjectsDefault){
-      _useVertexBufferObjects = true;
-      _useDisplayList = false;
-   }
+    osg::get<DisplayListManager>(contextID)->deleteDisplayList(globj, sizeHint);
 }
 
 Drawable::Drawable(const Drawable& drawable,const CopyOp& copyop):

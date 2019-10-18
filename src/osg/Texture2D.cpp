@@ -170,7 +170,7 @@ void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::
    // note this only happens for 2d textures currently
    if (textureObject->_currentMipMapToApply >= 0)
    {
-      osg::Texture::TextureObjectManager * tom = osg::Texture::getTextureObjectManager(state.getContextID()).get();
+      osg::TextureObjectManager * tom = osg::get<TextureObjectManager>(state.getContextID()).get();
       bool havent_hit_limit = false;
       if (tom->getElapsedTimeBudget() < tom->getCurrentTimeElapsed()) {
          havent_hit_limit = true;

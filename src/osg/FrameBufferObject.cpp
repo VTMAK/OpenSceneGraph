@@ -584,34 +584,6 @@ void FrameBufferAttachment::releaseGLObjects(osg::State* state) const
 {
     if (_ximpl->renderbufferTarget.valid()) _ximpl->renderbufferTarget->releaseGLObjects(state);
     if (_ximpl->textureTarget.valid()) _ximpl->textureTarget->releaseGLObjects(state);
-    
-    // if no time available don't try to flush objects.
-    if (availableTime<=0.0) return;
-
-    const GLExtensions* extensions = GLExtensions::Get(contextID,false);
-    if(!extensions || !extensions->isFrameBufferObjectSupported ) return;
-
-    const osg::Timer& timer = *osg::Timer::instance();
-    osg::Timer_t start_tick = timer.tick();
-    double elapsedTime = 0.0;
-
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_mutex_deletedFrameBufferObjectCache);
-
-        FrameBufferObjectHandleList& pList = s_deletedFrameBufferObjectCache[contextID];
-        for(FrameBufferObjectHandleList::iterator titr=pList.begin();
-            titr!=pList.end() && elapsedTime<availableTime;
-            )
-        {
-           if (extensions->glDeleteFramebuffers){
-              extensions->glDeleteFramebuffers(1, &(*titr));
-           }
-           titr = pList.erase(titr);
-            elapsedTime = timer.delta_s(start_tick,timer.tick());
-        }
-    }
-
-    availableTime -= elapsedTime;
 }
 
 /**************************************************************************
