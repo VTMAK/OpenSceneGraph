@@ -671,10 +671,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         /** Get the internal texture format type. */
         inline InternalFormatType getInternalFormatType() const { return _internalFormatType; }
 
-        /* select the size internal format to use based on Image when available or Texture format settings.*/
-        GLenum selectSizedInternalFormat(const osg::Image* image=0) const;
-
         class TextureObject;
+
 
         /** return true if the texture image data has been modified and the associated GL texture object needs to be updated.*/
         virtual bool isDirty(unsigned int /*contextID*/) const { return false; }
@@ -1020,19 +1018,19 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
+                _frameLastUsed(0),
                 _timeStamp(0),
                 //vrv_patch
-               _currentMipMapToApply(-1),
-               _subCurrentMipMapToApply(0),
-               // VRV PATCH
-               // OSG can delete this texture (it is not current being
-               // used by VRV indirect rendering)
-               _canDelete(true),
-               // It is not orphaned - an orphaned texture is one that
-               // OSG says is OK to delete
-               _isOrphaned(false),
-               // END VRV PATCH
-               _frameLastUsed(0)
+                _currentMipMapToApply(-1),
+                _subCurrentMipMapToApply(0),
+                // VRV PATCH
+                // OSG can delete this texture (it is not current being
+                // used by VRV indirect rendering)
+                _canDelete(true),
+                // It is not orphaned - an orphaned texture is one that
+                // OSG says is OK to delete
+                _isOrphaned(false)
+                // END VRV PATCH
             {}
 
             inline TextureObject(Texture* texture, GLuint id, const TextureProfile& profile):
@@ -1043,17 +1041,19 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
+                _frameLastUsed(0),
                 _timeStamp(0),
                 //vrv_patch
                 _currentMipMapToApply(-1),
-               _subCurrentMipMapToApply(0),
-               // OSG can delete this texture (it is not current being
-               // used by VRV indirect rendering)
-               _canDelete(true),
-               // It is not orphaned - an orphaned texture is one that
-               // OSG says is OK to delete
-               _isOrphaned(false),
-               _frameLastUsed(0)
+                _subCurrentMipMapToApply(0),
+                // VRV PATCH
+                // OSG can delete this texture (it is not current being
+                // used by VRV indirect rendering)
+                _canDelete(true),
+                // It is not orphaned - an orphaned texture is one that
+                // OSG says is OK to delete
+                _isOrphaned(false)
+                // END VRV PATCH
             {}
 
             inline TextureObject(Texture* texture,
@@ -1072,17 +1072,20 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _next(0),
                 _texture(texture),
                 _allocated(false),
+                _frameLastUsed(0),
                 _timeStamp(0),
-               _currentMipMapToApply(-1),
-               _subCurrentMipMapToApply(0),
-               // OSG can delete this texture (it is not current being
-               // used by VRV indirect rendering)
-               _canDelete(true),
-               // It is not orphaned - an orphaned texture is one that
-               // OSG says is OK to delete
-               _isOrphaned(false),
-               _frameLastUsed(0)
-            {}
+                //vrv_patch
+                _currentMipMapToApply(-1),
+                _subCurrentMipMapToApply(0),
+                // VRV PATCH
+                // OSG can delete this texture (it is not current being
+                // used by VRV indirect rendering)
+                _canDelete(true),
+                // It is not orphaned - an orphaned texture is one that
+                // OSG says is OK to delete
+                _isOrphaned(false)
+                // END VRV PATCH
+            {}                
 
             inline bool match(GLenum    target,
                        GLint     numMipmapLevels,
@@ -1120,11 +1123,13 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                               GLint     border);
 
             inline bool isAllocated() const { return _allocated; }
+
             inline bool isReusable() const { return _allocated && _profile._width!=0; }
 
             /** release TextureObject to the orphan list to be reused or deleted.*/
             void release();
 
+            // VRV PATCH
             bool isDownloaded() const; 
 
             // These are used for indirect textures which are deleted in the
@@ -1139,6 +1144,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             // This means that OSG is done with this texture (but not necessarily VRV)
             inline void setIsOrphaned(bool orphaned)  { _isOrphaned = orphaned; }
             inline bool isOrphaned()  { return _isOrphaned; }
+
+            // END VRV PATCH
 
             GLuint              _id;
             TextureProfile      _profile;
@@ -1164,15 +1171,6 @@ class OSG_EXPORT Texture : public osg::StateAttribute
 
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture, unsigned int contextID,GLenum target);
-
-        // VRV PATH
-        // So remove(TextureObject* to) just removes the texture object from a 
-        // linked list of texture objects. We need to remove the texture from 
-        // the _orphanedTextureObjects so 
-        void removeOrphan(TextureObject* to);
-        // END VRV PATCH
-
-        // ALPHAPIXEL: Removed - members inside function not found. unsigned int size() const { return _profile._size * _numOfTextureObjects; }
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture,
                                                      unsigned int contextID,
@@ -1220,6 +1218,14 @@ public:
 
     osg::ref_ptr<Texture::TextureObject> takeFromOrphans(Texture* texture);
     osg::ref_ptr<Texture::TextureObject> takeOrGenerate(Texture* texture);
+
+    // VRV PATH
+    // So remove(TextureObject* to) just removes the texture object from a 
+    // linked list of texture objects. We need to remove the texture from 
+    // the _orphanedTextureObjects so 
+    void removeOrphan(Texture::TextureObject* to);
+    // END VRV PATCH
+
     void moveToBack(Texture::TextureObject* to);
     void addToBack(Texture::TextureObject* to);
     void orphan(Texture::TextureObject* to);
@@ -1275,18 +1281,6 @@ public:
     unsigned int& getCurrTexturePoolSize() { return _currTexturePoolSize; }
     unsigned int getCurrTexturePoolSize() const { return _currTexturePoolSize; }
 
-    bool getTimeManagementActive() { return _timeManagementActive; }
-    void setTimeManagementActive(bool tma) { _timeManagementActive = tma; }
-
-    void setElapsedTimeBudget(double time) { _elapsedTimeBudget = time; }
-    double getElapsedTimeBudget() { return _elapsedTimeBudget; }
-    void resetCurrentTimeElapsed() { _currentTimeElapsed = 0; }
-    double getCurrentTimeElapsed() { return _currentTimeElapsed; }
-    void incrementTimeElapsed(double time) { _currentTimeElapsed += time; }
-
-    bool getTextureStreamingActive() { return _textureStreamingActive; }
-    void setTextureStreamingActive(bool active) { _textureStreamingActive = active; }
-
     void setMaxTexturePoolSize(unsigned int size);
     unsigned int getMaxTexturePoolSize() const { return _maxTexturePoolSize; }
 
@@ -1327,6 +1321,19 @@ public:
     unsigned int& getNumberGenerated() { return _numGenerated; }
     double& getGenerateTime() { return _generateTime; }
 
+    // VRV_PATCH
+    bool getTimeManagementActive() { return _timeManagementActive; }
+    void setTimeManagementActive(bool tma) { _timeManagementActive = tma; }
+
+    void setElapsedTimeBudget(double time) { _elapsedTimeBudget = time; }
+    double getElapsedTimeBudget() { return _elapsedTimeBudget; }
+    void resetCurrentTimeElapsed() { _currentTimeElapsed = 0; }
+    double getCurrentTimeElapsed() { return _currentTimeElapsed; }
+    void incrementTimeElapsed(double time) { _currentTimeElapsed += time; }
+
+    bool getTextureStreamingActive() { return _textureStreamingActive; }
+    void setTextureStreamingActive(bool active) { _textureStreamingActive = active; }
+
 protected:
 
     ~TextureObjectManager();
@@ -1348,10 +1355,11 @@ protected:
     unsigned int        _numGenerated;
     double              _generateTime;
 
-    bool                _timeManagementActive; 
-    double              _currentTimeElapsed; 
-    double              _elapsedTimeBudget;
-    bool                _textureStreamingActive; 
+    // VRV_PATCH
+    bool _timeManagementActive; 
+    double _currentTimeElapsed; 
+    double _elapsedTimeBudget;
+    bool _textureStreamingActive; 
 
 };
 }

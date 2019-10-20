@@ -23,7 +23,6 @@
 #include <osg/Texture1D>
 #include <osg/ContextData>
 
-
 #include <OpenThreads/ScopedLock>
 #include <OpenThreads/Mutex>
 
@@ -143,7 +142,6 @@ InternalPixelRelations sizedInternalFormats[] = {
 
 
     , { GL_RGBA8                               , GL_RGBA             , GL_UNSIGNED_BYTE                             }
-    , { GL_RGBA16                              , GL_RGBA             , GL_UNSIGNED_SHORT                            }
     , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
     , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
     , { GL_RGBA12                              , GL_RGBA             , GL_UNSIGNED_SHORT                            }
@@ -156,8 +154,8 @@ InternalPixelRelations sizedInternalFormats[] = {
     , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
     , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
  // , { GL_RGBA16F                             , GL_RGBA             , GL_HALF_FLOAT                                }
-    , { GL_RGBA16F_ARB                         , GL_RGBA             , GL_FLOAT                                     }
-    , { GL_RGBA32F_ARB                         , GL_RGBA             , GL_FLOAT                                     }
+ // , { GL_RGBA16F                             , GL_RGBA             , GL_FLOAT                                     }
+ // , { GL_RGBA32F                             , GL_RGBA             , GL_FLOAT                                     }
 
     , { GL_SRGB8                               , GL_RGB              , GL_UNSIGNED_BYTE                             }
     , { GL_SRGB8_ALPHA8                        , GL_RGBA             , GL_UNSIGNED_BYTE                             }
@@ -181,8 +179,6 @@ InternalPixelRelations sizedDepthAndStencilInternalFormats[] = {
  // , { GL_DEPTH32F_STENCIL8                   , GL_DEPTH_STENCIL    , GL_FLOAT_32_UNSIGNED_INT_24_8_REV            }
 };
 
-// VRV_PATCH 
-//Make sure these work if you want your textures to load quickly
 InternalPixelRelations compressedInternalFormats[] = {
  // , { GL_COMPRESSED_RED                      , GL_RED              , GL_COMPRESSED_RED                            }
  // , { GL_COMPRESSED_RG                       , GL_RG               , GL_COMPRESSED_RG                             }
@@ -192,8 +188,8 @@ InternalPixelRelations compressedInternalFormats[] = {
     , { GL_COMPRESSED_SRGB_ALPHA               , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA                     }
     , { GL_COMPRESSED_RED_RGTC1_EXT            , GL_RED              , GL_COMPRESSED_RED_RGTC1_EXT                  }
     , { GL_COMPRESSED_SIGNED_RED_RGTC1_EXT     , GL_RED              , GL_COMPRESSED_SIGNED_RED_RGTC1_EXT           }
-    , { GL_COMPRESSED_RED_GREEN_RGTC2_EXT      , GL_RG               , GL_COMPRESSED_RED_GREEN_RGTC2_EXT }
-   // , { GL_COMPRESSED_SIGNED_RG_RGTC2          , GL_RG               , GL_COMPRESSED_SIGNED_RG_RGTC2                }
+    , { GL_COMPRESSED_RED_GREEN_RGTC2_EXT      , GL_RG               , GL_COMPRESSED_RED_GREEN_RGTC2_EXT            }
+ // , { GL_COMPRESSED_SIGNED_RG_RGTC2          , GL_RG               , GL_COMPRESSED_SIGNED_RG_RGTC2                }
  // , { GL_COMPRESSED_RGBA_BPTC_UNORM          , GL_RGBA             , GL_COMPRESSED_RGBA_BPTC_UNORM                }
  // , { GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM    , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM          }
  // , { GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT    , GL_RGB              , GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT          }
@@ -236,10 +232,9 @@ GLenum assumeSizedInternalFormat(GLint internalFormat, GLenum type)
     return 0;
 }
 
-bool isCompressedInternalFormatSupportedByTexStorage(GLint internalFormat)
+bool isCompressedInternalFormatSupportedByTexStorrage(GLint internalFormat)
 {
-
-   const size_t formatsCount = sizeof(compressedInternalFormats) / sizeof(compressedInternalFormats[0]);
+    const size_t formatsCount = sizeof(compressedInternalFormats) / sizeof(compressedInternalFormats[0]);
 
     for (size_t i=0; i < formatsCount; ++i)
     {
@@ -260,6 +255,7 @@ void Texture::TextureObject::bind()
     glBindTexture( _profile._target, _id);
     if (_set) _set->moveToBack(this);
 }
+
 //VRV_PATCH
 bool Texture::TextureObject::isDownloaded() const{
    return _currentMipMapToApply == -1;
@@ -519,7 +515,6 @@ void TextureObjectSet::deleteAllTextureObjects()
         // delete the texture object when it is done with it
         glto->setIsOrphaned(true);
         // END VRV PATCH
-
         remove(glto.get());
 
         ++numOrphaned;
@@ -586,6 +581,7 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
             handlePendingOrphandedTextureObjects();
         }
     }
+
     //VRV_PATCH for texture deletion debugging
     const unsigned int contextID = 0; // set to 0 right now, assume same parameters for each graphics context...
     const GLExtensions* extensions = GLExtensions::Get(contextID, false);
@@ -594,7 +590,7 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
     // OSG is going to start getting rid of orphaned textures
     // we have to intervene in the case that VRV is not done
     // with them yet
-    Texture::TextureObjectList almostOrphanedTextures;
+    TextureObjectList almostOrphanedTextures;
     // END VRV PATCH
 
     for(Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
@@ -617,15 +613,12 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
         }
 
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
-
         // VRV PATCH
         // VRV is done with the texture so OSG can do what it wants
         if ((*itr)->getCanDelete())
         {
         // END VRV PATCH
-        
-            glDeleteTextures(1L, &id);
-        
+            glDeleteTextures( 1L, &id);
         // VRV PATCH
         }
         else
@@ -735,7 +728,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     // OSG is going to start getting rid of orphaned texture
     // objects we have to intervene in the case that VRV is 
     // not done with them yet
-    Texture::TextureObjectList almostOrphanedTextures;
+    TextureObjectList almostOrphanedTextures;
     // END VRV PATCH
 
     Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
@@ -755,6 +748,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
               OSG_WARN << " deleting: " << texture_name << std::endl;
            }
         }
+
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
 
         // VRV PATCH
@@ -763,11 +757,9 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
         if ((*itr)->getCanDelete())
         {
         // END VRV PATCH
-
-            glDeleteTextures(1L, &id);
+            glDeleteTextures( 1L, &id);
 
             ++numDeleted;
-
         // VRV PATCH
         }
         else
@@ -801,7 +793,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     // Eventually VRV will be done with them and delete them 
     // or VRV will tell OSG that it is OK for OSG to delete the
     // texture objects
-    for (Texture::TextureObjectList::iterator itr = almostOrphanedTextures.begin();
+    for (TextureObjectList::iterator itr = almostOrphanedTextures.begin();
         itr != almostOrphanedTextures.end(); ++itr)
     {
         _orphanedTextureObjects.push_back(*itr);
@@ -836,7 +828,7 @@ bool TextureObjectSet::makeSpace(unsigned int& size)
 // If VRV deleted this texture object, take it off OSG's
 // _orphanedTextureObjects so OSG doesn't try to delete it
 // as well
-void TextureObjectSet::removeOrphan(TextureObject* to)
+void Texture::TextureObjectSet::removeOrphan(TextureObject* to)
 {
     for (TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
         itr != _orphanedTextureObjects.end(); ++itr)
@@ -852,9 +844,6 @@ void TextureObjectSet::removeOrphan(TextureObject* to)
 
 osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* texture)
 {
-    // take front of orphaned list.
-    ref_ptr<Texture::TextureObject> to = _orphanedTextureObjects.front();
-
     // VRV PATCH
     // The original function just took the first texture object off the 
     // list and assigned it to the texture
@@ -991,6 +980,7 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeOrGenerate(Texture* t
               extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getImage(0)->getName().c_str());
            }
         }
+
         return to;
     }
 
@@ -1209,9 +1199,7 @@ TextureObjectManager::TextureObjectManager(unsigned int contextID):
     _deleteTime(0.0),
     _numGenerated(0),
     _generateTime(0.0),
-    _numApplied(0),
-    _applyTime(0.0),
-//vrv_patch
+    //vrv_patch
    _timeManagementActive(false),
    _currentTimeElapsed(0),
    _elapsedTimeBudget(.002),
@@ -1365,15 +1353,6 @@ void TextureObjectManager::flushDeletedGLObjects(double currentTime, double& ava
     {
         (*itr).second->flushDeletedTextureObjects(currentTime, availableTime);
     }
-}
-
-void Texture::TextureObjectManager::releaseTextureObject(Texture::TextureObject* to)
-{
-    // VRV PATCH
-    // OSG_NOTICE<< "Texture::TextureObjectManager::releaseTextureObject, to: " << to << std::endl;
-    // END VRV PATCH
-    if (to->_set) to->_set->orphan(to);
-    else OSG_NOTICE<<"TextureObjectManager::releaseTextureObject(Texture::TextureObject* to) Not implemented yet"<<std::endl;
 }
 
 void TextureObjectManager::newFrame(osg::FrameStamp* fs)
@@ -1566,7 +1545,7 @@ int Texture::compareTexture(const Texture& rhs) const
     COMPARE_StateAttribute_Parameter(_useHardwareMipMapGeneration)
     COMPARE_StateAttribute_Parameter(_internalFormatMode)
 
-    // only compare _internalFomat is it has already been set in both lhs, and rhs
+    // only compare _internalFomat is it has alrady been set in both lhs, and rhs
     if (_internalFormat!=0 && rhs._internalFormat!=0)
     {
         COMPARE_StateAttribute_Parameter(_internalFormat)
@@ -1951,15 +1930,15 @@ void Texture::computeInternalFormatWithImage(const osg::Image& image) const
         }	
         case(GL_COMPRESSED_RED_RGTC1_EXT) :
         {
-           _swizzle = osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE);
-           break;
+            _swizzle = osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE);
+            break;
         }
         case(GL_COMPRESSED_RED_GREEN_RGTC2_EXT) :
         {
-           _swizzle = osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_GREEN);
-           break;
+            _swizzle = osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_GREEN);
+            break;
         }
-        case(1) : internalFormat = GL_RED; break; // or sould this be GL_ALPHA?
+        case(1) : internalFormat = GL_RED; break; // or should this be GL_ALPHA?
         case(2) : internalFormat = GL_RG; break; // should we assume GL_LUMINANCE_ALPHA?
         case(GL_LUMINANCE_ALPHA) : internalFormat = GL_RG; break; // should it be swizlled to match RGAB(LUMUNIANCE, LUMINANCE, LUMINANCE, ALPHA)?
         case(3) : internalFormat = GL_RGB; break;
@@ -2399,44 +2378,6 @@ bool Texture::areAllTextureObjectsLoaded() const
     return true;
 }
 
-GLenum Texture::selectSizedInternalFormat(const osg::Image* image) const
-{
-    if (image)
-    {
-        bool compressed_image = isCompressedInternalFormat((GLenum)image->getPixelFormat());
-
-        //calculate sized internal format
-        if(compressed_image)
-        {
-            if(isCompressedInternalFormatSupportedByTexStorage(_internalFormat))
-            {
-                return _internalFormat;
-            }
-            else
-            {
-                return 0;
-            }
-        }
-        else
-        {
-            if(isSizedInternalFormat(_internalFormat))
-            {
-                return _internalFormat;
-            }
-            else
-            {
-                return assumeSizedInternalFormat((GLenum)image->getInternalTextureFormat(), (GLenum)image->getDataType());
-            }
-        }
-    }
-    else
-    {
-        if (isSizedInternalFormat(_internalFormat)) return _internalFormat;
-
-        return assumeSizedInternalFormat(_internalFormat, (_sourceType!=0) ? _sourceType : GL_UNSIGNED_BYTE);
-    }
-}
-
 //VRV_Patch for debugging
 static const char *
 glFormatsToString(int compressed_format_type)
@@ -2537,7 +2478,6 @@ void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* ima
         return;
     }
 
-
     ElapsedTime elapsedTimer;
 /*
 char buff[300];
@@ -2568,8 +2508,6 @@ char buff[300];
     }
     osg::CVSpan loadSpan(series, 4, "applyTexImage2D_load");
 
-
-
 #ifdef DO_TIMING
     osg::Timer_t start_tick = osg::Timer::instance()->tick();
     OSG_NOTICE<<"glTexImage2D pixelFormat = "<<std::hex<<image->getPixelFormat()<<std::dec<<std::endl;
@@ -2593,33 +2531,33 @@ char buff[300];
         OSG_NOTICE<<"Received a request to compress an image, but image size is not a multiple of four ("<<inwidth<<"x"<<inheight<<"). Reverting to uncompressed.\n";
         switch(_internalFormat)
         {
-        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
+            case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
             case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
             case GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG:
             case GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG:
             case GL_ETC1_RGB8_OES:
-         case GL_COMPRESSED_SRGB_EXT:
+            case GL_COMPRESSED_SRGB_EXT:
             case(GL_COMPRESSED_RGB8_ETC2):
             case(GL_COMPRESSED_SRGB8_ETC2):
             case GL_COMPRESSED_RGB: _internalFormat = GL_RGB; break;
-         case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
-         case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
-         case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
+            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
+            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
+            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
             case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
             case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
             case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
             case GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG:
             case GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG:
-         case GL_COMPRESSED_SRGB_ALPHA_EXT:
+            case GL_COMPRESSED_SRGB_ALPHA_EXT:
             case(GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2):
             case(GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2):
             case(GL_COMPRESSED_RGBA8_ETC2_EAC):
             case(GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC):
             case GL_COMPRESSED_RGBA: _internalFormat = GL_RGBA; break;
             case GL_COMPRESSED_ALPHA: _internalFormat = GL_ALPHA; break;
-         case GL_COMPRESSED_SLUMINANCE_EXT:
+            case GL_COMPRESSED_SLUMINANCE_EXT:
             case GL_COMPRESSED_LUMINANCE: _internalFormat = GL_LUMINANCE; break;
-         case GL_COMPRESSED_SLUMINANCE_ALPHA_EXT:
+            case GL_COMPRESSED_SLUMINANCE_ALPHA_EXT:
             case GL_COMPRESSED_LUMINANCE_ALPHA: _internalFormat = GL_LUMINANCE_ALPHA; break;
             case GL_COMPRESSED_INTENSITY: _internalFormat = GL_INTENSITY; break;
             case(GL_COMPRESSED_R11_EAC):
@@ -2630,8 +2568,8 @@ char buff[300];
             case(GL_COMPRESSED_SIGNED_RG11_EAC):
             case GL_COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT:
             case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_RG; break;
-         // MARCM_FIXME Statement from 3.1.4 patch.
-         // case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_LUMINANCE_ALPHA; break;
+            // MARCM_FIXME Statement from 3.1.4 patch.
+            // case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_LUMINANCE_ALPHA; break;
         }
     }
 
@@ -2719,7 +2657,7 @@ char buff[300];
 #if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE)
     glPixelStorei(GL_UNPACK_ROW_LENGTH,rowLength);
 #endif
-//VRV_PATCH
+    //VRV_PATCH
     unsigned int contextID = state.getContextID();
     TextureObject* textureObject = getTextureObject(contextID);
     textureObject->_currentMipMapToApply = -1;
@@ -2731,12 +2669,13 @@ char buff[300];
         if (mipmapResult == GENERATE_MIPMAP_NONE) {
            //std::cout << image->getFileName() << " is not using mipmaps " << std::endl;
         }
-        if (!compressed_image)
+
+        if ( !compressed_image)
         {
             numMipmapLevels = 1;
 
             osg::CVSpan allocSpan(series_rt2, 4, "glTexImage2D");
-            
+
             glTexImage2D( target, 0, _internalFormat,
                 inwidth, inheight, _borderWidth,
                 (GLenum)image->getPixelFormat(),
@@ -2746,9 +2685,9 @@ char buff[300];
         }
         else if (extensions->isCompressedTexImage2DSupported())
         {
-           osg::CVSpan allocSpan(series_rt2, 4, "glCompressedTexImage2D");
+            osg::CVSpan allocSpan(series_rt2, 4, "glCompressedTexImage2D");
 
-           numMipmapLevels = 1;
+            numMipmapLevels = 1;
 
             GLint blockSize, size;
             getCompressedSize(_internalFormat, inwidth, inheight, 1, blockSize,size);
@@ -2774,16 +2713,13 @@ char buff[300];
             int width  = inwidth;
             int height = inheight;
 
-            GLenum texStoragesizedInternalFormat = extensions->isTextureStorageEnabled && extensions->isTexStorage2DSupported() && (_borderWidth==0) ? selectSizedInternalFormat(image) : 0;
+            bool useTexStorrage = extensions->isTextureStorageEnabled;
+            GLenum sizedInternalFormat = 0;
 
-            if (texStoragesizedInternalFormat!=0)
+            if(useTexStorrage)
             {
-                if (getTextureTarget()==GL_TEXTURE_CUBE_MAP)
+                if(extensions->isTexStorage2DSupported() && _borderWidth == 0)
                 {
-#pragma error("First Block is 3.6 - secon block is osgMak 3.4")
-#if 1
-                    if (target==GL_TEXTURE_CUBE_MAP_POSITIVE_X)
-#else
                     //calculate sized internal format
                     if(!compressed_image)
                     {
@@ -2801,99 +2737,102 @@ char buff[300];
                         }
                     }
                     else
-#endif
                     {
-                        // only allocate on first face image
-                        extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, texStoragesizedInternalFormat, width, height);
+                        if(isCompressedInternalFormatSupportedByTexStorrage(_internalFormat))
+                        {
+                            sizedInternalFormat = _internalFormat;
+                        }
                     }
                 }
-#pragma error("First Block is 3.6 - secon block is osgMak 3.4")
-#if 1
-                else
-                {
-                    extensions->glTexStorage2D(target, numMipmapLevels, texStoragesizedInternalFormat, width, height);
-                }
-#else
 
                 useTexStorrage &= sizedInternalFormat != 0;
             }
 
             if(useTexStorrage)
             {
-               {
-                  osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
-                  extensions->glTexStorage2D(target, numMipmapLevels, sizedInternalFormat, width, height);
-               }
-#endif
+                if (getTextureTarget()==GL_TEXTURE_CUBE_MAP)
+                {
+                    osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
+
+                    if (target==GL_TEXTURE_CUBE_MAP_POSITIVE_X)
+                    {
+                        extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, sizedInternalFormat, width, height);
+                    }
+                }
+                else
+                {
+                    extensions->glTexStorage2D(target, numMipmapLevels, sizedInternalFormat, width, height);
+                }
 
                 if( !compressed_image )
                 {
-                   //VRV_PATCH
-                   if (target != GL_TEXTURE_2D || !getTextureObjectManager(contextID)->getTextureStreamingActive())
-                   {
+                    //VRV_PATCH
+                    if (target != GL_TEXTURE_2D || !getTextureObjectManager(contextID)->getTextureStreamingActive())
+                    {
 
-                      osg::CVSpan UpdateTick(series_rt2, 4, "sendMipmaps");
+                        osg::CVSpan UpdateTick(series_rt2, 4, "sendMipmaps");
 
-                      for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
-                      {
+                        for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                        {
 
-                         if (width == 0)
-                            width = 1;
-                         if (height == 0)
-                            height = 1;
+                            if (width == 0)
+                                width = 1;
+                            if (height == 0)
+                                height = 1;
 
-                         glTexSubImage2D(target, k,
-                            0, 0,
-                            width, height,
-                            (GLenum)image->getPixelFormat(),
-                            (GLenum)image->getDataType(),
-                            dataPtr + image->getMipmapOffset(k));
-                         
-                         width >>= 1;
-                         height >>= 1;
-                      }
-                   }
-                   //VRV_PATCH
-                   else {
-                      // start streaming them
-                      textureObject->_currentMipMapToApply = numMipmapLevels-1;
-                   }
+                            glTexSubImage2D( target, k,
+                                0, 0,
+                                width, height,
+                                (GLenum)image->getPixelFormat(),
+                                (GLenum)image->getDataType(),
+                                dataPtr + image->getMipmapOffset(k));
+
+                            width >>= 1;
+                            height >>= 1;
+                        }
+                    }
+                    //VRV_PATCH
+                    else {
+                        // start streaming them
+                        textureObject->_currentMipMapToApply = numMipmapLevels-1;
+                    }
                 }
-                else if (extensions->isCompressedTexImage2DSupported() )
+                else if (extensions->isCompressedTexImage2DSupported())
                 {
                    //VRV_PATCH
                    if (target != GL_TEXTURE_2D || !getTextureObjectManager(contextID)->getTextureStreamingActive())
                    {
+                        osg::CVSpan UpdateTick(series_rt2, 4, "sendCompressedMipmaps");
 
-                      osg::CVSpan UpdateTick(series_rt2, 4, "sendCompressedMipmaps");
+                        GLint blockSize,size;
+                        for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                        {
+                            if (width == 0)
+                                width = 1;
+                            if (height == 0)
+                                height = 1;
 
-                      GLint blockSize, size;
-                      for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
-                      {
-                         if (width == 0)
-                            width = 1;
-                         if (height == 0)
-                            height = 1;
+                            getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize,size);
 
-                         getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize, size);
+                            //state.checkGLErrors("before extensions->glCompressedTexSubImage2D(");
 
-                         extensions->glCompressedTexSubImage2D(target, k,
-                            0, 0,
-                            width, height,
-                            (GLenum)image->getPixelFormat(),
-                            size,
-                            dataPtr + image->getMipmapOffset(k));
-                         
-                         //state.checkGLErrors("after extensions->glCompressedTexSubImage2D(");
-                         width >>= 1;
-                         height >>= 1;
-                      }
-                   }
-                   else {
-                      // start streaming them
-                      textureObject->_currentMipMapToApply = numMipmapLevels-1;
-                   }
-                  
+                            extensions->glCompressedTexSubImage2D(target, k,
+                                0, 0,
+                                width, height,
+                                (GLenum)image->getPixelFormat(),
+                                size,
+                                dataPtr + image->getMipmapOffset(k));
+
+                            //state.checkGLErrors("after extensions->glCompressedTexSubImage2D(");
+
+                            width >>= 1;
+                            height >>= 1;
+                        }
+                    }
+                    else {
+                        // start streaming them
+                        textureObject->_currentMipMapToApply = numMipmapLevels-1;
+                    }
                 }
             }
             else
@@ -3002,10 +2941,10 @@ char buff[300];
     {
         glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE,GL_FALSE);
     }
-	
+
     osg::Texture::TextureObjectManager * tom = getTextureObjectManager(state.getContextID());
     if (tom->getTimeManagementActive()) {
-       tom->incrementTimeElapsed(elapsedTimer.elapsedTime());
+        tom->incrementTimeElapsed(elapsedTimer.elapsedTime());
     }
 }
 
@@ -3023,7 +2962,6 @@ void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* 
         applyTexImage2D_load(state, target, image, inwidth, inheight,numMipmapLevels);
         return;
     }
-
     // else image size the same as when loaded so we can go ahead and subload
 
     // If the texture's internal format is a compressed type, then the
@@ -3280,7 +3218,7 @@ Texture::GenerateMipmapMode Texture::mipmapBeforeTexImage(const State& state, bo
             }
         }
 
-        glTexParameteri(getTextureTarget(), GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
         return GENERATE_MIPMAP_TEX_PARAMETER;
 #endif
     }
@@ -3293,12 +3231,11 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
     {
         case GENERATE_MIPMAP:
         {
+            osg::CVMarkerSeries series("Render TasksSub");
+            osg::CVSpan UpdateTick(series, 0, "mipmapAfterTexImage");
 
-           osg::CVMarkerSeries series("Render TasksSub");
-           osg::CVSpan UpdateTick(series, 0, "mipmapAfterTexImage");
-
-           //printf("Mipmapping '%s' \n", getName().c_str() ? getName().c_str() : "UNKNOWN");
-           unsigned int contextID = state.getContextID();
+            //printf("Mipmapping '%s' \n", getName().c_str() ? getName().c_str() : "UNKNOWN");
+            unsigned int contextID = state.getContextID();
             TextureObject* textureObject = getTextureObject(contextID);
             if (textureObject)
             {
@@ -3308,7 +3245,7 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
             break;
         }
         case GENERATE_MIPMAP_TEX_PARAMETER:
-            glTexParameteri(getTextureTarget(), GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+            glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
             break;
         case GENERATE_MIPMAP_NONE:
             break;
@@ -3317,11 +3254,10 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
 
 void Texture::generateMipmap(State& state) const
 {
+    osg::CVMarkerSeries series("Render Tasks2");
+    osg::CVSpan UpdateTick(series, 0, "generateMipmap");
 
-   osg::CVMarkerSeries series("Render Tasks2");
-   osg::CVSpan UpdateTick(series, 0, "generateMipmap");
-   
-   const unsigned int contextID = state.getContextID();
+    const unsigned int contextID = state.getContextID();
 
     // get the texture object for the current contextID.
     TextureObject* textureObject = getTextureObject(contextID);
