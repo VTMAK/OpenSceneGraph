@@ -363,9 +363,6 @@ class OSGUTIL_EXPORT CullVisitor : public osg::NodeVisitor, public osg::CullStac
 
         unsigned int              _traversalOrderNumber;
 
-        //VRV_PATCH to not overlap with node _traversalNumber, matches osg TOT;
-        unsigned int             _traversalOrderNumber;
-
         typedef std::vector< osg::ref_ptr<RenderLeaf> > RenderLeafList;
         RenderLeafList _reuseRenderLeafList;
         unsigned int _currentReuseRenderLeafIndex;

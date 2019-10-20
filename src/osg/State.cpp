@@ -219,10 +219,19 @@ State::~State()
     // delete the GLExtensions object associated with this osg::State.
     if (_glExtensions)
     {
-       if (_transformStackID){
-          _glExtensions->glDeleteBuffers(1, &_transformStackID);
-       }
+        if (_transformStackID){
+            _glExtensions->glDeleteBuffers(1, &_transformStackID);
+        }
        
+        // VRV_PATCH
+        // TDG: this was causing crashes in GLBufferObject because the extensions were getting deleted
+        // this line is not really usefull because we are using shared contexts so they all have a context ID of 0
+        // and use the same extensions.
+        //GLExtensions::Set(_contextID, 0);
+        // VRV_PATCH
+
+        // MAK REVIEW: The above was commented out in makOSG 3.4.  The below is new of 3.6.  Are they compatible?
+
         _glExtensions = 0;
         GLExtensions* glExtensions = GLExtensions::Get(_contextID, false);
         if (glExtensions && glExtensions->referenceCount() == 1) {
@@ -1217,127 +1226,7 @@ void State::disableAllVertexArrays()
 
 void State::dirtyAllVertexArrays()
 {
-    OSG_INFO<<"State::dirtyAllVertexArrays()"<<std::endl;
-    dirtyVertexPointer();
-    dirtyTexCoordPointersAboveAndIncluding(0);
-    dirtyVertexAttribPointersAboveAndIncluding(0);
-    dirtyColorPointer();
-    dirtyFogCoordPointer();
-    dirtyNormalPointer();
-    dirtySecondaryColorPointer();
-}
-
-void State::setInterleavedArrays( GLenum format, GLsizei stride, const GLvoid* pointer)
-{
-    disableAllVertexArrays();
-
-#if defined(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE) && !defined(OSG_GLES1_AVAILABLE)
-    glInterleavedArrays( format, stride, pointer);
-#else
-    OSG_NOTICE<<"Warning: State::setInterleavedArrays(..) not implemented."<<std::endl;
-#endif
-
-    // the crude way, assume that all arrays have been affected so dirty them and
-    // disable them...
-    dirtyAllVertexArrays();
-}
-
-void State::initializeExtensionProcs()
-{
-    if (_extensionProcsInitialized) return;
-
-    const char* vendor = (const char*) glGetString( GL_VENDOR );
-    if (vendor)
-    {
-        std::string str_vendor(vendor);
-        std::replace(str_vendor.begin(), str_vendor.end(), ' ', '_');
-        OSG_INFO<<"GL_VENDOR = ["<<str_vendor<<"]"<<std::endl;
-        _defineMap.map[str_vendor].defineVec.push_back(osg::StateSet::DefinePair("1",osg::StateAttribute::ON));
-        _defineMap.map[str_vendor].changed = true;
-        _defineMap.changed = true;
-    }
-
-    // VRV_PATCH
-    // TDG: this was causing crashes in GLBufferObject because the extensions were getting deleted
-    // switched to using the same extentions forever
-    _glExtensions = GLExtensions::Get(_contextID, true);
-    //_glExtensions = new GLExtensions(_contextID);
-    //GLExtensions::Set(_contextID, _glExtensions.get());
-    //VRV_PATCH
-
-    setGLExtensionFuncPtr(_glClientActiveTexture,"glClientActiveTexture","glClientActiveTextureARB");
-    setGLExtensionFuncPtr(_glActiveTexture, "glActiveTexture","glActiveTextureARB");
-    setGLExtensionFuncPtr(_glFogCoordPointer, "glFogCoordPointer","glFogCoordPointerEXT");
-    setGLExtensionFuncPtr(_glSecondaryColorPointer, "glSecondaryColorPointer","glSecondaryColorPointerEXT");
-    setGLExtensionFuncPtr(_glVertexAttribPointer, "glVertexAttribPointer","glVertexAttribPointerARB");
-    setGLExtensionFuncPtr(_glVertexAttribIPointer, "glVertexAttribIPointer");
-    setGLExtensionFuncPtr(_glVertexAttribLPointer, "glVertexAttribLPointer","glVertexAttribPointerARB");
-    setGLExtensionFuncPtr(_glEnableVertexAttribArray, "glEnableVertexAttribArray","glEnableVertexAttribArrayARB");
-    setGLExtensionFuncPtr(_glMultiTexCoord4f, "glMultiTexCoord4f","glMultiTexCoord4fARB");
-    setGLExtensionFuncPtr(_glVertexAttrib4f, "glVertexAttrib4f");
-    setGLExtensionFuncPtr(_glVertexAttrib4fv, "glVertexAttrib4fv");
-    setGLExtensionFuncPtr(_glDisableVertexAttribArray, "glDisableVertexAttribArray","glDisableVertexAttribArrayARB");
-    setGLExtensionFuncPtr(_glBindBuffer, "glBindBuffer","glBindBufferARB");
-
-    setGLExtensionFuncPtr(_glDrawArraysInstanced, "glDrawArraysInstanced","glDrawArraysInstancedARB","glDrawArraysInstancedEXT");
-    setGLExtensionFuncPtr(_glDrawElementsInstanced, "glDrawElementsInstanced","glDrawElementsInstancedARB","glDrawElementsInstancedEXT");
-
-    if (osg::getGLVersionNumber() >= 2.0 || osg::isGLExtensionSupported(_contextID, "GL_ARB_vertex_shader") || OSG_GLES2_FEATURES || OSG_GL3_FEATURES)
-    {
-        glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,&_glMaxTextureUnits);
-        #ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
-            glGetIntegerv(GL_MAX_TEXTURE_COORDS, &_glMaxTextureCoords);
-        #else
-            _glMaxTextureCoords = _glMaxTextureUnits;
-        #endif
-    }
-    else if ( osg::getGLVersionNumber() >= 1.3 ||
-                                 osg::isGLExtensionSupported(_contextID,"GL_ARB_multitexture") ||
-                                 osg::isGLExtensionSupported(_contextID,"GL_EXT_multitexture") ||
-                                 OSG_GLES1_FEATURES)
-    {
-        GLint maxTextureUnits = 0;
-        glGetIntegerv(GL_MAX_TEXTURE_UNITS,&maxTextureUnits);
-        _glMaxTextureUnits = maxTextureUnits;
-        _glMaxTextureCoords = maxTextureUnits;
-    }
-    else
-    {
-        _glMaxTextureUnits = 1;
-        _glMaxTextureCoords = 1;
-    }
-
-    if (_glExtensions->isARBTimerQuerySupported)
-    {
-        const GLubyte* renderer = glGetString(GL_RENDERER);
-        std::string rendererString = renderer ? (const char*)renderer : "";
-        if (rendererString.find("Radeon")!=std::string::npos || rendererString.find("RADEON")!=std::string::npos || rendererString.find("FirePro")!=std::string::npos)
-        {
-            // AMD/ATI drivers are producing an invalid enumerate error on the
-            // glGetQueryiv(GL_TIMESTAMP, GL_QUERY_COUNTER_BITS_ARB, &bits);
-            // call so work around it by assuming 64 bits for counter.
-            setTimestampBits(64);
-            //setTimestampBits(0);
-        }
-        else
-        {
-            GLint bits = 0;
-            _glExtensions->glGetQueryiv(GL_TIMESTAMP, GL_QUERY_COUNTER_BITS_ARB, &bits);
-            setTimestampBits(bits);
-        }
-    }
-
-#ifndef _DEBUG
-    setTimestampBits(0);
-#endif
-
-    _extensionProcsInitialized = true;
-
-    if (_graphicsCostEstimator.valid())
-    {
-        RenderInfo renderInfo(this,0);
-        _graphicsCostEstimator->calibrate(renderInfo);
-    }
+    OSG_INFO << "State::dirtyAllVertexArrays()" << std::endl;
 }
 
 bool State::setClientActiveTextureUnit( unsigned int unit )
@@ -1513,7 +1402,7 @@ namespace State_Utils
     {
         if (replace(source, originalStr, newStr))
         {
-            source.insert(declPos, qualifier + declarationPrefix + newStr + std::string(";\n"));
+            source.insert(declPos, qualifier + newStr + declarationPrefix + std::string(";\n"));
         }
     }
 
@@ -2099,7 +1988,7 @@ void State::frameCompleted()
 bool State::DefineMap::updateCurrentDefines()
 {
     currentDefines.clear();
-    for(DefineStackMap::const_iterator itr = map.begin();
+    for (DefineStackMap::const_iterator itr = map.begin();
         itr != map.end();
         ++itr)
     {
@@ -2112,36 +2001,30 @@ bool State::DefineMap::updateCurrentDefines()
                 currentDefines[itr->first] = dp;
             }
         }
+    }
 
-        //VRVantage patch to improve performance, all defines are always passed to the shader
-        char defineBuf[4096];
-        int idx = 0;
-        StateSet::DefineList::const_iterator cd_itr = currentDefines.begin();
-        StateSet::DefineList::const_iterator cd_nd = currentDefines.end();
-        for(;cd_itr != cd_nd; cd_itr++)
+    //VRVantage patch to improve performance, all defines are always passed to the shader
+    char defineBuf[4096];
+    int idx = 0;
+    StateSet::DefineList::const_iterator cd_itr = currentDefines.begin();
+    StateSet::DefineList::const_iterator cd_nd = currentDefines.end();
+    for(;cd_itr != cd_nd; cd_itr++)
+    {
+        const StateSet::DefinePair& dp = cd_itr->second;
+        idx += sprintf(defineBuf + idx, "#define %s", cd_itr->first.c_str());
+        if (!dp.first.empty())
         {
-           const StateSet::DefinePair& dp = cd_itr->second;
-           idx += sprintf(defineBuf + idx, "#define %s", cd_itr->first.c_str());
-           if (!dp.first.empty())
-           {
-              idx += sprintf(defineBuf + idx, " %s", dp.first.c_str());
-           }
-           //patch for fixing defines on windows         
+            idx += sprintf(defineBuf + idx, " %s", dp.first.c_str());
+        }
+        //patch for fixing defines on windows         
 #ifdef WIN32
-           idx += sprintf(defineBuf + idx, "\r\n");
+        idx += sprintf(defineBuf + idx, "\r\n");
 #else
-           idx += sprintf(defineBuf + idx, "\n");
+        idx += sprintf(defineBuf + idx, "\n");
 #endif
 
-        }
-        shaderDefineString = defineBuf;
-        changed = false;
-        return true;
     }
-    else
-    {
-        return false;
-    }
+    shaderDefineString = defineBuf;
     changed = false;
     return true;
 }
