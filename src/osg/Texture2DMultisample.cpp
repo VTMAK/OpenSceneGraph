@@ -102,32 +102,29 @@ void Texture2DMultisample::apply(State& state) const
     }
     else if ( (_textureWidth!=0) && (_textureHeight!=0) && (_numSamples!=0) )
     {
-        // no image present, but dimensions at set so lets create the texture
-        GLenum texStorageSizedInternalFormat = extensions->isTextureStorageEnabled && (_borderWidth==0) ? selectSizedInternalFormat() : 0;
-        if (texStorageSizedInternalFormat!=0)
-        {
-            textureObject = generateAndAssignTextureObject(contextID, getTextureTarget(), 1, texStorageSizedInternalFormat, _textureWidth, _textureHeight, 1, 0);
-            textureObject->bind();
+        textureObject = generateAndAssignTextureObject(
+                                 contextID,
+                                 getTextureTarget(),
+                                 1,
+                                 _internalFormat,
+                                 _textureWidth,
+                                 _textureHeight,
+                                 1,
+                                 _borderWidth);
 
-            extensions->glTexStorage2DMultisample( GL_TEXTURE_2D_MULTISAMPLE, _numSamples, texStorageSizedInternalFormat, _textureWidth, _textureHeight, _fixedsamplelocations);
-        }
-        else
-        {
-            textureObject = generateAndAssignTextureObject(contextID, getTextureTarget(), 1, _internalFormat, _textureWidth, _textureHeight, 1, _borderWidth);
-            textureObject->bind();
+        textureObject->bind();
 
-            extensions->glTexImage2DMultisample( GL_TEXTURE_2D_MULTISAMPLE,
+        extensions->glTexImage2DMultisample( getTextureTarget(),
                                              _numSamples,
                                              _internalFormat,
                                              _textureWidth,
                                              _textureHeight,
                                              _fixedsamplelocations );
-        }
 
     }
     else
     {
-        glBindTexture( GL_TEXTURE_2D_MULTISAMPLE, 0 );
+        glBindTexture( getTextureTarget(), 0 );
     }
 }
 

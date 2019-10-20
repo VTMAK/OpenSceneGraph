@@ -17,14 +17,10 @@
 #include <osg/ContextData>
 #include <osg/Notify>
 
-#include <iostream>
-
+using namespace osg;
 
 //VRV_PATCH#
 #include <osg/ConcurrencyViewerMacros>
-
-using namespace osg;
-
 
 Texture2D::Texture2D():
             _textureWidth(0),
@@ -162,7 +158,6 @@ bool Texture2D::textureObjectValid(State& state) const
 
     return textureObject->match(GL_TEXTURE_2D, new_numMipmapLevels, _internalFormat, new_width, new_height, 1, _borderWidth);
 }
-
 
 //VRV_PATCH
 void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::TextureObject *textureObject)
@@ -389,14 +384,16 @@ void Texture2D::apply(State& state) const
             _readPBuffer->bindPBufferToTexture(GL_FRONT);
         }
 
-        if (getTextureParameterDirty(state.getContextID()))
-            applyTexParameters(GL_TEXTURE_2D,state);
-
+        //VRV_PATCH
         if (_image.valid()) 
         {
            // this shouldn't happen but I guess it does
            sendMipmap(state, this, textureObject);
         }
+
+        if (getTextureParameterDirty(state.getContextID()))
+            applyTexParameters(GL_TEXTURE_2D,state);
+
     }
     else if (_subloadCallback.valid())
     {
@@ -425,7 +422,6 @@ void Texture2D::apply(State& state) const
     }
     else if (_image.valid() && _image->data())
     {
-        GLExtensions * extensions = state.get<GLExtensions>();
 
         // keep the image around at least till we go out of scope.
         osg::ref_ptr<osg::Image> image = _image;
@@ -436,10 +432,7 @@ void Texture2D::apply(State& state) const
         // compute the dimensions of the texture.
         computeRequiredTextureDimensions(state,*image,_textureWidth, _textureHeight, _numMipmapLevels);
 
-        GLenum texStorageSizedInternalFormat = extensions->isTextureStorageEnabled && (_borderWidth==0) ? selectSizedInternalFormat(_image.get()) : 0;
-        textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_2D, _numMipmapLevels,
-            texStorageSizedInternalFormat!=0 ? texStorageSizedInternalFormat : _internalFormat,
-            _textureWidth, _textureHeight, 1, _borderWidth);
+        textureObject = generateAndAssignTextureObject(contextID,GL_TEXTURE_2D,_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
 
         textureObject->bind();
 
@@ -461,13 +454,9 @@ void Texture2D::apply(State& state) const
                                  _textureWidth, _textureHeight, _numMipmapLevels);
 
             textureObject->setAllocated(true);
-            
         }
 
         sendMipmap(state, this, textureObject);
-
-        // update the modified tag to show that it is up to date.
-        getModifiedCount(contextID) = image->getModifiedCount();
 
         // unref image data?
         if (isSafeToUnrefImageData(state) && textureObject->isDownloaded() && image->getDataVariance()==STATIC)
@@ -485,30 +474,18 @@ void Texture2D::apply(State& state) const
     }
     else if ( (_textureWidth!=0) && (_textureHeight!=0) && (_internalFormat!=0) )
     {
+        textureObject = generateAndAssignTextureObject(contextID,GL_TEXTURE_2D,_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
+
+        textureObject->bind();
+
+        applyTexParameters(GL_TEXTURE_2D,state);
 
         // no image present, but dimensions at set so lets create the texture
-         GLExtensions * extensions = state.get<GLExtensions>();
-         GLenum texStorageSizedInternalFormat = extensions->isTextureStorageEnabled && (_borderWidth==0) ? selectSizedInternalFormat() : 0;
-         if (texStorageSizedInternalFormat!=0)
-         {
-             textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_2D, _numMipmapLevels, texStorageSizedInternalFormat, _textureWidth, _textureHeight, 1, _borderWidth);
-             textureObject->bind();
-             applyTexParameters(GL_TEXTURE_2D, state);
-             extensions->glTexStorage2D( GL_TEXTURE_2D, osg::maximum(_numMipmapLevels,1), texStorageSizedInternalFormat,
-                      _textureWidth, _textureHeight);
-         }
-         else
-         {
-             GLenum internalFormat = _sourceFormat ? _sourceFormat : _internalFormat;
-             textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_2D, _numMipmapLevels, internalFormat, _textureWidth, _textureHeight, 1, _borderWidth);
-             textureObject->bind();
-             applyTexParameters(GL_TEXTURE_2D, state);
-             glTexImage2D( GL_TEXTURE_2D, 0, _internalFormat,
-                      _textureWidth, _textureHeight, _borderWidth,
-                      internalFormat,
-                      _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
-                      0);
-        }
+        glTexImage2D( GL_TEXTURE_2D, 0, _internalFormat,
+                     _textureWidth, _textureHeight, _borderWidth,
+                     _sourceFormat ? _sourceFormat : _internalFormat,
+                     _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
+                     0);
 
         if (_readPBuffer.valid())
         {

@@ -315,30 +315,20 @@ void Texture3D::apply(State& state) const
     }
     else if ( (_textureWidth!=0) && (_textureHeight!=0) && (_textureDepth!=0) && (_internalFormat!=0) )
     {
+        textureObject = generateAndAssignTextureObject(
+                contextID,GL_TEXTURE_3D,_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,_textureDepth,0);
+
+        textureObject->bind();
+
+        applyTexParameters(GL_TEXTURE_3D,state);
+
         // no image present, but dimensions at set so lets create the texture
-        GLenum texStorageSizedInternalFormat = extensions->isTextureStorageEnabled ? selectSizedInternalFormat() : 0;
-        if (texStorageSizedInternalFormat!=0)
-        {
-            textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_3D, _numMipmapLevels, texStorageSizedInternalFormat, _textureWidth, _textureHeight, _textureDepth,0);
-            textureObject->bind();
-            applyTexParameters(GL_TEXTURE_3D, state);
-
-            extensions->glTexStorage3D( GL_TEXTURE_3D, osg::maximum(_numMipmapLevels,1), texStorageSizedInternalFormat, _textureWidth, _textureHeight, _textureDepth);
-        }
-        else
-        {
-            GLenum internalFormat = _sourceFormat ? _sourceFormat : _internalFormat;
-            textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_3D, _numMipmapLevels, internalFormat, _textureWidth, _textureHeight, _textureDepth,0);
-            textureObject->bind();
-            applyTexParameters(GL_TEXTURE_3D, state);
-
-            extensions->glTexImage3D( GL_TEXTURE_3D, 0, _internalFormat,
+        extensions->glTexImage3D( GL_TEXTURE_3D, 0, _internalFormat,
                      _textureWidth, _textureHeight, _textureDepth,
                      _borderWidth,
-                     internalFormat,
+                     _sourceFormat ? _sourceFormat : _internalFormat,
                      _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
                      0);
-        }
 
         if (_readPBuffer.valid())
         {
