@@ -242,7 +242,7 @@ GraphicsContext::Traits::Traits(DisplaySettings* ds):
             swapBarrier(0),
             useMultiThreadedOpenGLEngine(false),
             useCursor(true),
-            glContextVersion(OSG_GL_CONTEXT_VERSION),
+            glContextVersion("1.0"),
             glContextFlags(0),
             glContextProfileMask(0),
             sharedContext(0),

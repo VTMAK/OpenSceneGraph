@@ -594,7 +594,7 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
     // OSG is going to start getting rid of orphaned textures
     // we have to intervene in the case that VRV is not done
     // with them yet
-    TextureObjectList almostOrphanedTextures;
+    Texture::TextureObjectList almostOrphanedTextures;
     // END VRV PATCH
 
     for(Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
@@ -735,7 +735,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     // OSG is going to start getting rid of orphaned texture
     // objects we have to intervene in the case that VRV is 
     // not done with them yet
-    TextureObjectList almostOrphanedTextures;
+    Texture::TextureObjectList almostOrphanedTextures;
     // END VRV PATCH
 
     Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
@@ -801,7 +801,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     // Eventually VRV will be done with them and delete them 
     // or VRV will tell OSG that it is OK for OSG to delete the
     // texture objects
-    for (TextureObjectList::iterator itr = almostOrphanedTextures.begin();
+    for (Texture::TextureObjectList::iterator itr = almostOrphanedTextures.begin();
         itr != almostOrphanedTextures.end(); ++itr)
     {
         _orphanedTextureObjects.push_back(*itr);
@@ -836,7 +836,7 @@ bool TextureObjectSet::makeSpace(unsigned int& size)
 // If VRV deleted this texture object, take it off OSG's
 // _orphanedTextureObjects so OSG doesn't try to delete it
 // as well
-void Texture::TextureObjectSet::removeOrphan(TextureObject* to)
+void TextureObjectSet::removeOrphan(TextureObject* to)
 {
     for (TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
         itr != _orphanedTextureObjects.end(); ++itr)
