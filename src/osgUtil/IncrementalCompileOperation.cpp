@@ -20,6 +20,7 @@
 #include <osg/ColorMask>
 #include <osg/ApplicationUsage>
 #include <osg/ConcurrencyViewerMacros>
+#include <osg/ContextData>
 
 #include <OpenThreads/ScopedLock>
 
@@ -728,7 +729,7 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
    osg::GLExtensions * ext = osg::GLExtensions::Get(context->getState()->getContextID(), true);
    ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "ICO");
 
-   osg::Texture::TextureObjectManager* tom = osg::Texture::getTextureObjectManager(context->getState()->getContextID()).get();
+   osg::TextureObjectManager* tom = osg::get<osg::TextureObjectManager>(context->getState()->getContextID());
    bool timeManagementActive = tom->getTimeManagementActive();
    tom->setTimeManagementActive(false);
 
