@@ -205,11 +205,13 @@ void ViewerBase::setThreadingModel(ThreadingModel threadingModel)
 {
     if (_threadingModel == threadingModel) return;
 
+    bool needSetUpThreading = _threadsRunning;
+
     if (_threadsRunning) stopThreading();
 
     _threadingModel = threadingModel;
 
-    if (isRealized() && _threadingModel!=SingleThreaded) setUpThreading();
+    if (needSetUpThreading) setUpThreading();
 }
 
 ViewerBase::ThreadingModel ViewerBase::suggestBestThreadingModel()
@@ -889,37 +891,38 @@ void ViewerBase::renderingTraversals()
         {
             doneMakeCurrentInThisThread = true;
             // GNP FIXME wait till cull to do this
-           // makeCurrent(*itr);
+            // makeCurrent(*itr);
             (*itr)->runOperations();
             // VRV_PATCH this is much faster when single threaded
-            if (!_endRenderingDispatchBarrier.valid()) {
+            if (!_endRenderingDispatchBarrier.valid()) 
+            {
                (*itr)->swapBuffers();
             }
         }
     }
 
-    // VRV_PATCH this whole thing shouldn't happen now
-
     // OSG_NOTICE<<"Joing _endRenderingDispatchBarrier block "<<_endRenderingDispatchBarrier.get()<<std::endl;
 
     // wait till the rendering dispatch is done.
-    if (_endRenderingDispatchBarrier.valid()) {
+    if (_endRenderingDispatchBarrier.valid()) 
+    {
        _endRenderingDispatchBarrier->block();
     }
+
     if (_endRenderingDispatchBarrier.valid() ) 
     {
-    // VRV_PATCH this whole thing shouldn't happen now
-       for (itr = contexts.begin();
-          itr != contexts.end() && !_done;
-          ++itr)
-       {
-          if (!((*itr)->getGraphicsThread()) && (*itr)->valid())
-          {
-             doneMakeCurrentInThisThread = true;
-             makeCurrent(*itr);
-             (*itr)->swapBuffers();
-          }
-       }
+        // VRV_PATCH this whole thing shouldn't happen now
+        for(itr = contexts.begin();
+            itr != contexts.end() && !_done;
+            ++itr)
+        {
+            if (!((*itr)->getGraphicsThread()) && (*itr)->valid())
+            {
+                doneMakeCurrentInThisThread = true;
+                makeCurrent(*itr);
+                (*itr)->swapBuffers();
+            }
+        }
     }
 
     for(Scenes::iterator sitr = scenes.begin();

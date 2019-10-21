@@ -318,21 +318,23 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
 
         bool getRequestContinousUpdate() const { return _requestContinousUpdate; }
 
-    protected:
         // VRV_PATCH make public, and optimize content management
         inline void makeCurrent(osg::GraphicsContext* gc)
         {
-           if (_currentContext == gc) return;
-           
-           // VRV_PATCH only set the context to none if there's no new context to use
-           if (!gc || !gc->valid()) {
-              releaseContext();
-           }
+            if (_currentContext==gc) return;
 
-           if (gc && gc->valid() && gc->makeCurrent()) {
+           // VRV_PATCH only set the context to none if there's no new context to use
+            if (!gc || !gc->valid()) {
+              releaseContext();
+            }
+
+            if (gc && gc->valid() && gc->makeCurrent()) 
+            {
               _currentContext = gc;
-           }
+            }
         }
+
+protected:
 
         void viewerBaseInit();
 
@@ -388,6 +390,7 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
         //VRV patch cull thread parallelization - only one main thread operation supported
         osg::Operation* _mainThreadOperation;
         std::vector<osg::Operation *> _mainThreadPreDrawOperations;
+
     private:
 
         // Define private copy constructor
