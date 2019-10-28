@@ -363,7 +363,7 @@ void addDrawableAndReverseWindingOrder( osg::Geode* geode )
          int materialIndex = in.readInt16(-1);
          int16 surface = in.readInt16();
          int16 feature = in.readInt16();
-         /*int32 IRMaterial =*/ in.readInt32(-1);
+         int32 IRMaterial = in.readInt32(-1);
          _transparency = in.readUInt16(0);
          // version > 13
          /*uint8 influenceLOD =*/ in.readUInt8();
