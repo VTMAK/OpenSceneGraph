@@ -945,9 +945,6 @@ protected:
             _curX++;
             GraphUpdateCallback::_frameNumber = frameNumber;
 
-            vertices->dirty();
-            geometry->dirtyBound();
-
             drawable->drawImplementation(renderInfo);
         }
 
