@@ -1459,29 +1459,29 @@ namespace flt {
             int idx;
             for (idx = 0; idx < vertexProgramFileCount; idx++)
             {
-                std::string vertexProgramFilename = in.readString(1024);
+               std::string vertexProgramFilename = in.readString(1024);
 
-                std::string vertexProgramFilePath = osgDB::findDataFile(vertexProgramFilename,document.getOptions());
-                if (!vertexProgramFilePath.empty())
-                {
-                    osg::ref_ptr<osg::Shader> vertexShader = osgDB::readRefShaderFile(osg::Shader::VERTEX, vertexProgramFilePath);
-                    if (vertexShader)
-                        program->addShader( vertexShader );
-                }
+               std::string vertexProgramFilePath = osgDB::findDataFile(vertexProgramFilename, document.getOptions());
+               if (!vertexProgramFilePath.empty())
+               {
+                  osg::Shader* vertexShader = osg::Shader::readShaderFile(osg::Shader::VERTEX, vertexProgramFilePath);
+                  if (vertexShader)
+                     program->addShader(vertexShader);
+               }
             }
 
             // Read fragment programs
             for (idx = 0; idx < fragmentProgramFileCount; idx++)
             {
-                std::string fragmentProgramFilename = in.readString(1024);
+               std::string fragmentProgramFilename = in.readString(1024);
 
-                std::string fragmentProgramFilePath = osgDB::findDataFile(fragmentProgramFilename,document.getOptions());
-                if (!fragmentProgramFilePath.empty())
-                {
-                    osg::ref_ptr<osg::Shader> fragmentShader = osgDB::readRefShaderFile(osg::Shader::FRAGMENT, fragmentProgramFilePath);
-                    if (fragmentShader)
-                        program->addShader( fragmentShader );
-                }
+               std::string fragmentProgramFilePath = osgDB::findDataFile(fragmentProgramFilename, document.getOptions());
+               if (!fragmentProgramFilePath.empty())
+               {
+                  osg::Shader* fragmentShader = osg::Shader::readShaderFile(osg::Shader::FRAGMENT, fragmentProgramFilePath);
+                  if (fragmentShader)
+                     program->addShader(fragmentShader);
+               }
             }
 
             // Add to shader pool

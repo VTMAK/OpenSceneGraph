@@ -36,7 +36,6 @@ Document::Document() :
     _readObjectRecordData(false),
     _preserveNonOsgAttrsAsUserData(false),
     _desiredUnits(METERS),
-    _keepExternalReferences(false),
     _done(false),
     _level(0),
     _subfaceLevel(0),

@@ -50,7 +50,7 @@ static unsigned int LAYER_7( 0x80000000 >> 6 );
 
 
 bool
-FltExportVisitor::isLit( const osg::Geometry& /*geom*/ ) const
+FltExportVisitor::isLit( const osg::Geometry& geom ) const
 {
     const osg::StateSet* ss = getCurrentStateSet();
     if ( ss->getMode( GL_LIGHTING ) & osg::StateAttribute::ON )
@@ -63,12 +63,7 @@ bool
 FltExportVisitor::isTextured( int unit, const osg::Geometry& geom ) const
 {
     const osg::StateSet* ss = getCurrentStateSet();
-#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
     bool texOn( ss->getTextureMode( unit, GL_TEXTURE_2D ) & osg::StateAttribute::ON );
-#else
-    // In this mode, osg::Texture::getModeUsage() is undefined, so just detect if a texture is present
-    bool texOn( ss->getTextureAttribute( unit, osg::StateAttribute::TEXTURE ) != NULL );
-#endif
     bool hasCoords( geom.getTexCoordArray( unit ) != NULL );
 
     return( texOn && hasCoords );
@@ -894,12 +889,6 @@ FltExportVisitor::writeUVList( int numVerts, const osg::Geometry& geom, unsigned
 void
 FltExportVisitor::handleDrawArrays( const osg::DrawArrays* da, const osg::Geometry& geom, const osg::Geode& geode )
 {
-    if (!da)
-    {
-        OSG_WARN<<"fltexp: Invalid DrawArray pointer"<<std::endl;
-        return;
-    }
-
     GLint first = da->getFirst();
     GLsizei count = da->getCount();
     GLenum mode = da->getMode();
@@ -967,12 +956,6 @@ FltExportVisitor::handleDrawArrays( const osg::DrawArrays* da, const osg::Geomet
 void
 FltExportVisitor::handleDrawArrayLengths( const osg::DrawArrayLengths* dal, const osg::Geometry& geom, const osg::Geode& geode )
 {
-    if (!dal)
-    {
-        OSG_WARN<<"fltexp: Invalid DrawArrayLengths pointer"<<std::endl;
-        return;
-    }
-
     GLint first = dal->getFirst();
     GLenum mode = dal->getMode();
 
@@ -1061,8 +1044,6 @@ FltExportVisitor::handleDrawArrayLengths( const osg::DrawArrayLengths* dal, cons
 void
 FltExportVisitor::handleDrawElements( const osg::DrawElements* de, const osg::Geometry& geom, const osg::Geode& geode )
 {
-    if (!de) return;
-
     GLenum mode = de->getMode();
 
     int n( 0 );

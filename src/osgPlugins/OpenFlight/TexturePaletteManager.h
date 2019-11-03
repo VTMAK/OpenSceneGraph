@@ -35,7 +35,7 @@ class DataOutputStream;
 class FltExportVisitor;
 
 
-class TexturePaletteManager : public osg::Referenced
+class TexturePaletteManager
 {
 public:
     TexturePaletteManager( const FltExportVisitor& nv, const ExportOptions& fltOpt );

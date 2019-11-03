@@ -12,7 +12,7 @@
 */
 
 //
-// OpenFlight loader for OpenSceneGraph
+// OpenFlight® loader for OpenSceneGraph
 //
 //  Copyright (C) 2005-2007  Brede Johansen
 //
@@ -201,31 +201,6 @@ class Multitexture : public Record
                 uint32 layerBit = 0x80000000u >> (layer-1);
                 if (mask & layerBit)
                 {
-#pragma error("ALPHAPIXEL - First block is osg 3.6, second block is osgMAK 3.4")
-#if 0
-                    int16 textureIndex = in.readInt16();
-                    int16 effect = in.readInt16();
-                    int16 mappingIndex = in.readInt16();
-                    uint16 data = in.readUInt16();
-
-                    osg::ref_ptr<osg::StateSet> texturePoolStateset = document.getOrCreateTexturePool()->get(textureIndex);
-                    if (stateset.valid() && texturePoolStateset.valid())
-                    {
-                        // Apply texture from texture pool.
-                        osg::Texture* texture = dynamic_cast<osg::Texture*>(texturePoolStateset->getTextureAttribute(0,osg::StateAttribute::TEXTURE));
-                        if (texture)
-                        {
-                            stateset->setTextureAttributeAndModes(layer,texture,osg::StateAttribute::ON);
-                            if (document.getPreserveNonOsgAttrsAsUserData())
-                            {
-                                texture->setUserValue("<UA::TexEffect>", effect);
-                                texture->setUserValue("<UA::TexMappingIdx>", mappingIndex);
-                                texture->setUserValue("<UA::TexData>", data);
-                            }
-                        }
-                        // Apply texture environment
-                        switch (effect)
-#else
                    textureMask[layer - 1] = true;
                     textureIndices[layer - 1] = in.readInt16();
                     textureEffects[layer - 1] = in.readInt16();
@@ -273,7 +248,6 @@ class Multitexture : public Record
                         if(!textureMask[layer-1]) continue;
                         osg::ref_ptr<osg::StateSet> texturePoolStateset = document.getOrCreateTexturePool()->get(textureIndices[layer - 1]);
                         if (texturePoolStateset.valid())
-#endif
                         {
                             // Apply texture from texture pool.
                             osg::Texture* texture = dynamic_cast<osg::Texture*>(texturePoolStateset->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
@@ -381,23 +355,20 @@ class UVList : public Record
             uint32 mask = in.readUInt32(0);
 
             int numLayers = bitCount(mask);
-            if (numLayers>0)
+            int numVertices = (in.getRecordSize()-8) / (8 * numLayers);
+            for (int n=0; n < numVertices; ++n)
             {
-                int numVertices = (in.getRecordSize()-8) / (8 * numLayers);
-                for (int n=0; n < numVertices; ++n)
+                for (unsigned int layer=1; layer<8; layer++)
                 {
-                    for (unsigned int layer=1; layer<8; layer++)
+                    uint32 layerBit = 0x80000000u >> (layer-1);
+                    if (mask & layerBit)
                     {
-                        uint32 layerBit = 0x80000000u >> (layer-1);
-                        if (mask & layerBit)
-                        {
-                            float32    u = in.readFloat32();
-                            float32    v = in.readFloat32();
+                        float32    u = in.readFloat32();
+                        float32    v = in.readFloat32();
 
-                            // Add texture coordinates to geometry.
-                            if (_parent.valid())
-                                _parent->addVertexUV(layer,osg::Vec2(u,v));
-                        }
+                        // Add texture coordinates to geometry.
+                        if (_parent.valid())
+                            _parent->addVertexUV(layer,osg::Vec2(u,v));
                     }
                 }
             }

@@ -688,13 +688,13 @@ FltExportVisitor::writeLightPoint( const osgSim::LightPointNode* lpn )
     float32 horizLobe( 360.f );
     float32 vertLobe( 360.f );
     float32 lobeRoll( 0.f );
-    const osgSim::DirectionalSector* dirSector = dynamic_cast< osgSim::DirectionalSector* >( lp0._sector.get() );
-    if (dirSector)
+    const osgSim::DirectionalSector* ds = dynamic_cast< osgSim::DirectionalSector* >( lp0._sector.get() );
+    if (ds)
     {
         directionality = UNIDIRECTIONAL;
-        horizLobe = osg::RadiansToDegrees( dirSector->getHorizLobeAngle() );
-        vertLobe = osg::RadiansToDegrees( dirSector->getVertLobeAngle() );
-        lobeRoll = osg::RadiansToDegrees( dirSector->getLobeRollAngle() );
+        horizLobe = osg::RadiansToDegrees( ds->getHorizLobeAngle() );
+        vertLobe = osg::RadiansToDegrees( ds->getVertLobeAngle() );
+        lobeRoll = osg::RadiansToDegrees( ds->getLobeRollAngle() );
     }
 
     {
@@ -709,7 +709,7 @@ FltExportVisitor::writeLightPoint( const osgSim::LightPointNode* lpn )
         _records->writeID( id );
         _records->writeInt16( 0 ); // Surface material code
         _records->writeInt16( 0 ); // Feature ID
-        _records->writeUInt32( ~0u ); // OpenFlight erroneously say -1, so will assume ~0u is OK.  Back color for bidirectional
+        _records->writeUInt32( ~0u ); // OpenFlight erronously say -1, so will assume ~0u is OK.  Back color for bidirectional
         _records->writeInt32( EITHER ); // Display mode
         _records->writeFloat32( lp0._intensity ); // Intensity
         _records->writeFloat32( 0.f ); // Back intensity TBD

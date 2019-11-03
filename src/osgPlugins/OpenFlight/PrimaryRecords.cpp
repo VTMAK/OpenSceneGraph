@@ -746,10 +746,7 @@ class Switch : public PrimaryRecord
 
 public:
 
-    Switch():
-        _currentMask(0),
-        _numberOfMasks(0),
-        _wordsInMask(0) {}
+    Switch() {}
 
     META_Record(Switch)
 
@@ -938,7 +935,7 @@ public:
 protected:
 
     virtual ~InstanceDefinition() {}
-    virtual void readRecord(RecordInputStream& in, Document& /*document*/)
+    virtual void readRecord(RecordInputStream& in, Document& document)
     {
         in.forward(2);
         _number = (int)in.readUInt16();

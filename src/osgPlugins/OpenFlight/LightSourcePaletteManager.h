@@ -33,7 +33,7 @@ namespace flt
 class DataOutputStream;
 
 
-class LightSourcePaletteManager : public osg::Referenced
+class LightSourcePaletteManager
 {
   public:
       LightSourcePaletteManager();

@@ -12,7 +12,7 @@
 */
 
 //
-// OpenFlightï¿½ loader for OpenSceneGraph
+// OpenFlight® loader for OpenSceneGraph
 //
 //  Copyright (C) 2005-2007  Brede Johansen
 //
@@ -178,7 +178,7 @@ public:
             std::string filename = node.getFileName(pos);
 
             // read external
-            osg::ref_ptr<osg::Node> external = osgDB::readRefNodeFile(filename,_options.get());
+            osg::ref_ptr<osg::Node> external = osgDB::readNodeFile(filename,_options.get());
             if (external.valid())
             {
                 if (_cloneExternalReferences)
@@ -286,8 +286,8 @@ class FLTReaderWriter : public ReaderWriter
 
             // in local cache?
             {
-                osg::ref_ptr<osg::Node> node = flt::Registry::instance()->getExternalFromLocalCache(fileName);
-                if (node.valid())
+                osg::Node* node = registry->getExternalFromLocalCache(fileName);
+                if (node)
                     return ReadResult(node, ReaderWriter::ReadResult::FILE_LOADED_FROM_CACHE);
             }
 
@@ -342,12 +342,6 @@ class FLTReaderWriter : public ReaderWriter
                 }
             }
 
-            if (rr.getNode())
-            {
-                osg::ConfigureBufferObjectsVisitor cbov;
-                rr.getNode()->accept(cbov);
-            }
-            
             // clear local cache.
             if (nestedExternalsLevel == 0)
             {
@@ -417,8 +411,8 @@ class FLTReaderWriter : public ReaderWriter
                 document.setUseTextureAlphaForTransparancyBinning(options->getOptionString().find("noTextureAlphaForTransparancyBinning")==std::string::npos);
                 OSG_DEBUG << readerMsg << "noTextureAlphaForTransparancyBinning=" << !document.getUseTextureAlphaForTransparancyBinning() << std::endl;
 
-                document.setReadObjectRecordData(options->getOptionString().find("readObjectRecordData")!=std::string::npos);
-                OSG_DEBUG << readerMsg << "readObjectRecordData=" << document.getReadObjectRecordData() << std::endl;
+                document.setReadObjectRecordData(options->getOptionString().find("readObjectRecordData")==std::string::npos);
+                OSG_DEBUG << readerMsg << "readObjectRecordData=" << !document.getReadObjectRecordData() << std::endl;
 
                 document.setPreserveNonOsgAttrsAsUserData((options->getOptionString().find("preserveNonOsgAttrsAsUserData")!=std::string::npos));
                 OSG_DEBUG << readerMsg << "preserveNonOsgAttrsAsUserData=" << document.getPreserveNonOsgAttrsAsUserData() << std::endl;
@@ -675,7 +669,7 @@ class FLTReaderWriter : public ReaderWriter
         virtual WriteResult writeNode( const osg::Node& node, std::ostream& fOut, const Options* options ) const
         {
             // Convert Options to FltOptions.
-            osg::ref_ptr<ExportOptions> fltOpt = new ExportOptions( options );
+            ExportOptions* fltOpt = new ExportOptions( options );
             fltOpt->parseOptionsString();
 
             // If user didn't specify a temp dir, use the output directory
@@ -703,7 +697,7 @@ class FLTReaderWriter : public ReaderWriter
             }
 
             flt::DataOutputStream dos( fOut.rdbuf(), fltOpt->getValidateOnly() );
-            flt::FltExportVisitor fnv( &dos, fltOpt.get() );
+            flt::FltExportVisitor fnv( &dos, fltOpt );
 
             // Hm. 'node' is const, but in order to write out this scene graph,
             //   must use Node::accept() which requires 'node' to be non-const.

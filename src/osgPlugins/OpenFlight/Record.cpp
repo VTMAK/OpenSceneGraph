@@ -12,7 +12,7 @@
 */
 
 //
-// OpenFlight loader for OpenSceneGraph
+// OpenFlight® loader for OpenSceneGraph
 //
 //  Copyright (C) 2005-2007  Brede Johansen
 //
@@ -84,6 +84,14 @@ void flt::insertMatrixTransform(osg::Node& node, const osg::Matrix& matrix, int 
     osg::ref_ptr<osg::Node> ref = &node;
     osg::Node::ParentList parents = node.getParents();
 
+    // Disconnect node from parents.
+    for (osg::Node::ParentList::iterator itr=parents.begin();
+        itr!=parents.end();
+        ++itr)
+    {
+        (*itr)->removeChild(&node);
+    }
+
     // Start without transformation if replication.
     osg::Matrix accumulatedMatrix = (numberOfReplications > 0)? osg::Matrix::identity() : matrix;
 
@@ -98,7 +106,7 @@ void flt::insertMatrixTransform(osg::Node& node, const osg::Matrix& matrix, int 
             itr!=parents.end();
             ++itr)
         {
-            (*itr)->replaceChild(&node, transform.get());
+            (*itr)->addChild(transform.get());
         }
 
         // Make primary a child of matrix transform.

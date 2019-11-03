@@ -36,42 +36,42 @@
 
 namespace flt {
 
-template<class ARRAY>
-void reverseWindingOrder( ARRAY* data, GLenum mode, GLint first, GLint last )
-{
-    switch( mode )
-    {
-    case osg::PrimitiveSet::TRIANGLES:
-    case osg::PrimitiveSet::QUADS:
-    case osg::PrimitiveSet::POLYGON:
-        // reverse all the vertices.
-        std::reverse(data->begin()+first, data->begin()+last);
-        break;
-    case osg::PrimitiveSet::TRIANGLE_STRIP:
-    case osg::PrimitiveSet::QUAD_STRIP:
-        // reverse only the shared edges.
-        for( GLint i = first; i < last-1; i+=2 )
-        {
-            std::swap( (*data)[i], (*data)[i+1] );
-        }
-        break;
-    case osg::PrimitiveSet::TRIANGLE_FAN:
-        // reverse all vertices except the first vertex.
-        std::reverse(data->begin()+first+1, data->begin()+last);
-        break;
-    }
-}
+   template<class ARRAY>
+   void reverseWindingOrder(ARRAY* data, GLenum mode, GLint first, GLint last)
+   {
+      switch (mode)
+      {
+      case osg::PrimitiveSet::TRIANGLES:
+      case osg::PrimitiveSet::QUADS:
+      case osg::PrimitiveSet::POLYGON:
+         // reverse all the vertices.
+         std::reverse(data->begin() + first, data->begin() + last);
+         break;
+      case osg::PrimitiveSet::TRIANGLE_STRIP:
+      case osg::PrimitiveSet::QUAD_STRIP:
+         // reverse only the shared edges.
+         for (GLint i = first; i < last - 1; i += 2)
+         {
+            std::swap((*data)[i], (*data)[i + 1]);
+         }
+         break;
+      case osg::PrimitiveSet::TRIANGLE_FAN:
+         // reverse all vertices except the first vertex.
+         std::reverse(data->begin() + first + 1, data->begin() + last);
+         break;
+      }
+   }
 
-void addDrawableAndReverseWindingOrder( osg::Geode* geode )
-{
-    // Replace double sided polygons by duplicating the drawables and inverting the normals.
-    std::vector<osg::Geometry*> new_drawables;
+   void addDrawableAndReverseWindingOrder(osg::Geode* geode)
+   {
+      // Replace double sided polygons by duplicating the drawables and inverting the normals.
+      std::vector<osg::Geometry*> new_drawables;
 
-    for (size_t di=0; di<geode->getNumDrawables(); ++di)
-    {
-        const osg::Geometry* geometry = dynamic_cast<const osg::Geometry*>(geode->getDrawable(di));
-        if(geometry)
-        {
+      for (size_t i = 0; i<geode->getNumDrawables(); ++i)
+      {
+         const osg::Geometry* geometry = dynamic_cast<const osg::Geometry*>(geode->getDrawable(i));
+         if (geometry)
+         {
             osg::Geometry* geom = new osg::Geometry(*geometry
                , osg::CopyOp::DEEP_COPY_ARRAYS | osg::CopyOp::DEEP_COPY_PRIMITIVES);
             new_drawables.push_back(geom);
@@ -363,7 +363,7 @@ void addDrawableAndReverseWindingOrder( osg::Geode* geode )
          int materialIndex = in.readInt16(-1);
          int16 surface = in.readInt16();
          int16 feature = in.readInt16();
-         int32 IRMaterial = in.readInt32(-1);
+         /*int32 IRMaterial =*/ in.readInt32(-1);
          _transparency = in.readUInt16(0);
          // version > 13
          /*uint8 influenceLOD =*/ in.readUInt8();
@@ -468,53 +468,30 @@ void addDrawableAndReverseWindingOrder( osg::Geode* geode )
             // else just use the default material
             osg::Material* material = document.getOrCreateMaterialPool()->get(materialIndex);
             stateset->setAttribute(material);
-        }
+         }
+         // END VRV_PATCH
 
-        // IRColor (IRC)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRColor)
-        {
-          _geometry->setUserValue("<UA:IRC>", IRColor);
-        }
+         // IRColor (IRC)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRColor)
+         {
+            _geometry->setUserValue("<UA:IRC>", IRColor);
+         }
 
-        // IR Material ID (IRM)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRMaterial)
-        {
-          _geometry->setUserValue("<UA:IRM>", IRMaterial);
-        }
+         // surface (SMC)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != surface)
+         {
+            _geometry->setUserValue("<UA:SMC>", surface);
+         }
 
-        // surface (SMC)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != surface)
-        {
-          _geometry->setUserValue("<UA:SMC>", surface);
-        }
+         // feature (FID)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
+         {
+            _geometry->setUserValue("<UA:FID>", feature);
+         }
 
-        // feature (FID)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
-        {
-          _geometry->setUserValue("<UA:FID>", feature);
-        }
- 
-        // terrain 
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isTerrain())
-        {
-          _geometry->setUserValue("<UA:Terrain>", true);
-        }
-
-        // roofline 
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isRoofline())
-        {
-          _geometry->setUserValue("<UA:Roofline>", true);
-        }
-    
-        // footprint 
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isFootprint())
-        {
-          _geometry->setUserValue("<UA:Footprint>", true);
-        }
-
-        // Shaders
-        if (shaderIndex >= 0)
-        {
+         // Shaders
+         if (shaderIndex >= 0)
+         {
             ShaderPool* sp = document.getOrCreateShaderPool();
             osg::Program* program = sp->get(shaderIndex);
             if (program)
@@ -1076,7 +1053,7 @@ void addDrawableAndReverseWindingOrder( osg::Geode* geode )
          int materialIndex = in.readInt16(-1);
          int16 surface = in.readInt16();
          int16 feature = in.readInt16();
-         int32 IRMaterial = in.readInt32(-1);
+         /*int32 IRMaterial =*/ in.readInt32(-1);
          _transparency = in.readUInt16(0);
          // version > 13
          /*uint8 influenceLOD =*/ in.readUInt8();
@@ -1169,53 +1146,30 @@ void addDrawableAndReverseWindingOrder( osg::Geode* geode )
             // else just use the default material
             osg::Material* material = document.getOrCreateMaterialPool()->get(materialIndex);
             stateset->setAttribute(material);
-        }
+         }
+         // END VRV_PATCH
 
-        // IRColor (IRC)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRColor)
-        {
-          _geode->setUserValue("<UA:IRC>", IRColor);
-        }
+         // IRColor (IRC)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRColor)
+         {
+            _geode->setUserValue("<UA:IRC>", IRColor);
+         }
 
-        // IR Material ID (IRM)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != IRMaterial)
-        {
-          _geode->setUserValue("<UA:IRM>", IRMaterial);
-        }
+         // surface (SMC)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != surface)
+         {
+            _geode->setUserValue("<UA:SMC>", surface);
+         }
 
-        // surface (SMC)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != surface)
-        {
-          _geode->setUserValue("<UA:SMC>", surface);
-        }
+         // feature (FID)
+         if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
+         {
+            _geode->setUserValue("<UA:FID>", feature);
+         }
 
-        // feature (FID)
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
-        {
-          _geode->setUserValue("<UA:FID>", feature);
-        }
-
-        // terrain
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isTerrain())
-        {
-          _geode->setUserValue("<UA:Terrain>", true);
-        }
-
-        // roofline 
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isRoofline())
-        {
-          _geode->setUserValue("<UA:Roofline>", true);
-        }
-
-        // footprint 
-        if (document.getPreserveNonOsgAttrsAsUserData() && 0 != isFootprint())
-        {
-          _geode->setUserValue("<UA:Footprint>", true);
-        }
-
-        // Shaders
-        if (shaderIndex >= 0)
-        {
+         // Shaders
+         if (shaderIndex >= 0)
+         {
             ShaderPool* sp = document.getOrCreateShaderPool();
             osg::Program* program = sp->get(shaderIndex);
             if (program)
