@@ -45,8 +45,8 @@ struct Triangle
 
 struct VertexIndex
 {
-    VertexIndex(unsigned int in_vertexIndex, unsigned int in_drawableIndex, unsigned int in_normalIndex)
-        : vertexIndex(in_vertexIndex), drawableIndex(in_drawableIndex), normalIndex(in_normalIndex)
+    VertexIndex(unsigned int vertexIndex, unsigned int drawableIndex, unsigned int normalIndex)
+        : vertexIndex(vertexIndex), drawableIndex(drawableIndex), normalIndex(normalIndex)
     {}
     VertexIndex(const VertexIndex & v) : vertexIndex(v.vertexIndex), drawableIndex(v.drawableIndex), normalIndex(v.normalIndex) {}
 
@@ -62,7 +62,6 @@ struct VertexIndex
 
 typedef std::vector<std::pair<Triangle, int> > ListTriangle; //the int is the drawable of the triangle
 typedef std::map<VertexIndex, unsigned int> MapIndices;        ///< Map OSG indices to FBX mesh indices
-typedef std::vector<const osg::Geometry*> GeometryList; // a list of geometries to process in batch
 
 namespace pluginfbx
 {
@@ -78,22 +77,26 @@ class WriterNodeVisitor: public osg::NodeVisitor
                           const std::string& srcDirectory) :
             osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN),
             _pSdkManager(pSdkManager),
+            _succeedLastApply(true),
             _pScene(pScene),
             _curFbxNode(pScene->GetRootNode()),
             _currentStateSet(new osg::StateSet()),
             _lastMaterialIndex(0),
             _lastMeshIndex(0),
             _options(options),
-            _externalWriter(srcDirectory, osgDB::getFilePath(fileName), true, 0),
-            _texcoords(false),
-            _drawableNum(0),
-            _firstNodeProcessed(false)
+            _externalWriter(srcDirectory, osgDB::getFilePath(fileName), true, 0)
         {}
 
-        virtual void apply(osg::Geometry& node);
+        ///Tell us if last Node succeed traversing.
+        bool succeedLastApply() const { return _succeedLastApply; }
+
+        ///Set the flag _succeedLastApply to false.
+        void failedApply() { _succeedLastApply = false; }
+
+        virtual void apply(osg::Geode& node);
         virtual void apply(osg::Group& node);
         virtual void apply(osg::MatrixTransform& node);
-        
+
         void traverse (osg::Node& node)
         {
             pushStateSet(node.getStateSet());
@@ -189,16 +192,13 @@ class WriterNodeVisitor: public osg::NodeVisitor
         };
 
     private:
-
         /**
         *  Fill the faces field of the mesh and call buildMesh().
-        *  \param name the name to assign to the Fbx Mesh
-        *  \param geometryList is the list of geometries which contains the vertices and faces.
+        *  \param geo is the geode which contains the vertices and faces.
         *  \param listTriangles contain all the mesh's faces.
         *  \param texcoords tell us if we have to handle texture coordinates.
         */
-        void buildFaces(const std::string& name,
-                        const GeometryList& geometryList,
+        void buildFaces(const osg::Geode&   geo,
                         ListTriangle&       listTriangles,
                         bool                texcoords);
 
@@ -206,7 +206,7 @@ class WriterNodeVisitor: public osg::NodeVisitor
         void setLayerTextureAndMaterial(FbxMesh* mesh);
 
         /// Set Vertices, normals, and UVs
-        void setControlPointAndNormalsAndUV(const GeometryList& geometryList,
+        void setControlPointAndNormalsAndUV(const osg::Geode& geo,
                                             MapIndices&       index_vert,
                                             bool              texcoords,
                                             FbxMesh*         fbxMesh);
@@ -221,7 +221,7 @@ class WriterNodeVisitor: public osg::NodeVisitor
         void createListTriangle(const osg::Geometry* geo,
                                 ListTriangle&        listTriangles,
                                 bool&                texcoords,
-                                unsigned int         drawable_n);
+                                unsigned int&        drawable_n);
 
         ///Store the material of the stateset in the MaterialMap.
         int processStateSet(const osg::StateSet* stateset);
@@ -235,9 +235,6 @@ class WriterNodeVisitor: public osg::NodeVisitor
         ///Tell us if the last apply succeed, useful to stop going through the graph.
         bool _succeedLastApply;
 
-        ///Marks if the first node is processed.
-        bool _firstNodeProcessed;
-		
         ///The current directory.
         std::string _directory;
 
@@ -259,12 +256,6 @@ class WriterNodeVisitor: public osg::NodeVisitor
         unsigned int                        _lastMeshIndex;
         const osgDB::ReaderWriter::Options* _options;
         osgDB::ExternalFileWriter           _externalWriter;
-
-        ///Maintain geode state between visits to the geometry
-        GeometryList _geometryList;
-        ListTriangle _listTriangles;
-        bool _texcoords;
-        unsigned int _drawableNum;
 };
 
 // end namespace pluginfbx

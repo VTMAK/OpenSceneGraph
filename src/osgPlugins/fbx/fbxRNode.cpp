@@ -441,7 +441,7 @@ void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, Fbx
 
     if (rotationActive)
     {
-        staticTransform.preMultRotate(makeQuat(pNode->PreRotation.Get(), eEulerXYZ));
+       staticTransform.preMultRotate(makeQuat(pNode->PreRotation.Get(), eEulerXYZ));
     }
 
     readRotationElement(pNode->LclRotation, fbxRotOrder,
@@ -450,7 +450,7 @@ void readUpdateMatrixTransform(osgAnimation::UpdateMatrixTransform* pUpdate, Fbx
 
     if (rotationActive)
     {
-        staticTransform.preMultRotate(makeQuat(pNode->PostRotation.Get(), eEulerXYZ));
+       staticTransform.preMultRotate(makeQuat(pNode->PostRotation.Get(), eEulerXYZ));
     }
 
     FbxDouble3 fbxSclOffset = pNode->ScalingOffset.Get();

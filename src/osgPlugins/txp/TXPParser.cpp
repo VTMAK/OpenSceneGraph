@@ -87,12 +87,7 @@ TXPParser::TXPParser():
     _realMinRange(0.0),
     _realMaxRange(0.0),
     _usedMaxRange(0.0),
-    _childRefCB(0),
-    // VRV_PATCH BEGIN
-    _currentNode(0),
-    _materialMap(0),
-    _models(0)
-    // VRV_PATCH END
+    _childRefCB(0)
 {
     AddCallback(TRPG_ATTACH,    new attachRead(this));
     AddCallback(TRPG_CHILDREF,  new childRefRead(this));

@@ -921,13 +921,13 @@ osg::Object* DataInputStream::readStackedTransformElement()
    }
 }
 
-deprecated_osg::Geometry::AttributeBinding DataInputStream::readBinding(){
+osg::Array::Binding DataInputStream::readBinding(){
     char c = readChar();
 
     if (_verboseOutput) std::cout<<"readBinding() ["<<(int)c<<"]"<<std::endl;
 
     switch((int)c){
-        case 0:    return osg::Array::BIND_OFF;
+        case 0: return osg::Array::BIND_OFF;
         case 1: return osg::Array::BIND_OVERALL;
         case 2: return (osg::Array::Binding)3;
         case 3: return osg::Array::BIND_PER_PRIMITIVE_SET;

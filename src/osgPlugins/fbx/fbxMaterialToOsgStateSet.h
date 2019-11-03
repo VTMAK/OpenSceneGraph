@@ -27,23 +27,6 @@ const std::string kBUMP_TEXTURE_UNIT = "BUMP_TEXTURE_UNIT";
 const std::string kSPECULAR_TEXTURE_UNIT = "SPECULAR_TEXTURE_UNIT";
 const std::string kGLOSS_TEXTURE_UNIT = "GLOSS_TEXTURE_UNIT";
 
-struct TextureDetails : public osg::Referenced
-{
-    TextureDetails();
-
-    bool valid() const { return texture.valid(); }
-
-    bool transparent() const;
-
-    void assignTextureIfRequired(osg::StateSet* stateSet, unsigned int unit);
-    void assignTexMatIfRequired(osg::StateSet* stateSet, unsigned int unit);
-
-    std::string                     channel;
-    osg::ref_ptr<osg::Texture2D>    texture;
-    double                          factor;
-    osg::Vec2d                      scale;
-};
-
 struct StateSetContent
 {
     StateSetContent()
@@ -144,15 +127,10 @@ public:
         _lightmapTextures(lightmapTextures){}
 
     void checkInvertTransparency();
-
 private:
     //Convert a texture fbx to an osg texture.
-    osg::ref_ptr<osg::Texture2D> fbxTextureToOsgTexture(const FbxFileTexture* pOsgTex);
-
-    FbxFileTexture* selectFbxFileTexture(const FbxProperty& lProperty);
-
-    TextureDetails* selectTextureDetails(const FbxProperty& lProperty);
-
+    osg::ref_ptr<osg::Texture2D>
+    fbxTextureToOsgTexture(const FbxFileTexture* pOsgTex);
     FbxMaterialMap       _fbxMaterialMap;
     ImageMap              _imageMap;
     const osgDB::Options* _options;

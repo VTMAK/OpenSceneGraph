@@ -24,9 +24,6 @@ namespace osgAnimation
     class Animation;
 }
 
-typedef std::map< osg::Matrix, std::set<osgAnimation::RigGeometry*> > BindMatrixGeometryMap;
-typedef std::map< FbxNode* , BindMatrixGeometryMap > BindMatrixMap;
-
 class OsgFbxReader
 {
 public:

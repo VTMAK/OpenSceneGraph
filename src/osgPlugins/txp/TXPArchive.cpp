@@ -161,8 +161,6 @@ bool TXPArchive::loadMaterial(int ix)
         OSG_WARN<<"TXPArchive::loadMaterial("<<ix<<") failed."<<std::endl;
         return false;
     }
-    const trpgMaterial *mat;
-    mat = materialTable.GetMaterialRef(0,i);
 
     // Set texture
     int numMatTex;

@@ -1,9 +1,10 @@
 #include "WriterCompareTriangle.h"
 
-WriterCompareTriangle::WriterCompareTriangle(const osg::Geode& in_geode, unsigned int in_nbVertices):
-        geode(geode)
+WriterCompareTriangle::WriterCompareTriangle(const osg::Geode& geode,
+                                             unsigned int      nbVertices)
+                                             :    geode(geode)
 {
-    cutscene(in_nbVertices, geode.getDrawable(0)->asGeometry()->getBoundingBox());
+    cutscene(nbVertices, geode.getDrawable(0)->asGeometry()->getBoundingBox());
 }
 
 bool
