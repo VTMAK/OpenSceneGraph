@@ -479,7 +479,7 @@ namespace osg
       osg::ref_ptr<osg::TestResult> tr;
       {
          OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mapMutex);
-         std::map< int, long long int>::iterator iter = _traversalToNodePathMap.find(leaf->_traversalNumber);
+         std::map< int, long long int>::iterator iter = _traversalToNodePathMap.find(leaf->_traversalOrderNumber);
          long long int nodepathhash = 0;
          if (iter != _traversalToNodePathMap.end())
          {
