@@ -1,9 +1,16 @@
 #include "fbxMaterialToOsgStateSet.h"
+#include "fbxUtil.h"
 #include <sstream>
 #include <osgDB/ReadFile>
 #include <osgDB/FileUtils>
 #include <osgDB/FileNameUtils>
 #include <osg/ExtendedMaterial>
+
+#include <boost/filesystem.hpp>
+#include <boost/tokenizer.hpp>
+#include <boost/token_functions.hpp>
+
+static const std::string vrvAppDataDir = "vrvAppDataDir=";
 
 static osg::Texture::WrapMode convertWrap(FbxFileTexture::EWrapMode wrap)
 {
@@ -357,6 +364,44 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
     return result;
 }
 
+// NOTE This can be remove when we go up on BOOST and should be replace by 
+//boost::filesystem::canonical once we go up on BOOST
+boost::filesystem::path resolve(
+   const boost::filesystem::path& p,
+   const boost::filesystem::path& base = boost::filesystem::current_path())
+{
+   boost::filesystem::path abs_p = boost::filesystem::absolute(p, base);
+   boost::filesystem::path result;
+   for (boost::filesystem::path::iterator it = abs_p.begin();
+      it != abs_p.end();
+      ++it)
+   {
+      if (*it == "..")
+      {
+         // /a/b/.. is not necessarily /a if b is a symbolic link
+         if (boost::filesystem::is_symlink(result))
+            result /= *it;
+         // /a/b/../.. is not /a/b/.. under most circumstances
+         // We can end up with ..s in our result because of symbolic links
+         else if (result.filename() == "..")
+            result /= *it;
+         // Otherwise it should be safe to resolve the parent
+         else
+            result = result.parent_path();
+      }
+      else if (*it == ".")
+      {
+         // Ignore
+      }
+      else
+      {
+         // Just cat other path entries
+         result /= *it;
+      }
+   }
+   return result;
+}
+
 osg::ref_ptr<osg::Texture2D>
 FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
 {
@@ -393,6 +438,29 @@ FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
              fileName = fileName3;
           }
        }
+       // If not found search Vantage extra textures path
+       if (!found)
+       {
+          for (TexturePathList::const_iterator iter = _texturePathList.begin(); iter != _texturePathList.end(); ++iter)
+          {
+             boost::filesystem::path filepath;
+             if (osgDB::isAbsolutePath(*iter))
+             {
+                filepath = *iter;
+             }
+             else
+             {
+                filepath = resolve(boost::filesystem::path(*iter), boost::filesystem::path(_dir));
+             }
+             std::string fileName4 = osgDB::concatPaths(filepath.string(), osgDB::getSimpleFileName(fileName));
+             if (osgDB::fileExists(fileName4))
+             {
+                found = true;
+                fileName = fileName4;
+                break;
+             }
+          }
+       }       
     }
     
     if ((pImage = osgDB::readImageFile(fileName)) && found == true)
@@ -447,4 +515,64 @@ void FbxMaterialToOsgStateSet::checkInvertTransparency()
             pMaterial->setDiffuse(osg::Material::FRONT_AND_BACK, diffuse);
         }
     }
+}
+
+bool FbxMaterialToOsgStateSet::CSVTexturePathFileRead = false; // Init once when the DLL is loaded
+void FbxMaterialToOsgStateSet::readTexturePathCSVfile()
+{
+   if (CSVTexturePathFileRead == false)
+   {
+      std::string optionString = _options->getOptionString();
+      std::size_t pos = optionString.find(vrvAppDataDir);
+      if (pos != std::string::npos)
+      {
+         std::size_t endpos = optionString.find(" ", pos);
+         if (pos == std::string::npos)
+         {
+            // no other param, use the end position for the length
+            endpos = optionString.length();
+         }
+         pos = pos + vrvAppDataDir.length();
+         std::string csvFile = optionString.substr(pos, endpos - pos);
+         csvFile += "/importConfig/FBX_TexturePath.csv";
+
+         FILE* file = fopen(csvFile.c_str(), "r");
+         if (file != NULL)
+         {
+            char charline[256];
+            bool firstLineRead = false;
+            while (fgets(charline, sizeof(charline), file))
+            {
+               if (firstLineRead)
+               {
+                  std::string line = charline;
+                  boost::char_separator<char> sep(",", "", boost::keep_empty_tokens);
+
+                  boost::tokenizer<boost::char_separator<char> >
+                     tokenList(line, sep);
+                  boost::tokenizer<boost::char_separator<char> >::iterator curAttrIter =
+                     tokenList.begin();
+                  boost::tokenizer<boost::char_separator<char> >::iterator endAttrIter =
+                     tokenList.end();
+
+                  if (curAttrIter != endAttrIter)
+                  {
+                     // Read Texture Path
+                     std::string texturePathStr = fbxUtil::removeReturn(*curAttrIter);
+                     ++curAttrIter;
+
+                     // insert in the list
+                     _texturePathList.push_back(texturePathStr);
+                  }
+               }
+               else
+               {
+                  firstLineRead = true;
+               }
+            }
+         }
+         fclose(file);
+      }
+      CSVTexturePathFileRead = true;
+   }
 }

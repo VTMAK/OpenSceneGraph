@@ -32,6 +32,7 @@ static const std::string disDamageState = "@dis switch damage";
 static const std::string stateNodeName = "maingroup_";
 static const std::string destroyed_stateNodeName = "maingroup_destroyed";
 
+static const std::string vrvAppDataDir = "vrvAppDataDir=";
 
 #if defined(_MSC_VER)
 #pragma warning( disable : 4505 )
@@ -1473,11 +1474,10 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxMesh(FbxNode* pNode,
         pNode->GetName(), textureMap);
 }
 
-bool OsgFbxReader::CSVfileread = false; // Init once when the DLL is loaded
+bool OsgFbxReader::CSVMapFileRead = false; // Init once when the DLL is loaded
 void OsgFbxReader::readNodeMapCSVfile()
 {
-   const static std::string vrvAppDataDir = "vrvAppDataDir=";
-   if (CSVfileread == false)
+   if (CSVMapFileRead == false)
    {
       std::string optionString = options.getOptionString();
       std::size_t pos = optionString.find(vrvAppDataDir);
@@ -1535,7 +1535,7 @@ void OsgFbxReader::readNodeMapCSVfile()
          }
          fclose(file);
       }
-      CSVfileread = true;
+      CSVMapFileRead = true;
    }
 }
 
@@ -1570,27 +1570,49 @@ bool OsgFbxReader::addDamageSwitch(osg::Node* osgChild, osg::NodeList& children)
       for (osg::NodeList::iterator iter = children.begin();
          iter != children.end(); ++iter)
       {
-         pSwitch = dynamic_cast<osgSim::MultiSwitch*>(iter->get());
-         activeSwitchPos++;
-         if (pSwitch)
+         // Check if we already added the "maingroup_scale" transform
+         std::string nodeName2 = iter->get()->getName();
+         if (nodeName2 == "maingroup_scale")
          {
-            pSwitch->addChild(osgChild);
-            switchFound = true;
-            childrenAdded = true;
-            break;
+            osg::MatrixTransform* scaleNode = dynamic_cast<osg::MatrixTransform*>(iter->get());
+            if (scaleNode)
+            {
+               osg::Node* swNode = scaleNode->getChild(0);
+               pSwitch = dynamic_cast<osgSim::MultiSwitch*>(swNode);
+               activeSwitchPos++;
+               if (pSwitch)
+               {
+                  pSwitch->addChild(osgChild);
+                  switchFound = true;
+                  childrenAdded = true;
+                  break;
+               }
+            }
          }
       }
 
       // Add a switch of top of the maingroup if it's missing
       if (switchFound == false)
       {
+         // Need to add a matrix transform on top of this special
+         // case. To scale the whole model from cm to meters.
+         osg::Matrix localMatrix;
+         localMatrix.makeIdentity(); 
+         localMatrix.preMultScale(osg::Vec3d(0.01, 0.01, 0.01));
+         osg::MatrixTransform* pTransform = new osg::MatrixTransform(localMatrix);
+         pTransform->setDataVariance(osg::Object::STATIC);
+         pTransform->setName("maingroup_scale");
+         pTransform->addDescription("maingroup_description");
+
          pSwitch = new osgSim::MultiSwitch;
          pSwitch->setName("maingroup_switch");
          pSwitch->addDescription(disDamageState);
          pSwitch->setValue(0, 0, true);
          pSwitch->addChild(osgChild);
-         children.push_back(pSwitch);
          childrenAdded = true;
+
+         pTransform->addChild(pSwitch);
+         children.push_back(pTransform);
       }
 
       // if it's not the destroyed state set state to active

@@ -94,28 +94,6 @@ static const unsigned int SCALE_Z_LIMIT_BIT = 0x80000000u >> 8;
 
 static const std::string stateNodeName = "maingroup_";
 
-// Remove \n and \r from the string
-std::string removeReturn(const FbxString& pComment)
-{
-   std::string temp = pComment.Buffer();
-   temp.erase(std::remove(temp.begin(), temp.end(), '\n'), temp.end());
-   temp.erase(std::remove(temp.begin(), temp.end(), '\r'), temp.end());
-   return temp;
-}
-
-// Remove \" 
-void removeQuote(std::string& pComment)
-{   
-   pComment.erase(std::remove(pComment.begin(), pComment.end(), '\"'), pComment.end());
-}
-
-// Remove spaces ' '
-void removeSpaces(std::string& pComment)
-{
-   pComment.erase(std::remove(pComment.begin(), pComment.end(), ' '), pComment.end());
-}
-
-
 bool isAnimated(FbxProperty& prop, FbxScene& fbxScene)
 {
     for (int i = 0; i < fbxScene.GetSrcObjectCount<FbxAnimStack>(); ++i)
@@ -893,7 +871,6 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     }
 
     osg::NodeList skeletal, children;
-
     int nChildCount = pNode->GetChildCount();
     for (int i = 0; i < nChildCount; ++i)
     {
@@ -1364,7 +1341,7 @@ osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment)
    // If a valid vantage switch comment is found it will add a switch
    osgSim::MultiSwitch* pSwitch = new osgSim::MultiSwitch;
    pSwitch->setName(pNode->GetName());
-   pSwitch->addDescription(removeReturn(pComment));
+   pSwitch->addDescription(fbxUtil::removeReturn(pComment));
    pSwitch->setValue(0, 0, true);
    return pSwitch;
 }
@@ -1393,14 +1370,14 @@ osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateN
    }
    else
    {
-      pGroup->addDescription(removeReturn(pComment));
+      pGroup->addDescription(fbxUtil::removeReturn(pComment));
    }
    return pGroup;
 }
 
 osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof)
 {
-   std::string strComment = removeReturn(pComment);
+   std::string strComment = fbxUtil::removeReturn(pComment);
    int partNumber = 0;
    osg::Vec3f translate_min, translate_current, translate_max, translate_step,
       rotate_min, rotate_current, rotate_max, rotate_step,
@@ -1451,10 +1428,10 @@ osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, 
 {
    size_t offset = disExternalRef.length() + 1;
    // remove return in string
-   std::string filename = removeReturn(pComment);
+   std::string filename = fbxUtil::removeReturn(pComment);
    filename = filename.substr(offset, filename.length() - offset);
    // remove quote around filename
-   removeQuote(filename);
+   fbxUtil::removeQuote(filename);
    // check for existing path
    std::string filepath = osgDB::getFilePath(filename);
    if (filepath.empty())
@@ -1484,7 +1461,7 @@ osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, o
    // ex.  "animation 2 skip loopCount 3 lastFrameTime 11.5"
    osg::Sequence* pSequence = new osg::Sequence;
    pSequence->setName(pNode->GetName());
-   pSequence->addDescription(removeReturn(pComment));
+   pSequence->addDescription(fbxUtil::removeReturn(pComment));
 
    // Regardless of forwards or backwards, animation could have swing bit set.
    osg::Sequence::LoopMode loopMode = (swing) ?
@@ -1540,7 +1517,7 @@ osg::Group* addGroup(FbxNode* pNode, const FbxString& pComment)
    pGroup->setName(pNode->GetName());
    if (!pComment.IsEmpty())
    {
-      pGroup->addDescription(removeReturn(pComment));
+      pGroup->addDescription(fbxUtil::removeReturn(pComment));
    }
    return pGroup;
 }
@@ -1560,7 +1537,7 @@ osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment,
       // if we have a dis frame or annotation comment add it to the matrix transform and not the geode
       if (!pComment.IsEmpty())
       {
-         pAnimTransform->addDescription(removeReturn(pComment));
+         pAnimTransform->addDescription(fbxUtil::removeReturn(pComment));
       }
       return pAnimTransform;
    }
@@ -1572,7 +1549,7 @@ osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment,
       // if we have a dis frame or annotation comment add it to the matrix transform and not the geode
       if (!pComment.IsEmpty())
       {
-         pTransform->addDescription(removeReturn(pComment));
+         pTransform->addDescription(fbxUtil::removeReturn(pComment));
       }
       return pTransform;
    }

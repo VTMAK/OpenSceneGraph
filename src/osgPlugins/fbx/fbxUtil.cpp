@@ -13,6 +13,8 @@
 #include <osg/Geode>
 #include <osg/MatrixTransform>
 #include <osg/PositionAttitudeTransform>
+#include <algorithm>
+#include <string>
 
 fbxUtil::fbxUtil()
 {
@@ -256,4 +258,34 @@ void fbxUtil::minMaxSwitchDistance(const std::string& nodeName, int& lod, float&
       max = 20000.0;
       break;
    }
+}
+
+// Remove \n and \r from the string
+std::string fbxUtil::removeReturn(const FbxString& pComment)
+{
+   std::string temp = pComment.Buffer();
+   temp.erase(std::remove(temp.begin(), temp.end(), '\n'), temp.end());
+   temp.erase(std::remove(temp.begin(), temp.end(), '\r'), temp.end());
+   return temp;
+}
+
+// Remove \n and \r from the string
+std::string fbxUtil::removeReturn(const std::string& pComment)
+{
+   std::string temp = pComment;
+   temp.erase(std::remove(temp.begin(), temp.end(), '\n'), temp.end());
+   temp.erase(std::remove(temp.begin(), temp.end(), '\r'), temp.end());
+   return temp;
+}
+
+// Remove \" 
+void fbxUtil::removeQuote(std::string& pComment)
+{
+   pComment.erase(std::remove(pComment.begin(), pComment.end(), '\"'), pComment.end());
+}
+
+// Remove spaces ' '
+void fbxUtil::removeSpaces(std::string& pComment)
+{
+   pComment.erase(std::remove(pComment.begin(), pComment.end(), ' '), pComment.end());
 }

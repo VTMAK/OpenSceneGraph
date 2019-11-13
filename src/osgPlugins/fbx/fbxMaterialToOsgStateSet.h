@@ -9,6 +9,9 @@
 #include <osg/Texture2D>
 #include <osg/ExtendedMaterial>
 
+#include <vector>
+#include <string>
+
 #if defined(_MSC_VER)
 #pragma warning( disable : 4505 )
 #pragma warning( default : 4996 )
@@ -124,9 +127,18 @@ public:
     FbxMaterialToOsgStateSet(const std::string& dir, const osgDB::Options* options, bool lightmapTextures) :
         _options(options),
         _dir(dir),
-        _lightmapTextures(lightmapTextures){}
+        _lightmapTextures(lightmapTextures)
+    {
+       readTexturePathCSVfile();
+    }
 
     void checkInvertTransparency();
+
+protected:
+
+   //! Read the Vantage Texture path CSV 
+   void readTexturePathCSVfile();
+
 private:
     //Convert a texture fbx to an osg texture.
     osg::ref_ptr<osg::Texture2D>
@@ -136,7 +148,14 @@ private:
     const osgDB::Options* _options;
     const std::string     _dir;
     bool                  _lightmapTextures;
-};
 
+    //! Flag to know if the texture path file was read
+    static bool CSVTexturePathFileRead;
+
+    // additional texture path list pass by Vantage 
+    typedef std::vector<std::string> TexturePathList;
+    TexturePathList       _texturePathList;
+
+};
 
 #endif //FBXMATERIALTOOSGSTATESET_H

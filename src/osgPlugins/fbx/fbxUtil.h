@@ -51,4 +51,14 @@ public:
 
    //! Return the min/max switch distance based on the node name
    static void minMaxSwitchDistance(const std::string& nodeName, int& lod, float& min, float& max);
+
+   // Remove \n and \r from the string
+   static std::string removeReturn(const FbxString& pComment);
+   static std::string removeReturn(const std::string& pComment);
+
+   //! Remove \" 
+   static void removeQuote(std::string& pComment);
+
+   //! Remove spaces ' '
+   static void removeSpaces(std::string& pComment);
 };

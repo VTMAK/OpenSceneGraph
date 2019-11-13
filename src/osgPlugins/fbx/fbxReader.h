@@ -149,12 +149,11 @@ protected:
     std::string getCommentFromNodeName(const std::string& nodeName);
 
     //! Flag to know if the mapping file was read
-    static bool CSVfileread;
+    static bool CSVMapFileRead;
 
     //! map that keep the @dis comment based on node name
     typedef std::map<std::string, std::string> NodeNameToCommentMap;
     NodeNameToCommentMap _nodeNameMap;
-    
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
