@@ -319,9 +319,10 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
         bool getRequestContinousUpdate() const { return _requestContinousUpdate; }
 
         // VRV_PATCH make public, and optimize content management
+    		// make public, and optimize content management
         inline void makeCurrent(osg::GraphicsContext* gc)
         {
-            if (_currentContext==gc) return;
+            if (_currentContext == gc) return;
 
            // VRV_PATCH only set the context to none if there's no new context to use
             if (!gc || !gc->valid()) {
@@ -333,6 +334,14 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
               _currentContext = gc;
             }
         }
+        // VRV_PATCH: end
+        
+        // VRV_PATCH: start
+    		const osg::GraphicsContext* getCurrentContext(void) const
+        {
+		        return _currentContext.get();
+		    }
+    		// VRV_PATCH: end
 
 protected:
 
