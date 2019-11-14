@@ -154,7 +154,7 @@ private:
 
     // additional texture path list pass by Vantage 
     typedef std::vector<std::string> TexturePathList;
-    TexturePathList       _texturePathList;
+    static TexturePathList       _texturePathList;
 
 };
 

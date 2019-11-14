@@ -480,6 +480,7 @@ void FbxMaterialToOsgStateSet::checkInvertTransparency()
 }
 
 bool FbxMaterialToOsgStateSet::CSVTexturePathFileRead = false; // Init once when the DLL is loaded
+FbxMaterialToOsgStateSet::TexturePathList   FbxMaterialToOsgStateSet::_texturePathList; // Static only filled once
 void FbxMaterialToOsgStateSet::readTexturePathCSVfile()
 {
    if (CSVTexturePathFileRead == false)
