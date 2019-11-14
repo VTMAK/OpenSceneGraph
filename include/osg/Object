@@ -290,7 +290,7 @@ class OSG_EXPORT Object : public Referenced
 
         // VRV_PATCH
         /** mutex available to allow thread safe modification of objects */
-        OpenThreads::Mutex& getDataMutex(); 
+        OpenThreads::Mutex& getDataMutex() const; 
 
     protected:
 
@@ -308,7 +308,7 @@ class OSG_EXPORT Object : public Referenced
 
         osg::UserDataContainer* _userDataContainer;
         // VRV_PATCH
-        OpenThreads::Mutex  * _dataMutex;
+        mutable OpenThreads::Mutex  * _dataMutex;
 
     private:
 

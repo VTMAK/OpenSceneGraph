@@ -50,7 +50,7 @@ Object::~Object()
 }
 
 // VRV_PATCH
-OpenThreads::Mutex& Object::getDataMutex()
+OpenThreads::Mutex& Object::getDataMutex() const
 {
    if (!_dataMutex) {
       static OpenThreads::Mutex creationMutex;
