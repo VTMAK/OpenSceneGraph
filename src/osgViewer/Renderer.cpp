@@ -1057,12 +1057,16 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
                  }
              }
 
-             //signals the cull thread to start up 
-             _s_cullThread->startUp();
-             
              // VRV_PATCH
              // update the current context
+             // This was running after the cull thread was started but it was 
+             // causing an issue if makeCurrent took longer than cull.
+             // We need to come up with a way to prevent the optional jobs queue
+             // from being starved in that case.
              viewer->makeCurrent(context);
+
+             //signals the cull thread to start up 
+             _s_cullThread->startUp();
              
              // Run any additional operations
              // There is only one main thread operation allowed
