@@ -789,7 +789,7 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     }    
     else if (pComment.Find(disArticulatedPart.c_str()) != -1 )
     {
-       return addArticulatedPart(pNode, pComment, localMatrix, hasDof);
+       return addArticulatedPart(pNode, pComment, localMatrix, hasDof, fbxScene);
     }
     else if (pComment.Find(disFlipbookAnimation.c_str()) != -1)
     {
@@ -1375,7 +1375,8 @@ osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateN
    return pGroup;
 }
 
-osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof)
+osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof,
+   FbxScene& fbxScene)
 {
    std::string strComment = fbxUtil::removeReturn(pComment);
    int partNumber = 0;
@@ -1414,6 +1415,32 @@ osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComme
    pDOF->setMaxScale(scale_max);
    pDOF->setCurrentScale(scale_current);
    pDOF->setIncrementScale(scale_step);
+
+   // PUT MATRIX based on the pivot point
+   // The section below was found based on trial and error
+   // not sure it's a 100% accurate
+   osg::Matrix pivotMatrixTrans;
+   pivotMatrixTrans.makeIdentity();
+   FbxDouble3 fbxRotPiv = pNode->RotationPivot.Get();
+   FbxDouble3 fbxLclRot = pNode->LclRotation.Get();
+   pivotMatrixTrans.setTrans(fbxRotPiv[0], fbxRotPiv[1], fbxRotPiv[2]);
+
+   // Possible rotation of axis
+   osg::Matrix pivotRotationMatrix;
+   pivotRotationMatrix.makeIdentity();
+   bool rotationActive = pNode->RotationActive.Get();
+   EFbxRotationOrder fbxRotOrder = rotationActive ? pNode->RotationOrder.Get() : eEulerXYZ;
+   if (rotationActive)
+   {
+      pivotRotationMatrix.preMultRotate(makeQuat(fbxLclRot, fbxRotOrder));
+   }
+   osg::Vec4 temp(fbxRotPiv[0], fbxRotPiv[1], fbxRotPiv[2], 0.0);
+   temp = temp * pivotRotationMatrix;
+   pivotMatrixTrans.setTrans(temp[0], temp[1], temp[2]);
+
+   pDOF->setPutMatrix(pivotMatrixTrans);
+   pDOF->setInversePutMatrix(osg::Matrix::inverse(pivotMatrixTrans));
+   // End PUT MATRIX
 
    // Set the limitation flag if some parameters were found in the comments
    pDOF->setLimitationFlags(limitationFlag);

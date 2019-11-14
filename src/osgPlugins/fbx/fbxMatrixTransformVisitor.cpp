@@ -66,16 +66,13 @@
       {
          if (!_matrixStack.empty())
          {
-            osg::Matrix putmat;
+            osg::Matrix putmat = dof.getPutMatrix(); 
             for (size_t i=0; i < _matrixStack.size(); ++i)
             {
                // multiply the matrix from the stack
                putmat = _matrixStack[i] * putmat;
             }
            
-            //putmat(1, 2) = 0.0;
-            //putmat(2, 1) = 0.0;
-
             // add the result in the put matrix
             dof.setInversePutMatrix(putmat);
             dof.setPutMatrix(osg::Matrix::inverse(putmat));

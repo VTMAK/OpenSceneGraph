@@ -167,7 +167,8 @@ osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment);
 osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName);
 
 //! Add articulation part 
-osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof);
+osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof,
+   FbxScene& fbxScene);
 
 //! Add FlipBook animation 
 osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children);
