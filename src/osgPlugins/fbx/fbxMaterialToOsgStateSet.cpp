@@ -364,44 +364,6 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
     return result;
 }
 
-// NOTE This can be remove when we go up on BOOST and should be replace by 
-//boost::filesystem::canonical once we go up on BOOST
-boost::filesystem::path resolve(
-   const boost::filesystem::path& p,
-   const boost::filesystem::path& base = boost::filesystem::current_path())
-{
-   boost::filesystem::path abs_p = boost::filesystem::absolute(p, base);
-   boost::filesystem::path result;
-   for (boost::filesystem::path::iterator it = abs_p.begin();
-      it != abs_p.end();
-      ++it)
-   {
-      if (*it == "..")
-      {
-         // /a/b/.. is not necessarily /a if b is a symbolic link
-         if (boost::filesystem::is_symlink(result))
-            result /= *it;
-         // /a/b/../.. is not /a/b/.. under most circumstances
-         // We can end up with ..s in our result because of symbolic links
-         else if (result.filename() == "..")
-            result /= *it;
-         // Otherwise it should be safe to resolve the parent
-         else
-            result = result.parent_path();
-      }
-      else if (*it == ".")
-      {
-         // Ignore
-      }
-      else
-      {
-         // Just cat other path entries
-         result /= *it;
-      }
-   }
-   return result;
-}
-
 osg::ref_ptr<osg::Texture2D>
 FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
 {
@@ -450,7 +412,7 @@ FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
              }
              else
              {
-                filepath = resolve(boost::filesystem::path(*iter), boost::filesystem::path(_dir));
+                filepath = fbxUtil::resolve(boost::filesystem::path(*iter), boost::filesystem::path(_dir));
              }
              std::string fileName4 = osgDB::concatPaths(filepath.string(), osgDB::getSimpleFileName(fileName));
              if (osgDB::fileExists(fileName4))

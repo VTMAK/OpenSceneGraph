@@ -15,6 +15,9 @@
 #include <osg/PositionAttitudeTransform>
 #include <algorithm>
 #include <string>
+#include <boost/tokenizer.hpp>
+#include <boost/token_functions.hpp>
+#include <osgDB/FileNameUtils>
 
 fbxUtil::fbxUtil()
 {
@@ -288,4 +291,77 @@ void fbxUtil::removeQuote(std::string& pComment)
 void fbxUtil::removeSpaces(std::string& pComment)
 {
    pComment.erase(std::remove(pComment.begin(), pComment.end(), ' '), pComment.end());
+}
+
+// return an absolute path
+boost::filesystem::path fbxUtil::absolute(const boost::filesystem::path& p, const boost::filesystem::path& base)
+{
+   boost::filesystem::path baseTemp = base;
+   std::string pTemp;
+   boost::char_separator<char> sep("/", "", boost::keep_empty_tokens);
+   boost::tokenizer<boost::char_separator<char> > tokenList(p.string(), sep);
+   boost::tokenizer<boost::char_separator<char> >::iterator curAttrIter = tokenList.begin();
+   boost::tokenizer<boost::char_separator<char> >::iterator endAttrIter = tokenList.end();
+
+   for (;curAttrIter != endAttrIter; ++curAttrIter)
+   {
+      // if we find a relative path remove it from base
+      if (*curAttrIter == "..")
+      {
+         baseTemp = baseTemp.parent_path();
+      }
+      else
+      {
+         pTemp += "/" + *curAttrIter;
+      }
+   }
+   baseTemp /= pTemp;
+   return baseTemp; 
+}
+
+boost::filesystem::path fbxUtil::resolve(
+   const boost::filesystem::path& p,
+   const boost::filesystem::path& base)
+{   
+#if BOOST_FILESYSTEM_VERSION == 3
+      // boost filesystem v3
+   boost::filesystem::path abs_p = boost::filesystem::absolute(p, base);
+#else
+     // boost filesystem v2
+   boost::filesystem::path abs_p = absolute(p, base);
+#endif
+   boost::filesystem::path result;
+   for (boost::filesystem::path::iterator it = abs_p.begin();
+      it != abs_p.end();
+      ++it)
+   {
+      if (*it == "..")
+      {
+         // /a/b/.. is not necessarily /a if b is a symbolic link
+         if (boost::filesystem::is_symlink(result))
+            result /= *it;
+         // /a/b/../.. is not /a/b/.. under most circumstances
+         // We can end up with ..s in our result because of symbolic links
+         else if (result.filename() == "..")
+            result /= *it;
+         // Otherwise it should be safe to resolve the parent
+         else
+            result = result.parent_path();
+      }
+      else if (*it == ".")
+      {
+         // Ignore
+      }
+      else
+      {
+         // Just cat other path entries
+         result /= *it;
+      }
+   }
+   return result;
+}
+
+boost::filesystem::path fbxUtil::resolve(const boost::filesystem::path& p)
+{
+   return resolve(p, boost::filesystem::current_path());
 }

@@ -16,7 +16,7 @@
 #include <osgAnimation/RigGeometry>
 #include <osgAnimation/Skeleton>
 #include <osgAnimation/VertexInfluence>
-
+#include <boost/filesystem.hpp>
 #include <map>
 
 typedef std::map<std::pair<FbxNode*, osgAnimation::RigGeometry*>, osg::Matrix> BindMatrixMap;
@@ -61,4 +61,18 @@ public:
 
    //! Remove spaces ' '
    static void removeSpaces(std::string& pComment);
+
+   //! Resolve a relative path
+   static boost::filesystem::path resolve(
+      const boost::filesystem::path& p,
+      const boost::filesystem::path& base);
+
+   //! Resolve the path (from relative to absolute)
+   static boost::filesystem::path resolve(const boost::filesystem::path& p);
+
+protected:
+
+   //! return an absolute path
+   static boost::filesystem::path absolute(const boost::filesystem::path& p, const boost::filesystem::path& base);
+
 };
