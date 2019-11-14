@@ -1493,8 +1493,8 @@ void OsgFbxReader::readNodeMapCSVfile()
          }
          pos = pos + vrvAppDataDir.length();
          std::string csvFile = optionString.substr(pos, endpos - pos);
+         const std::string damageSwitchType = "DamageState";
          csvFile += "/importConfig/FBX_NodeNameMap.csv";
-
 
          FILE* file = fopen(csvFile.c_str(), "r");
          if (file != NULL)
@@ -1525,8 +1525,21 @@ void OsgFbxReader::readNodeMapCSVfile()
                      std::string commentStr = *curAttrIter;
                      ++curAttrIter;
 
-                     // insert in the map
-                     _nodeNameMap.insert(std::pair<std::string, std::string>(nodeNameStr, commentStr));
+                     // Read Type
+                     std::string typeStr = *curAttrIter;
+                     ++curAttrIter;
+
+                     // If it's a damage state node name put it in a different list
+                     if (typeStr == damageSwitchType)
+                     {
+                        // insert in the map to check NORMAL/DAMAGE state node name
+                        _nodeNameStateMap.insert(std::pair<std::string, std::string>(nodeNameStr, commentStr));
+                     }
+                     else
+                     {
+                        // insert in the map
+                        _nodeNameMap.insert(std::pair<std::string, std::string>(nodeNameStr, commentStr));
+                     }
                   }
                }
                else
@@ -1558,13 +1571,47 @@ std::string OsgFbxReader::getCommentFromNodeName(const std::string& nodeName)
    return _nodeNameMap[nodeName];
 }
 
+size_t OsgFbxReader::findNormalStateNode(const std::string& nodeName)
+{
+   size_t pos = nodeName.find(stateNodeName);
+   if (pos == std::string::npos)
+   {
+      for (NodeNameToCommentMap::iterator it = _nodeNameStateMap.begin(); it != _nodeNameStateMap.end(); ++it)
+      {
+         pos = nodeName.find(it->first);
+         if (pos != std::string::npos)
+         {
+            return pos;
+         }
+      }
+   }
+   return pos;
+}
+
+size_t OsgFbxReader::findDamageStateNode(const std::string& nodeName)
+{
+   size_t pos = nodeName.find(destroyed_stateNodeName);
+   if (pos == std::string::npos)
+   {
+      for (NodeNameToCommentMap::iterator it = _nodeNameStateMap.begin(); it != _nodeNameStateMap.end(); ++it)
+      {
+         pos = nodeName.find(it->second);
+         if (pos != std::string::npos)
+         {
+            return pos;
+         }
+      }
+   }
+   return pos;
+}
+
 bool OsgFbxReader::addDamageSwitch(osg::Node* osgChild, osg::NodeList& children)
 {
    // special case if the maingroup does not have a switch need need to create one
    std::string nodeName = osgChild->getName();
    osgSim::MultiSwitch* pSwitch = NULL;
    bool childrenAdded = false;
-   if (nodeName.find(stateNodeName) != std::string::npos)
+   if ((findNormalStateNode(nodeName) != std::string::npos) || (findDamageStateNode(nodeName) != std::string::npos))
    {
       // Check if a switch was already created
       bool switchFound = false;
@@ -1618,7 +1665,7 @@ bool OsgFbxReader::addDamageSwitch(osg::Node* osgChild, osg::NodeList& children)
       }
 
       // if it's not the destroyed state set state to active
-      if (nodeName.find(destroyed_stateNodeName) == std::string::npos)
+      if (findDamageStateNode(nodeName) == std::string::npos)
       {
          if (pSwitch)
          {
@@ -1628,4 +1675,3 @@ bool OsgFbxReader::addDamageSwitch(osg::Node* osgChild, osg::NodeList& children)
    }
    return childrenAdded;
 }
-

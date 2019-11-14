@@ -148,12 +148,22 @@ protected:
     //! Retrieve a @dis comment based on the node name (this is filled using the Vantage FBX_NodeNameMap.csv file)
     std::string getCommentFromNodeName(const std::string& nodeName);
 
+    //! Check if the nodename is called "maingroup_" or "xxx" from the "Node" field
+    //! in FBX_NodeNameMap.csv with a "type=DamageState" 
+    size_t findNormalStateNode(const std::string& nodeName);
+
+    //! Check if the nodename is called "maingroup_destroyed" or "xxx" from the "Comment" field
+    //! in FBX_NodeNameMap.csv with a "type=DamageState" 
+    size_t findDamageStateNode(const std::string& nodeName);
+
     //! Flag to know if the mapping file was read
     static bool CSVMapFileRead;
 
     //! map that keep the @dis comment based on node name
     typedef std::map<std::string, std::string> NodeNameToCommentMap;
     NodeNameToCommentMap _nodeNameMap;
+    //! map of normal/damage state node name
+    NodeNameToCommentMap _nodeNameStateMap;
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
@@ -164,7 +174,7 @@ osgAnimation::Skeleton* getSkeleton(FbxNode*,
 osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment);
 
 //! Add DIS state
-osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName);
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName, const std::map<std::string, std::string>& stateNodeMap);
 
 //! Add articulation part 
 osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof,

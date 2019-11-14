@@ -761,19 +761,42 @@ unsigned long readArticulatedPartParameters(std::string pComment, int& partNumbe
    return limitationFlag;
 }
 
+bool containStateName(FbxNode* pNode, const std::map<std::string, std::string>& stateNodeMap)
+{
+   // Search for "maingroup_xxx" in the name to see if we need to add the state (normal/destroy)
+   std::string nodeName = pNode->GetName();
+   if (nodeName.find(stateNodeName) != std::string::npos)
+   {
+      return true;
+   }
+   // loop on all normal/destroy state node name from the CVS file
+   for (std::map<std::string, std::string>::const_iterator it = stateNodeMap.begin(); it != stateNodeMap.end(); ++it)
+   {
+      // look for NORMAL state node name
+      size_t pos = nodeName.find(it->first);
+      if (pos != std::string::npos)
+      {
+         return true;
+      }
+      // look for DESTROY state node name
+      pos = nodeName.find(it->second);
+      if (pos != std::string::npos)
+      {
+         return true;
+      }
+   }
+   return false;
+}
+
 osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     const std::string& animName, osgAnimation::Animation* animation, const osg::Matrix& localMatrix, bool bNeedSkeleton,
-    std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene, osg::NodeList& children, bool& hasDof)
+    std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene, osg::NodeList& children, bool& hasDof,
+    const std::map<std::string, std::string>& stateNodeMap)
 {
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
     // Search for "maingroup_xxx" in the name to see if we need to add the state (normal/destroy)
-    bool foundStateName = false;
-    std::string nodeName = pNode->GetName();
-    if (nodeName.find(stateNodeName) != std::string::npos)
-    {
-       foundStateName = true;
-    }
+    bool foundStateName = containStateName(pNode, stateNodeMap);
 
     if (bNeedSkeleton)
     {
@@ -785,7 +808,7 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     }
     else if (pComment.Find(disState.c_str()) != -1 || foundStateName)
     {
-       return addState(pNode, pComment, foundStateName);
+       return addState(pNode, pComment, foundStateName, stateNodeMap);
     }    
     else if (pComment.Find(disArticulatedPart.c_str()) != -1 )
     {
@@ -875,7 +898,6 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     for (int i = 0; i < nChildCount; ++i)
     {
         FbxNode* pChildNode = pNode->GetChild(i);
-
         if (pChildNode->GetParent() != pNode)
         {
             //workaround for bug that occurs in some files exported from Blender
@@ -919,7 +941,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     //FbxAMatrix lGlobal, lLocal;
     //lGlobal = pNode->EvaluateGlobalTransform();
     //lLocal = pNode->EvaluateLocalTransform();
-    
+
     osg::ref_ptr<osg::Group> osgGroup;
 
     bool bEmpty = children.empty() && !bIsBone;
@@ -975,7 +997,6 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
                 {
                     return osgDB::ReaderWriter::ReadResult(node);
                 }
-
                 children.insert(children.begin(), node);
             }
         }
@@ -1020,7 +1041,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     if (!osgGroup)
     {
        osgGroup = createGroupNode(pSdkManager, pNode, animName, animation, localMatrix, 
-          bIsBone, nodeMap, fbxScene, children, hasDof);
+          bIsBone, nodeMap, fbxScene, children, hasDof, _nodeNameStateMap);
     }
     osg::Group* pAddChildrenTo = osgGroup.get();
     if (hasDof)
@@ -1080,6 +1101,8 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
        }
        else
        {
+          //std::string name = childNode->getName();
+          //std::cout << name << ":" << localMatrix(3, 0) << "," << localMatrix(3, 1) << "," << localMatrix(3, 2) << std::endl;
           pAddChildrenTo->addChild(childNode);
        }
     }
@@ -1346,18 +1369,36 @@ osgSim::MultiSwitch* addSwitch(FbxNode* pNode, const FbxString& pComment)
    return pSwitch;
 }
 
-osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName)
+static const std::string destroyed = "_destroyed_";
+bool isNodeNameDestroyState(const std::string& nodeName, const std::map<std::string, std::string>& stateNodeMap)
+{
+   if (nodeName.find(destroyed) != std::string::npos)
+   {
+      return true;
+   }
+   // loop on all destroy state node name from the CVS file
+   for (std::map<std::string, std::string>::const_iterator it = stateNodeMap.begin(); it != stateNodeMap.end(); ++it)
+   {
+      // look for DESTROY state node name
+      if (nodeName.find(it->second) != std::string::npos)
+      {
+         return true;
+      }
+   }
+   return false;
+}
+
+osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateName, const std::map<std::string, std::string>& stateNodeMap)
 {
    // If a valid vantage state comment is found it will add a group with comment
    osg::Group* pGroup = new osg::Group;
    std::string nodeName = pNode->GetName();
-   static const std::string destroyed = "_destroyed_";
    pGroup->setName(nodeName.c_str());
    // if the nodename contain maingroup_ in it we need to
    // add the proper state comment and check if we need to add a parent switch node
    if (foundStateName)
    {
-      if (nodeName.find(destroyed) != std::string::npos)
+      if (isNodeNameDestroyState(nodeName, stateNodeMap))
       {
          // destroyed state
          pGroup->addDescription("@dis state 3");
