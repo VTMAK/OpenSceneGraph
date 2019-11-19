@@ -165,14 +165,16 @@ State::State():
     _isVertexBufferObjectSupported = false;
     _isVertexArrayObjectSupported = false;
 
-#if OSG_GL3_FEATURES
-    _forceVertexBufferObject = true;
-    _forceVertexArrayObject = true;
-#else
-    _forceVertexBufferObject = false;
-    _forceVertexArrayObject = false;
-#endif
-
+    if (OSG_GL3_FEATURES)
+    {
+        _forceVertexBufferObject = true;
+        _forceVertexArrayObject = true;
+    }
+    else 
+    {
+        _forceVertexBufferObject = false;
+        _forceVertexArrayObject = false;
+    }
 
     _lastAppliedProgramObject = 0;
     _lastAppliedFboId = 0;
