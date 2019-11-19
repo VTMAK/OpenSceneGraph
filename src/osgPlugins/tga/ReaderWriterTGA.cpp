@@ -324,8 +324,10 @@ struct SafeArray
 
     operator T*() { return impl; }
 
+#if (_MSC_VER > 1600)
     template<typename U>
     explicit operator U() { return (U)impl; }
+#endif
 
 private:
     T* impl;
