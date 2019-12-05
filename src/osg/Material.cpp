@@ -482,8 +482,6 @@ void Material::setAlpha(Face face,float alpha)
     setDirty(true);
 }
 
-#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
-
 struct osgOglUboMaterial
 {
    osg::Vec4f ambient;
@@ -495,6 +493,7 @@ struct osgOglUboMaterial
 
 void Material::apply(State& state) const
 {
+#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
 
 #ifdef OSG_GL1_AVAILABLE
     if (_colorMode==OFF)
@@ -580,7 +579,7 @@ void Material::apply(State& state) const
         glMaterialf( GL_FRONT, GL_SHININESS, _shininessFront );
         glMaterialf( GL_BACK, GL_SHININESS, _shininessBack );
     }
-}
+#else
 
 //   static int warn = 1;
 
@@ -621,14 +620,7 @@ void Material::apply(State& state) const
    // FIXME matches hard code in program.cpp
    const int MATERIAL_INDEX = 0;
 	_extensions->glBindBufferBase(GL_UNIFORM_BUFFER, MATERIAL_INDEX, _ubo_index);
-}
-#else
-
-void Material::apply(State& state) const
-{
-    OSG_NOTICE<<"Warning: Material::apply(State&) - not supported."<<std::endl;
-
-    state.Color(_diffuseFront.r(), _diffuseFront.g(), _diffuseFront.b(), _diffuseFront.a());
-}
-
+   
 #endif
+
+}
