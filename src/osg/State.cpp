@@ -1400,11 +1400,11 @@ namespace State_Utils
         return replacedStr;
     }
 
-    void replaceAndInsertDeclaration(std::string& source, std::string::size_type declPos, const std::string& originalStr, const std::string& newStr, const std::string& qualifier, const std::string& declarationPrefix)
+    void replaceAndInsertDeclaration(std::string& source, std::string::size_type declPos, const std::string& originalStr, const std::string& newStr, const std::string& qualifier, const std::string& declarationPrefix, const std::string& declarationSuffix = "")
     {
         if (replace(source, originalStr, newStr))
         {
-            source.insert(declPos, qualifier + newStr + declarationPrefix + std::string(";\n"));
+            source.insert(declPos, qualifier + declarationPrefix + newStr + declarationSuffix + std::string(";\n"));
         }
     }
 
