@@ -363,18 +363,17 @@ void Texture2D::apply(State& state) const
     {
         textureObject->bind();
 
+        if (getTextureParameterDirty(state.getContextID()))
+            applyTexParameters(GL_TEXTURE_2D, state);
+
         if (_subloadCallback.valid())
         {
-            applyTexParameters(GL_TEXTURE_2D,state);
-
             _subloadCallback->subload(*this,state);
         }
         else if (_image.valid() && getModifiedCount(contextID) != _image->getModifiedCount())
         {
             // update the modified tag to show that it is up to date.
             getModifiedCount(contextID) = _image->getModifiedCount();
-
-            applyTexParameters(GL_TEXTURE_2D,state);
 
             applyTexImage2D_subload(state,GL_TEXTURE_2D,_image.get(),
                                     _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
@@ -390,10 +389,6 @@ void Texture2D::apply(State& state) const
            // this shouldn't happen but I guess it does
            sendMipmap(state, this, textureObject);
         }
-
-        if (getTextureParameterDirty(state.getContextID()))
-            applyTexParameters(GL_TEXTURE_2D,state);
-
     }
     else if (_subloadCallback.valid())
     {
