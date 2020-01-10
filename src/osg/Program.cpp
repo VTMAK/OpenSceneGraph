@@ -110,9 +110,24 @@ Program::Program() :
    }
   
   // VRV hack to support another UBO
-   int PER_CHANNEL_INDEX = 4;
+   static const int PER_CHANNEL_INDEX = 4;
    addBindUniformBlock("vrv_per_channel_uniform_block", PER_CHANNEL_INDEX);
   
+   // TODO: fixme, same reason as GNP TO DO above.
+   static const int LIGHT_GRID_INDEX = 5;
+   static const int LIGHT_DATA_BASE = 6;
+   static const int theLightUboCount = 6;
+
+   // Set up light data UBOs
+   for (int i = 0; i < theLightUboCount; ++i)
+   {
+      char block_name[64]; // big enough for name on next line
+      snprintf(block_name, sizeof(block_name), "vrv_light_data_block%d", i);
+
+      addBindUniformBlock(block_name, LIGHT_DATA_BASE+i);
+   }
+
+   addBindUniformBlock("GPUMaterialsBuffer", 12);
 }
 
 
@@ -942,6 +957,18 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
             }
         }
     }
+
+    // TODO: implement when glGetProgramResourceIndex is available
+    // {
+    //    const GLuint ssbo_block_index =
+    //       _extensions->glGetProgramResourceIndex( _glProgramHandle, GL_SHADER_STORAGE_BLOCK,
+    //                                               "vrv_tile_light_index_list" );
+
+    //    if (ssbo_block_index != GL_INVALID_INDEX)
+    //    {
+    //       glShaderStorageBlockBinding( _glProgramHandle, ssbo_block_index, 11);
+    //    }
+    // }
 
     typedef std::map<GLuint, std::string> AtomicCounterMap;
     AtomicCounterMap atomicCounterMap;
