@@ -791,7 +791,6 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
     {
        //VRV_PATCH
        tom->setTimeManagementActive(timeManagementActive);
-       ext->glPopDebugGroup();
        return;
     }
     {
