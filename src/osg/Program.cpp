@@ -121,8 +121,9 @@ Program::Program() :
    // Set up light data UBOs
    for (int i = 0; i < theLightUboCount; ++i)
    {
+      // TODO: use snprintf when available in all environments.
       char block_name[64]; // big enough for name on next line
-      snprintf(block_name, sizeof(block_name), "vrv_light_data_block%d", i);
+      sprintf(block_name, "vrv_light_data_block%d", i);
 
       addBindUniformBlock(block_name, LIGHT_DATA_BASE+i);
    }
