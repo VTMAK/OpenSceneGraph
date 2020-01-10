@@ -41,6 +41,7 @@
 #include <osg/Depth>
 #include <osg/RenderInfo>
 #include <osg/LightSource>
+#include <osg/GLDebugGroup>
 
 #include <osg/ConcurrencyViewerMacros>
 #include <osgSim/LightPointNode>
@@ -316,7 +317,10 @@ namespace osg
             }
          }
       }
-      ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "RetrieveQueriesCallback");
+
+      // VRV_PATCH: start
+      GlScopedDebugGroup glDebugGroup(ext, 1, "RetrieveQueriesCallback");
+      // VRV_PATCH: end
 
       ResultsVector::const_iterator it = _results.begin();
       while (it != _results.end())
@@ -358,9 +362,8 @@ namespace osg
          count++;
       }
 
-      ext->glPopDebugGroup();
-
       elapsedTime = timer.delta_s(start_tick, timer.tick());
+
 //      VRV_PATCH too much spew
 //      OSG_INFO << "osgOQ: RQCB: " << "Retrieved " << count <<
 //         " queries in " << elapsedTime << " seconds." << std::endl;
@@ -509,11 +512,13 @@ namespace osg
          // last query hasn't been retrieved yet
          return;
       }
-      ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "DrawQuery");
+
+      // VRV_PATCH: start
+      GlScopedDebugGroup glDebugGroup(ext, 1, "DrawQuery");
+      // VRV_PATCH: end
 
       // Add TestResult to RQCB.
       rqcb->add(tr.get());
-
 
       OSG_DEBUG <<
          "OcclusionQueryNode: QG: Querying for: " << _oqnName << std::endl;
@@ -550,9 +555,6 @@ namespace osg
          }
       }
 #endif
-      ext->glPopDebugGroup();
-
-
    }
 
 

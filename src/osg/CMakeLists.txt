@@ -92,6 +92,7 @@ SET(TARGET_H
     ${HEADER_PATH}/FrontFace
     ${HEADER_PATH}/Geode
     ${HEADER_PATH}/Geometry
+	${HEADER_PATH}/GLDebugGroup
     ${HEADER_PATH}/GL2Extensions
     ${HEADER_PATH}/GLDefines
     ${HEADER_PATH}/GLExtensions
@@ -308,6 +309,7 @@ SET(TARGET_SRC
     FrontFace.cpp
     Geode.cpp
     Geometry.cpp
+    GLDebugGroup.cpp
     GLExtensions.cpp
     GLObjects.cpp
     GLStaticLibrary.h

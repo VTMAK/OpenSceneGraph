@@ -21,6 +21,7 @@
 #include <osg/ApplicationUsage>
 #include <osg/ConcurrencyViewerMacros>
 #include <osg/ContextData>
+#include <osg/GLDebugGroup>
 
 #include <OpenThreads/ScopedLock>
 
@@ -727,7 +728,10 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
    //VRV_PATCH
    
    osg::GLExtensions * ext = osg::GLExtensions::Get(context->getState()->getContextID(), true);
-   ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "ICO");
+
+   // VRV_PATCH: start
+   osg::GlScopedDebugGroup debugGroup (ext, 1, "ICO");
+   // VRV_PATCH: end
 
    osg::TextureObjectManager* tom = osg::get<osg::TextureObjectManager>(context->getState()->getContextID());
    bool timeManagementActive = tom->getTimeManagementActive();
@@ -810,7 +814,6 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
     }
     //VRV_PATCH
     tom->setTimeManagementActive(timeManagementActive);
-    ext->glPopDebugGroup();
 
     //glFush();
     //glFinish();

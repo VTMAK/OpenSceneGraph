@@ -1,0 +1,59 @@
+/******************************************************************************
+** Copyright (c) 2019 MAK Technologies, Inc.
+** All rights reserved.
+******************************************************************************/
+#pragma once
+
+//! \file DtGlDebugGroup.h
+//! \brief A helper classes for encapsulating gl debug groups
+//! \ingroup vrvGraphicsUtils
+
+#include <vrvGraphicsUtils/vrvGraphicsUtils.h>
+
+#include <string>
+
+namespace makVrv
+{
+   class DT_DLL_VRVGRAPHICSUTILS DtGlDebuggingState
+   {
+   public:
+      static bool debuggingEnabled(void);
+      static void setDebuggingEnabled(bool val);
+   protected:
+      static bool theDebuggingEnabled;
+   };
+
+   class DT_DLL_VRVGRAPHICSUTILS DtGlScopedDebugGroup
+   {
+   public:
+      DtGlScopedDebugGroup(unsigned int id, const char* message);
+      virtual ~DtGlScopedDebugGroup();
+
+
+   protected:
+      DtGlScopedDebugGroup();
+   };
+
+   class DT_DLL_VRVGRAPHICSUTILS DtGlDebugGroup
+   {
+   public:
+      DtGlDebugGroup(unsigned int id, const char* message);
+      virtual ~DtGlDebugGroup();
+
+      virtual void setId(unsigned int id);
+      virtual unsigned int id(void) const;
+
+      virtual void setMessage(const char* message);
+      virtual const std::string& message(void) const;
+
+      virtual void start(void);
+      virtual void stop(void);
+
+   protected:
+      DtGlDebugGroup();
+      unsigned int myId;
+      std::string myMessage;
+
+   };
+
+}

@@ -20,6 +20,7 @@
 #include <osg/Notify>
 #include <osg/ApplicationUsage>
 #include <osg/AlphaFunc>
+#include <osg/GLDebugGroup>
 
 #include <algorithm>
 
@@ -427,15 +428,13 @@ RenderBin* RenderBin::find_or_insert(int binNum,const std::string& binName)
 void RenderBin::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
 {
     renderInfo.pushRenderBin(this);
-	//VRV_PATCH
+	// VRV_PATCH: start
     osg::State& state = *renderInfo.getState();
     osg::GLExtensions* ext = state.get<osg::GLExtensions>();
-    if (_name.length()) {
-       ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, _name.c_str());
-    }
-    else {
-       ext->glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "unknown renderbin");
-    }
+
+    const char* message = (_name.length()) ? _name.c_str() : "unknown renderbin";
+    GlScopedDebugGroup debugGroup(ext, 1, message);
+    // VRV_PATCH: end
 
     if (_drawCallback.valid())
     {
@@ -444,8 +443,6 @@ void RenderBin::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
     else {
         drawImplementation(renderInfo,previous);
     }
-    //VRV_PATCH
-    ext->glPopDebugGroup();
 
     renderInfo.popRenderBin();
 }
