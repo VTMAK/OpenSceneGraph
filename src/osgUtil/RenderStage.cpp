@@ -18,7 +18,7 @@
 #include <osg/Texture2DMultisample>
 #include <osg/Texture3D>
 #include <osg/Texture2DArray>
-#include <osg/Texture2DMultiSampleArray>
+#include <osg/Texture2DMultisampleArray>
 #include <osg/TextureRectangle>
 #include <osg/TextureCubeMap>
 #include <osg/ContextData>
