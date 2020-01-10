@@ -1,20 +1,16 @@
-/******************************************************************************
-** Copyright (c) 2019 MAK Technologies, Inc.
-** All rights reserved.
-******************************************************************************/
+
+
 #pragma once
 
-//! \file DtGlDebugGroup.h
-//! \brief A helper classes for encapsulating gl debug groups
-//! \ingroup vrvGraphicsUtils
-
-#include <vrvGraphicsUtils/vrvGraphicsUtils.h>
+#include <osg/Export>
 
 #include <string>
 
-namespace makVrv
+namespace osg
 {
-   class DT_DLL_VRVGRAPHICSUTILS DtGlDebuggingState
+   class GLExtensions;
+
+   class OSG_EXPORT GlDebuggingState
    {
    public:
       static bool debuggingEnabled(void);
@@ -23,22 +19,23 @@ namespace makVrv
       static bool theDebuggingEnabled;
    };
 
-   class DT_DLL_VRVGRAPHICSUTILS DtGlScopedDebugGroup
+   class OSG_EXPORT GlScopedDebugGroup
    {
    public:
-      DtGlScopedDebugGroup(unsigned int id, const char* message);
-      virtual ~DtGlScopedDebugGroup();
+      GlScopedDebugGroup(const GLExtensions* ext, unsigned int id, const char* message);
+      virtual ~GlScopedDebugGroup();
 
 
    protected:
-      DtGlScopedDebugGroup();
+      GlScopedDebugGroup();
+      const GLExtensions* ext;
    };
 
-   class DT_DLL_VRVGRAPHICSUTILS DtGlDebugGroup
+   class OSG_EXPORT GlDebugGroup
    {
    public:
-      DtGlDebugGroup(unsigned int id, const char* message);
-      virtual ~DtGlDebugGroup();
+      GlDebugGroup(unsigned int id, const char* message);
+      virtual ~GlDebugGroup();
 
       virtual void setId(unsigned int id);
       virtual unsigned int id(void) const;
@@ -46,14 +43,13 @@ namespace makVrv
       virtual void setMessage(const char* message);
       virtual const std::string& message(void) const;
 
-      virtual void start(void);
-      virtual void stop(void);
+      virtual void start(const GLExtensions* ext);
+      virtual void stop(const GLExtensions* ext);
 
    protected:
-      DtGlDebugGroup();
+      GlDebugGroup();
       unsigned int myId;
       std::string myMessage;
 
    };
-
 }
