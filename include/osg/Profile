@@ -82,9 +82,9 @@ namespace osg
 ////////////////////////////////////
 // linux
 #ifdef NO_PROFILER
-#define OsgProfile(name) OsgProfile_X(name, __LINE__);
-#define OsgProfileC(name, color) OsgProfile_X(name, __LINE__);
-#define OsgProfile_SECTION(name) {OsgProfileSample _profileSample(name); 
+#define OsgProfile(name) 
+#define OsgProfileC(name, color)
+#define OsgProfile_SECTION(name) 
 
 #define TracyPlot(x,y)
 #define TracyPlotConfig(x,y)
