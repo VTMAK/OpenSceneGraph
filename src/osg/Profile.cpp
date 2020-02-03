@@ -2,5 +2,5 @@
 
 namespace osg
 {
-	osg::ProfileManager ProfileManager::theProfileManager;
+	osg::ProfileManager osg::ProfileManager::theProfileManager;
 }
