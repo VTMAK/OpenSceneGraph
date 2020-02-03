@@ -25,6 +25,9 @@
 #include <osg/GLExtensions>
 #include <osg/GLU>
 
+// VRV_PATCH
+#include <osg/Profile>
+
 #include <osgUtil/Statistics>
 
 #include <osgUtil/RenderStage>
@@ -1439,6 +1442,9 @@ struct DrawInnerOperation : public osg::Operation
 
 void RenderStage::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
 {
+    // VRV_PATCH
+    OsgProfile(getName().length() > 0 ? getName().c_str() : "RenderStage::draw");
+
     if (_stageDrawnThisFrame) return;
 
     if(_initialViewMatrix.valid()) renderInfo.getState()->setInitialViewMatrix(_initialViewMatrix.get());
