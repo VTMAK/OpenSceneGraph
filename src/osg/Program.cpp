@@ -32,10 +32,13 @@
 #include <osg/Shader>
 #include <osg/GLExtensions>
 #include <osg/ContextData>
-#include <osg/ConcurrencyViewerMacros>
 
 #include <OpenThreads/ScopedLock>
 #include <OpenThreads/Mutex>
+
+// VRV_PATCH
+#include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
 
 #include <string.h>
 
@@ -222,6 +225,9 @@ int Program::compare(const osg::StateAttribute& sa) const
 
 void Program::compileGLObjects( osg::State& state ) const
 {
+    // VRV_PATCH
+    OsgProfileC("Program::compileGLObjects", tracy::Color::Orange);
+
     if( _shaderList.empty() ) return;
 
     for( unsigned int i=0; i < _shaderList.size(); ++i )
@@ -617,6 +623,9 @@ bool Program::ProgramObjects::getGlProgramInfoLog(std::string& log) const
 
 Program::PerContextProgram* Program::getPCP(State& state) const
 {
+    // VRV_PATCH
+    OsgProfileC("Program::getPCP", tracy::Color::Yellow3);
+
     unsigned int contextID = state.getContextID();
     const std::string & defineStr = state.getDefineString(getShaderDefines());
 
@@ -734,7 +743,8 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
 
     if (!_glProgramHandle) return;
 
-    
+   // VRV_PATCH
+    OsgProfileC("Program::PerContextProgram::linkProgram", tracy::Color::Orange);
     osg::CVMarkerSeries series("Render Tasks");
     osg::CVSpan UpdateTick(series, 0, "linkProgram");
     if (_program->getName().length())

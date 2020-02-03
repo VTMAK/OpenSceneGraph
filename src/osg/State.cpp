@@ -1993,6 +1993,9 @@ void State::frameCompleted()
 
 bool State::DefineMap::updateCurrentDefines()
 {
+    // VRV_PATCH
+    OsgProfileC("State::DefineMap::updateCurrentDefines()", tracy::Color::Yellow3);
+
     currentDefines.clear();
     for (DefineStackMap::const_iterator itr = map.begin();
         itr != map.end();

@@ -289,7 +289,7 @@ namespace osg
       osg::CVMarkerSeries series("Render Tasks");
       osg::CVSpan allocSpan(series, 4, "RetrieveQueries");
       series.write_alert("%i queries", _results.size());
-      GlScopedDebugGroup glDebugGroup(ext, 1, "RetrieveQueriesCallback");
+
       // VRV_PATCH: end
 
       const osg::Camera& camera = *renderInfo.getCurrentCamera();
