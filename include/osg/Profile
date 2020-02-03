@@ -12,6 +12,20 @@
 
 #include <osg/Export>
 
+namespace osg
+{
+   class OSG_EXPORT ProfileManager
+   {
+      public:
+         ProfileManager() : _CollectTracyStats(false) { ; }
+         bool  _CollectTracyStats;
+
+         static ProfileManager theProfileManager;
+   };
+
+};
+
+
 //easy to use macro to profile a section
 // should pass a "const char*" as name because the pointer is getting
 // used to do the string compare (to be fast)
@@ -52,19 +66,6 @@
 #include <TracyClient/Tracy.hpp>
 
 //#pragma comment(lib, "TracyClient.lib") 
-namespace osg
-{
-	class OSG_EXPORT ProfileManager
-	{
-	public:
-		ProfileManager() : _CollectTracyStats(false) { ; }
-		bool  _CollectTracyStats;
-
-		static ProfileManager theProfileManager;
-	};
-
-};
-
 #define ZoneScopedNA( name, active ) ZoneNamedN( ___tracy_scoped_zone, name, active )
 #define ZoneScopedNCA( name, color, active ) ZoneNamedNC( ___tracy_scoped_zone, name, color, active )
 
