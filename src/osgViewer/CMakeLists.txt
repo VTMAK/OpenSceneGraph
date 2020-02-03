@@ -7,6 +7,7 @@ ENDIF()
 
 SET(LIB_NAME osgViewer)
 
+INCLUDE_DIRECTORIES(${PROFILE_INCLUDE_DIR})
 
 ################################################################################
 ## Quieten warnings that a due to optional code paths
