@@ -43,7 +43,6 @@
 #include <osg/LightSource>
 #include <osg/GLDebugGroup>
 
-#include <osg/ConcurrencyViewerMacros>
 #include <osgSim/LightPointNode>
 #include <osgUtil/RenderLeaf>
 #include <osgUtil/CullVisitor>
@@ -59,6 +58,9 @@
 #include <osgDB/OutputStream>
 #include <osgDB/Serializer>
 
+// VRV_PATCH
+#include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
 
 namespace osg
 {
@@ -281,9 +283,14 @@ namespace osg
       if (_results.empty())
          return;
 
+      // VRV_PATCH: start
+      OsgProfileC("RetrieveQueries", tracy::Color::DarkOrange);
+
       osg::CVMarkerSeries series("Render Tasks");
       osg::CVSpan allocSpan(series, 4, "RetrieveQueries");
       series.write_alert("%i queries", _results.size());
+      GlScopedDebugGroup glDebugGroup(ext, 1, "RetrieveQueriesCallback");
+      // VRV_PATCH: end
 
       const osg::Camera& camera = *renderInfo.getCurrentCamera();
 
@@ -387,6 +394,7 @@ namespace osg
       }
 
       {
+         OsgProfileC("ClearQueries", tracy::Color::DarkOrange);
          osg::CVMarkerSeries series("Render Tasks");
          osg::CVSpan allocSpan(series, 4, "ClearQueries");
          _rqcb->reset();

@@ -62,6 +62,8 @@
 static int DEBUG_TEXTURE_DELETION = 0;
 
 #include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
+
 
 namespace osg {
 
@@ -2506,6 +2508,8 @@ char buff[300];
           series.write_alert("? %i mips %ix%i %s", numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
        }
     }
+    OsgProfileC("applyTexImage2D_load", tracy::Color::Purple);
+
     osg::CVSpan loadSpan(series, 4, "applyTexImage2D_load");
 
 #ifdef DO_TIMING
@@ -2673,6 +2677,7 @@ char buff[300];
         if ( !compressed_image)
         {
             numMipmapLevels = 1;
+            OsgProfileC("glTexImage2D", tracy::Color::Purple);
 
             osg::CVSpan allocSpan(series_rt2, 4, "glTexImage2D");
 
@@ -2685,6 +2690,8 @@ char buff[300];
         }
         else if (extensions->isCompressedTexImage2DSupported())
         {
+            OsgProfileC("glCompressedTexImage2D", tracy::Color::Purple);
+
             osg::CVSpan allocSpan(series_rt2, 4, "glCompressedTexImage2D");
 
             numMipmapLevels = 1;
@@ -2750,20 +2757,24 @@ char buff[300];
 
             if(useTexStorrage)
             {
-                if (getTextureTarget()==GL_TEXTURE_CUBE_MAP)
                 {
-                    osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
+                    OsgProfileC("glTexStorage2D(alloc)", tracy::Color::Purple);
 
-                    if (target==GL_TEXTURE_CUBE_MAP_POSITIVE_X)
+                    if (getTextureTarget()==GL_TEXTURE_CUBE_MAP)
                     {
-                        extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, sizedInternalFormat, width, height);
+                        osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
+
+                        if (target==GL_TEXTURE_CUBE_MAP_POSITIVE_X)
+                        {
+                            extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, sizedInternalFormat, width, height);
+                        }
+                    }
+                    else
+                    {
+                        extensions->glTexStorage2D(target, numMipmapLevels, sizedInternalFormat, width, height);
                     }
                 }
-                else
-                {
-                    extensions->glTexStorage2D(target, numMipmapLevels, sizedInternalFormat, width, height);
-                }
-
+                
                 if( !compressed_image )
                 {
                     //VRV_PATCH

@@ -39,6 +39,7 @@
 
 //VRV_PATCH#
 #include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
 
 using namespace osg;
 
@@ -571,6 +572,8 @@ bool GraphicsContext::releaseContext()
 void GraphicsContext::swapBuffers()
 {
    //VRV_PATCH
+   OsgProfileC("swapBuffers", tracy::Color::DarkOrange);
+
    osg::CVMarkerSeries series("Main High");
    osg::CVSpan swapSpan(series, 4, "swapBuffers");
 

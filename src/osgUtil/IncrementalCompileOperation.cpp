@@ -19,9 +19,9 @@
 #include <osg/Depth>
 #include <osg/ColorMask>
 #include <osg/ApplicationUsage>
-#include <osg/ConcurrencyViewerMacros>
 #include <osg/ContextData>
 #include <osg/GLDebugGroup>
+#include <osg/Profile>
 
 #include <OpenThreads/ScopedLock>
 
@@ -31,9 +31,9 @@
 #include <string.h>
 
 // BEGIN VRV_PATCH - Gedalia ICO cost update
-//#include <cvmarkersobj.h>
-//using namespace Concurrency::diagnostic;
-// BEGIN VRV_PATCH - Gedlia ICO cost update
+#include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
+
 
 namespace osgUtil
 {
@@ -716,7 +716,9 @@ void IncrementalCompileOperation::operator () (osg::GraphicsContext* context)
 void IncrementalCompileOperation::run (osg::GraphicsContext* context)
 {
    osg::CVMarkerSeries series("Main Thread");
-  // osg::CVMarkerSeries series2("Render SubTasks");
+   OsgProfileC("IncrementalCompileOperation", tracy::Color::ColorType::Purple);
+
+   // osg::CVMarkerSeries series2("Render SubTasks");
    //osg::CVSpan span(series, 3, "ico::run");
 
    _stopCompiling = 0;
@@ -783,6 +785,7 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
 
     if (!toCompileCopy.empty())
     {
+        OsgProfileC("compileSets", tracy::Color::ColorType::Purple);
         osg::CVSpan span(series, 3, "ICO::compile");
         compileSets(toCompileCopy, compileInfo);
     }
@@ -794,6 +797,7 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
        return;
     }
     {
+        OsgProfileC("flush", tracy::Color::ColorType::Purple);
         osg::CVSpan span(series, 2, "ICO::Flush");
 
        osg::flushDeletedGLObjects(context->getState()->getContextID(), currentTime, flushTime);
@@ -806,6 +810,7 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
         // if any time left over from flush add on this remaining time to a second pass of compiling.
         if (compileInfo.okToCompile())
         {
+            OsgProfileC("compile2", tracy::Color::ColorType::Purple);
             osg::CVSpan span(series, 3, "ICO::compile2");
             OSG_NOTIFY(level)<<"    Passing on "<<flushTime<<" to second round of compileSets(..)"<<std::endl;
             compileSets(toCompileCopy, compileInfo);

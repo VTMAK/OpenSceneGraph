@@ -34,6 +34,7 @@
 
 // VRV patch
 #include <osg/ConcurrencyViewerMacros>
+#include <osg/Profile>
 
 using namespace osgViewer;
 
@@ -57,6 +58,7 @@ namespace osgViewer
             OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
             {
                osg::CVSpan icoTick(series, 4, "Cull");
+               OsgProfileC("Cull", tracy::Color::Cyan3);
 
                if (_sceneView) {
                   _sceneView->cull();
@@ -838,6 +840,7 @@ void Renderer::draw()
     osg::CVMarkerSeries series("Main High");
 
     osg::CVSpan drawTick(series, 4, "Draw");
+    OsgProfileC("Draw", 0x75562e);
 
     if (sceneView && !_done)
     {
@@ -1114,6 +1117,7 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
 
     {
       osg::CVSpan drawTick(series, 4, "Draw");
+      OsgProfileC("Draw", 0x75562e);
 
        osg::Timer_t beforeDrawTick;
     

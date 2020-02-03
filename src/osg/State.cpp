@@ -26,6 +26,7 @@
 
 // VRV_PATCH BEGIN - for updateCurrentDefines sprintf
 #include <stdio.h>
+#include <osg/Profile>
 // VRV_PATCH END
 
 #ifndef GL_MAX_TEXTURE_COORDS
@@ -757,6 +758,8 @@ void State::captureCurrentState(StateSet& stateset) const
 
 void State::apply(const StateSet* dstate)
 {
+     OsgProfileC("State::apply(const StateSet* dstate)", tracy::Color::Yellow3);
+
 //   marker_series series("State Apply");
 //   span UpdateTick(series, 2, "Dif Apply");
 
@@ -853,6 +856,7 @@ void State::apply(const StateSet* dstate)
 
 void State::apply()
 {
+    OsgProfileC("State::apply()", tracy::Color::Yellow3);
 
     if (_checkGLErrors==ONCE_PER_ATTRIBUTE) checkGLErrors("start of State::apply()");
 
