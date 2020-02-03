@@ -1,0 +1,97 @@
+/*********************************************************************************
+** Copyright (c) 2019 MAK Technologies, Inc.
+** All rights reserved.
+*********************************************************************************/
+
+//! \file OsgProfiler.h 
+//! \brief Contains the classes allowing the profiler to work, OsgProfileManager, 
+//! OsgProfileSample, and OsgProfileIterator
+//! \ingroup vrvUtil
+
+#pragma once
+
+#include <osg/Export>
+
+//easy to use macro to profile a section
+// should pass a "const char*" as name because the pointer is getting
+// used to do the string compare (to be fast)
+// if a std::string is passed instead it will cause a crashed when 
+// loading/unloading terrain with the performance/stats displayed 
+
+#ifdef _WIN32
+#define TRACY_ENABLE
+//#define OPTICK_ENABLE
+#else 
+#define NO_PROFILER
+#endif 
+
+///////////////////////////////////////
+//optick
+#ifdef OPTICK_ENABLE
+#include <optick/optick.h>
+#pragma comment(lib, "OptickCore.lib") 
+
+// win32 creates macros that work with our stats and tracy
+#define OsgProfile(name) OPTICK_EVENT(name); OsgProfile_X(name, __LINE__);
+#define OsgProfileC(name, color) OPTICK_EVENT(name); OsgProfile_X(name, __LINE__);
+#define OsgProfile_SECTION(name) {OPTICK_EVENT(name); OsgProfileSample _profileSample(name); 
+
+#define OsgProfilerFrameMark OPTICK_FRAME("MainThread")
+#define OsgProfilerThread(name) OPTICK_THREAD(name);
+
+#define OsgProfilerPlot(x,y)
+
+#endif
+
+/////////////////////////////////////// 
+//tracy
+#ifdef TRACY_ENABLE
+#define TRACY_ON_DEMAND
+
+// TO DO include tracy on linux just to get it's macros for throwing things out
+#include <TracyClient/Tracy.hpp>
+
+//#pragma comment(lib, "TracyClient.lib") 
+namespace osg
+{
+	class OSG_EXPORT ProfileManager
+	{
+	public:
+		ProfileManager() : _CollectTracyStats(false) { ; }
+		bool  _CollectTracyStats;
+
+		static ProfileManager theProfileManager;
+	};
+
+};
+
+#define ZoneScopedNA( name, active ) ZoneNamedN( ___tracy_scoped_zone, name, active )
+#define ZoneScopedNCA( name, color, active ) ZoneNamedNC( ___tracy_scoped_zone, name, color, active )
+
+// win32 creates macros that work with our stats and tracy
+#define OsgProfile(name) ZoneScopedNA(name, osg::theProfileManager._CollectTracyStats); 
+#define OsgProfileC(name, color) ZoneScopedNCA(name, color, osg::theProfileManager._CollectTracyStats); 
+//#define OsgProfile_SECTION(name) {ZoneScopedNA(name, globalCollectTracyStats);  
+#define OsgProfilerFrameMark FrameMark
+#define OsgProfilerPlot(x,y) TracyPlot(x,y)
+#define OsgProfilerThread(name)
+
+#endif
+
+////////////////////////////////////
+// linux
+#ifdef NO_PROFILER
+#define OsgProfile(name) OsgProfile_X(name, __LINE__);
+#define OsgProfileC(name, color) OsgProfile_X(name, __LINE__);
+#define OsgProfile_SECTION(name) {OsgProfileSample _profileSample(name); 
+
+#define TracyPlot(x,y)
+#define TracyPlotConfig(x,y)
+
+#define OsgProfilerFrameMark 
+#define OsgProfilerThread(name)
+#define OsgProfileGpuCollect TracyGpuCollect
+#define OsgProfileGpuCreateContext TracyGpuContext
+
+#endif
+

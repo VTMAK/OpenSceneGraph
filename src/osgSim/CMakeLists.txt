@@ -5,6 +5,12 @@ ELSE()
     ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
 ENDIF()
 
+#VRV_PATCH
+if (WIN32)
+   include_directories(${PROFILE_INCLUDE_DIR})
+   link_libraries(${PROFILE_LIBS})
+endif(WIN32)
+
 SET(LIB_NAME osgSim)
 SET(HEADER_PATH ${OpenSceneGraph_SOURCE_DIR}/include/${LIB_NAME})
 SET(TARGET_H

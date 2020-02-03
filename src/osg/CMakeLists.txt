@@ -7,7 +7,8 @@ ELSE()
 ENDIF()
 
 if (WIN32)
-   include_directories(${MSVCCONVIS_INCLUDE_DIR} )
+   include_directories(${MSVCCONVIS_INCLUDE_DIR} ${PROFILE_INCLUDE_DIR})
+   link_libraries(${PROFILE_LIBS})
    add_compile_options("/bigobj")
 endif(WIN32)
 
@@ -153,6 +154,7 @@ SET(TARGET_H
     ${HEADER_PATH}/Program
     ${HEADER_PATH}/Projection
     ${HEADER_PATH}/ProxyNode
+    ${HEADER_PATH}/Profile
     ${HEADER_PATH}/Quat
     ${HEADER_PATH}/Referenced
     ${HEADER_PATH}/ref_ptr
@@ -366,6 +368,7 @@ SET(TARGET_SRC
     PrimitiveSetIndirect.cpp
     PrimitiveRestartIndex.cpp
     Program.cpp
+    Profile.cpp
     Projection.cpp
     ProxyNode.cpp
     Quat.cpp
@@ -452,9 +455,6 @@ SET(TARGET_SRC
 
     ${OPENSCENEGRAPH_VERSIONINFO_RC}
 )
-if (WIN32)
-   INCLUDE_DIRECTORIES( ${MSVCCONVIS_INCLUDE_DIR} )
-endif(WIN32)
 
 SET(TARGET_LIBRARIES OpenThreads)
 
