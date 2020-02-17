@@ -958,13 +958,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
         return;
     }
 
-    updateSceneView(sceneView);
-
-    if (_compileOnNextDraw)
-    {
-        compile();
-    }
-
     // OSG_NOTICE<<"RenderingOperation"<<std::endl;
 
     osg::Stats* stats = sceneView->getCamera()->getStats();
@@ -983,8 +976,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
     osg::CVMarkerSeries series("Main High");
     osgViewer::ViewerBase* viewer = view ? view->getViewerBase() : 0;
     {
-     
-
        updateSceneView(sceneView);
 
        if (_compileOnNextDraw && viewer)
@@ -994,7 +985,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
 
           compile();
        }
-
 
        // OSG_NOTICE<<"RenderingOperation"<<std::endl;
 
