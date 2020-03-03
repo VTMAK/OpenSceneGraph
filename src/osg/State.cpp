@@ -2039,13 +2039,14 @@ bool State::DefineMap::updateCurrentDefines()
 }
 
 // VRV_PATCH BEGIN
-bool State::defineMapChanged(const State::DefineMap& curr)
+bool defineMapChanged(const State::DefineMap& curr)
 {
-   const State::DefineMap::DefineStackMap& prevMap = _lastAppliedDefineMap.map;
+   static State::DefineMap::DefineStackMap prevMap;
    const State::DefineMap::DefineStackMap& currMap = curr.map;
 
    if (currMap.size() != prevMap.size())
    {
+      prevMap = currMap;
       return true; // yup, the defines are different
    }
 
@@ -2065,11 +2066,13 @@ bool State::defineMapChanged(const State::DefineMap& curr)
       // Names match?
       if (currItr->first != prevItr->first)
       {
+         prevMap = currMap;
          return true;
       }
 
       if (currVecSize != prevDV.size())
       {
+         prevMap = currMap;
          return true;
       }
 
@@ -2080,11 +2083,13 @@ bool State::defineMapChanged(const State::DefineMap& curr)
 
          if (currPair.first != prevPair.first)
          {
+            prevMap = currMap;
             return true;
          }
 
          if (currPair.second != prevPair.second)
          {
+            prevMap = currMap;
             return true;
          }
       }
@@ -2101,18 +2106,7 @@ const std::string & State::getDefineString(const osg::ShaderDefines& shaderDefin
    // VRV_PATCH END
    {
       _defineMap.updateCurrentDefines();
-      // VRV PATCH BEGIN
-      _lastAppliedDefineMap = _defineMap;
-      // VRV PATCH END
    }
-
-   // VRV PATCH BEGIN
-   // If the defines are all up to date then they are not changed
-   // Not having this was causing State::apply to misbehave in the
-   // "&& _defineMap.changed" part of the check for getProgram()->apply
-   // line 636 and it would result in glUseProgram being called many times
-   _defineMap.changed = false;
-   // VRV_PATCH END
 
    //VRVantage patch to improve performance, all defines are always passed to the shader
    return _defineMap.shaderDefineString;
