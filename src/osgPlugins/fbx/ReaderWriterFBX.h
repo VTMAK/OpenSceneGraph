@@ -10,6 +10,8 @@
 #include <fbxsdk/fbxsdk_def.h>
 #include <string>
 
+#include <OpenThreads/ReentrantMutex>
+
 ///////////////////////////////////////////////////////////////////////////
 // OSG reader plugin for the ".fbx" format.
 // See http://www.autodesk.com/fbx
@@ -38,6 +40,7 @@ public:
 
 protected:
     std::string currentFilePath;
+    mutable OpenThreads::ReentrantMutex fbxMutex;
 };
 
 ///////////////////////////////////////////////////////////////////////////

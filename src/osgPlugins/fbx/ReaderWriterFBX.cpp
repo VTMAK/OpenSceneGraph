@@ -90,6 +90,10 @@ osgDB::ReaderWriter::ReadResult
 ReaderWriterFBX::readNode(const std::string& filenameInit,
                           const osgDB::Options* options) const
 {
+    //making fbx loader single threaded. We have seen a crash when two FBX models
+    // are loaded at the same time. 
+    // This may not be needed when we move up to the latest version of the FBXSDK
+    OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(fbxMutex);
     try
     {
         std::string ext(osgDB::getLowerCaseFileExtension(filenameInit));
