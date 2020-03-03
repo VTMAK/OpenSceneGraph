@@ -163,7 +163,12 @@ unsigned int ContextData::createNewContextID()
 
             OSG_INFO<<"ContextData::createNewContextID() : reusing contextID="<<itr->first<<std::endl;
 
-            return itr->first;
+            //START VRV_PATCH
+            // update the maximum number of graphics contexts,
+            // to ensure that texture objects and display buffers are configured to the correct size.
+            osg::DisplaySettings::instance()->setMaxNumberOfGraphicsContexts(s_contextIDMap.size()); 
+            //END VRV_PATCH
+            return itr->first;         
         }
     }
 
