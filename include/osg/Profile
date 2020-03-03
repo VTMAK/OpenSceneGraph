@@ -36,7 +36,7 @@ namespace osg
 #define TRACY_ENABLE
 //#define OPTICK_ENABLE
 #else 
-#define NO_PROFILER
+#define OSG_NO_PROFILER
 #endif 
 
 ///////////////////////////////////////
@@ -82,7 +82,7 @@ namespace osg
 
 ////////////////////////////////////
 // linux
-#ifdef NO_PROFILER
+#ifdef OSG_NO_PROFILER
 #define OsgProfile(name) 
 #define OsgProfileC(name, color)
 #define OsgProfile_SECTION(name) 
