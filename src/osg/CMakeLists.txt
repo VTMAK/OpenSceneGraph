@@ -6,11 +6,11 @@ ELSE()
     ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
 ENDIF()
 
-if (WIN32)
-   include_directories(${MSVCCONVIS_INCLUDE_DIR} ${PROFILE_INCLUDE_DIR})
+include_directories(${MSVCCONVIS_INCLUDE_DIR} ${PROFILE_INCLUDE_DIR})
+if (MAK_TRACY_FOUND)
    link_libraries(${PROFILE_LIBS})
    add_compile_options("/bigobj")
-endif(WIN32)
+endif(MAK_TRACY_FOUND)
 
 SET(LIB_NAME osg)
 

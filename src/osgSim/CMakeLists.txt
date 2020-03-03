@@ -6,10 +6,10 @@ ELSE()
 ENDIF()
 
 #VRV_PATCH
-if (WIN32)
-   include_directories(${PROFILE_INCLUDE_DIR})
+include_directories(${PROFILE_INCLUDE_DIR})
+if (MAK_TRACY_FOUND)
    link_libraries(${PROFILE_LIBS})
-endif(WIN32)
+endif(MAK_TRACY_FOUND)
 
 SET(LIB_NAME osgSim)
 SET(HEADER_PATH ${OpenSceneGraph_SOURCE_DIR}/include/${LIB_NAME})
