@@ -1122,6 +1122,10 @@ class OSG_EXPORT State : public Referenced
         inline const TextureModeMapList&                                getTextureModeMapList() const {return _textureModeMapList;}
         inline const TextureAttributeMapList&                           getTextureAttributeMapList() const {return _textureAttributeMapList;}
 
+        // VRV_PATCH BEGIN
+        bool defineMapChanged(const State::DefineMap& curr);
+        // VRV_PATCH END
+
         const std::string & getDefineString(const osg::ShaderDefines& shaderDefines);
         bool supportsShaderRequirements(const osg::ShaderDefines& shaderRequirements);
         bool supportsShaderRequirement(const std::string& shaderRequirement);
@@ -1360,7 +1364,9 @@ class OSG_EXPORT State : public Referenced
         AttributeMap                                                    _attributeMap;
         UniformMap                                                      _uniformMap;
         DefineMap                                                       _defineMap;
-
+        //VRV_PATCH BEGIN
+        DefineMap                                                       _lastAppliedDefineMap;
+        //VRV_PATCH END
 
         TextureModeMapList                                              _textureModeMapList;
         TextureAttributeMapList                                         _textureAttributeMapList;

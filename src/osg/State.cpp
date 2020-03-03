@@ -2039,14 +2039,13 @@ bool State::DefineMap::updateCurrentDefines()
 }
 
 // VRV_PATCH BEGIN
-bool defineMapChanged(const State::DefineMap& curr)
+bool State::defineMapChanged(const State::DefineMap& curr)
 {
-   static State::DefineMap::DefineStackMap prevMap;
+   const State::DefineMap::DefineStackMap& prevMap = _lastAppliedDefineMap.map;
    const State::DefineMap::DefineStackMap& currMap = curr.map;
 
    if (currMap.size() != prevMap.size())
    {
-      prevMap = currMap;
       return true; // yup, the defines are different
    }
 
@@ -2066,13 +2065,11 @@ bool defineMapChanged(const State::DefineMap& curr)
       // Names match?
       if (currItr->first != prevItr->first)
       {
-         prevMap = currMap;
          return true;
       }
 
       if (currVecSize != prevDV.size())
       {
-         prevMap = currMap;
          return true;
       }
 
@@ -2083,13 +2080,11 @@ bool defineMapChanged(const State::DefineMap& curr)
 
          if (currPair.first != prevPair.first)
          {
-            prevMap = currMap;
             return true;
          }
 
          if (currPair.second != prevPair.second)
          {
-            prevMap = currMap;
             return true;
          }
       }
@@ -2106,6 +2101,9 @@ const std::string & State::getDefineString(const osg::ShaderDefines& shaderDefin
    // VRV_PATCH END
    {
       _defineMap.updateCurrentDefines();
+      // VRV PATCH BEGIN
+      _lastAppliedDefineMap = _defineMap;
+      // VRV PATCH END
    }
 
    // VRV PATCH BEGIN
