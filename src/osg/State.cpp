@@ -2107,6 +2107,15 @@ const std::string & State::getDefineString(const osg::ShaderDefines& shaderDefin
    {
       _defineMap.updateCurrentDefines();
    }
+
+   // VRV PATCH BEGIN
+   // If the defines are all up to date then they are not changed
+   // Not having this was causing State::apply to misbehave in the
+   // "&& _defineMap.changed" part of the check for getProgram()->apply
+   // line 636 and it would result in glUseProgram being called many times
+   _defineMap.changed = false;
+   // VRV_PATCH END
+
    //VRVantage patch to improve performance, all defines are always passed to the shader
    return _defineMap.shaderDefineString;
 }
