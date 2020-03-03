@@ -2780,7 +2780,7 @@ char buff[300];
                     //VRV_PATCH
                     if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
                     {
-
+                        OsgProfileC("sendMipmaps", tracy::Color::Purple);
                         osg::CVSpan UpdateTick(series_rt2, 4, "sendMipmaps");
 
                         for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
@@ -2813,6 +2813,7 @@ char buff[300];
                    //VRV_PATCH
                    if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
                    {
+                        OsgProfileC("sendCompressedMipmaps", tracy::Color::Purple);
                         osg::CVSpan UpdateTick(series_rt2, 4, "sendCompressedMipmaps");
 
                         GLint blockSize,size;
@@ -3244,6 +3245,7 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
         {
             osg::CVMarkerSeries series("Render TasksSub");
             osg::CVSpan UpdateTick(series, 0, "mipmapAfterTexImage");
+            OsgProfileC("mipmapAfterTexImage", tracy::Color::Red);
 
             //printf("Mipmapping '%s' \n", getName().c_str() ? getName().c_str() : "UNKNOWN");
             unsigned int contextID = state.getContextID();
@@ -3267,6 +3269,7 @@ void Texture::generateMipmap(State& state) const
 {
     osg::CVMarkerSeries series("Render Tasks2");
     osg::CVSpan UpdateTick(series, 0, "generateMipmap");
+    OsgProfileC("generateMipmap", tracy::Color::Purple);
 
     const unsigned int contextID = state.getContextID();
 
