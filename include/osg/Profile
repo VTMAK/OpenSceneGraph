@@ -47,6 +47,8 @@ namespace osg
 
 // win32 creates macros that work with our stats and tracy
 #define OsgProfile(name) OPTICK_EVENT(name); OsgProfile_X(name, __LINE__);
+// extra per zone info
+#define OsgProfileText(text, len) if(osg::ProfileManager::theProfileManager._CollectTracyStats){ZoneText( text, len );}
 #define OsgProfileC(name, color) OPTICK_EVENT(name); OsgProfile_X(name, __LINE__);
 #define OsgProfile_SECTION(name) {OPTICK_EVENT(name); OsgProfileSample _profileSample(name); 
 
@@ -86,6 +88,7 @@ namespace osg
 #define OsgProfile(name) 
 #define OsgProfileC(name, color)
 #define OsgProfile_SECTION(name) 
+#define OsgProfileText(text, len);
 
 #define TracyPlot(x,y)
 #define TracyPlotConfig(x,y)

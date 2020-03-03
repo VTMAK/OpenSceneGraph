@@ -3246,6 +3246,7 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
             osg::CVMarkerSeries series("Render TasksSub");
             osg::CVSpan UpdateTick(series, 0, "mipmapAfterTexImage");
             OsgProfileC("mipmapAfterTexImage", tracy::Color::Red);
+            OsgProfileText(getName().c_str(), getName().length());
 
             //printf("Mipmapping '%s' \n", getName().c_str() ? getName().c_str() : "UNKNOWN");
             unsigned int contextID = state.getContextID();
