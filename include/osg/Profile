@@ -61,6 +61,7 @@ namespace osg
 //tracy
 #ifdef TRACY_ENABLE
 #define TRACY_ON_DEMAND
+#define TRACY_DELAYED_INIT 
 
 // TO DO include tracy on linux just to get it's macros for throwing things out
 #include <TracyClient/Tracy.hpp>
