@@ -16,6 +16,7 @@
 #include <osg/State>
 #include <osg/ContextData>
 #include <osg/Notify>
+#include <osg/Profile>
 
 using namespace osg;
 
@@ -247,6 +248,7 @@ void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::
                osg::ElapsedTime elapsedTimer;
                if (compressed_image)
                {
+                  OsgProfile("glCompressedTexSubImage2D");
                   osg::CVSpan UpdateTick(series, 4, "sendCompressedMipmap");
                   texture->getCompressedSize(image->getInternalTextureFormat(), width, rowsToCopy, 1, blockSize, size);
 
@@ -263,7 +265,7 @@ void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::
                }
                else
                {
-
+                  OsgProfile("glTexSubImage2D");
                   osg::CVSpan UpdateTick(series, 4, "sendMipmap");
                   glTexSubImage2D(GL_TEXTURE_2D, k,
                      0, currentRow*rowsToCopy,
