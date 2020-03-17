@@ -40,7 +40,7 @@ static bool readHeights( osgDB::InputStream& is, osg::HeightField& shape )
     if ( farray )
     {
         unsigned int numCols = shape.getNumColumns(), numRows = shape.getNumRows();
-        if ( array->size()<numRows*numCols ) return false;
+        if ( farray->size()<numRows*numCols ) return false;
 
         unsigned int index = 0;
         for ( unsigned int r=0; r<numRows; ++r )
