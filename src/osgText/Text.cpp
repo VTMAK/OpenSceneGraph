@@ -1064,6 +1064,13 @@ void Text::computeColorGradientsPerCharacter()
         {
             case 0: // top-left
                 {
+                    (*colorCoords)[i] = _colorGradientTopLeft;
+                    break;
+                }
+            case 1: // bottom-left
+                {
+                    (*colorCoords)[i] = _colorGradientBottomLeft;
+			
                     break;
                 }
             case 2: // bottom-right
