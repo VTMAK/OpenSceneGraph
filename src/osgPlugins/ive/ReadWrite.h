@@ -191,5 +191,13 @@ namespace ive {
 
 #define IVETEXT3D                       0x10000002
 #define IVEFADETEXT                     0x10000003
+
+class ReadWrite{
+
+public:
+    virtual ~ReadWrite() {}
+    virtual void write(DataOutputStream* out) const = 0;
+    virtual void read(DataInputStream* out) const = 0;
+};
 }
 #endif // IVE_READWRITE
