@@ -1,9 +1,9 @@
-/* 
+/*
  * This library is open source and may be redistributed and/or modified under
  * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or (at
  * your option) any later version. The full license is in the LICENSE file
  * included with this distribution, and on the openscenegraph.org website.
- * 
+ *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -47,7 +47,7 @@ VertexPaletteManager::~VertexPaletteManager()
             // this file before we get to this destructor.
             return;
         }
-        OSG_INFO << "fltexp: Deleting temp file " << _verticesTempName << std::endl;    
+        OSG_INFO << "fltexp: Deleting temp file " << _verticesTempName << std::endl;
         FLTEXP_DELETEFILE( _verticesTempName.c_str() );
     }
 }
@@ -64,7 +64,7 @@ VertexPaletteManager::add( const osg::Geometry& geom )
     const osg::Array* c = geom.getColorArray();
     const osg::Array* n = geom.getNormalArray();
     const osg::Array* t = geom.getTexCoordArray( 0 );
-    
+
     const unsigned int size = v->getNumElements();
     osg::ref_ptr< const osg::Vec3dArray > v3 = asVec3dArray( v, size );
     osg::ref_ptr< const osg::Vec4Array > c4 = asVec4Array( c, size );
@@ -172,7 +172,7 @@ VertexPaletteManager::write( DataOutputStream& dos )
 
 
 VertexPaletteManager::PaletteRecordType
-VertexPaletteManager::recordType( const osg::Array* v, const osg::Array* c,
+VertexPaletteManager::recordType( const osg::Array* /*v*/, const osg::Array* /*c*/,
     const osg::Array* n, const osg::Array* t )
 {
     if (t)
@@ -231,20 +231,12 @@ VertexPaletteManager::writeRecords( const osg::Vec3dArray* v, const osg::Vec4Arr
         break;
     case VERTEX_CN:
         opcode = VERTEX_CN_OP;
-        if (!n)
-            OSG_WARN << "fltexp: VPM::writeRecords: no normal array." << std::endl;
         break;
     case VERTEX_CNT:
         opcode = VERTEX_CNT_OP;
-        if (!n)
-            OSG_WARN << "fltexp: VPM::writeRecords: no normal array." << std::endl;
-        if (!t)
-            OSG_WARN << "fltexp: VPM::writeRecords: no tex coord array." << std::endl;
         break;
     case VERTEX_CT:
         opcode = VERTEX_CT_OP;
-        if (!t)
-            OSG_WARN << "fltexp: VPM::writeRecords: no tex coord array." << std::endl;
         break;
     }
 

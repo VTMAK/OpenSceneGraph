@@ -758,6 +758,7 @@ trpgPageManager::trpgPageManager()
     lastLoad = None;
     lastLod = 0;
     lastTile = 0;
+    scale = 1.0;
     majorVersion = minorVersion = 0;
 }
 

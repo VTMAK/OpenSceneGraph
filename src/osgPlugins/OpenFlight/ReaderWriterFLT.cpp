@@ -12,7 +12,7 @@
 */
 
 //
-// OpenFlight® loader for OpenSceneGraph
+// OpenFlightï¿½ loader for OpenSceneGraph
 //
 //  Copyright (C) 2005-2007  Brede Johansen
 //
@@ -178,6 +178,7 @@ public:
             std::string filename = node.getFileName(pos);
 
             // read external
+            // VRV: Note - OSG 3.6 changed this from osgDB::readNodeRefFile().  
             osg::ref_ptr<osg::Node> external = osgDB::readNodeFile(filename,_options.get());
             if (external.valid())
             {
@@ -411,7 +412,7 @@ class FLTReaderWriter : public ReaderWriter
                 document.setUseTextureAlphaForTransparancyBinning(options->getOptionString().find("noTextureAlphaForTransparancyBinning")==std::string::npos);
                 OSG_DEBUG << readerMsg << "noTextureAlphaForTransparancyBinning=" << !document.getUseTextureAlphaForTransparancyBinning() << std::endl;
 
-                document.setReadObjectRecordData(options->getOptionString().find("readObjectRecordData")==std::string::npos);
+                document.setReadObjectRecordData(options->getOptionString().find("readObjectRecordData")!=std::string::npos);
                 OSG_DEBUG << readerMsg << "readObjectRecordData=" << !document.getReadObjectRecordData() << std::endl;
 
                 document.setPreserveNonOsgAttrsAsUserData((options->getOptionString().find("preserveNonOsgAttrsAsUserData")!=std::string::npos));
@@ -697,7 +698,7 @@ class FLTReaderWriter : public ReaderWriter
             }
 
             flt::DataOutputStream dos( fOut.rdbuf(), fltOpt->getValidateOnly() );
-            flt::FltExportVisitor fnv( &dos, fltOpt );
+            flt::FltExportVisitor fnv( &dos, fltOpt.get() );
 
             // Hm. 'node' is const, but in order to write out this scene graph,
             //   must use Node::accept() which requires 'node' to be non-const.

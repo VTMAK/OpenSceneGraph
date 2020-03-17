@@ -62,64 +62,64 @@ namespace flt {
       }
    }
 
-   void addDrawableAndReverseWindingOrder(osg::Geode* geode)
+   void addDrawableAndReverseWindingOrder( osg::Geode* geode )
    {
       // Replace double sided polygons by duplicating the drawables and inverting the normals.
       std::vector<osg::Geometry*> new_drawables;
 
-      for (size_t i = 0; i<geode->getNumDrawables(); ++i)
+      for (size_t di=0; di<geode->getNumDrawables(); ++di)
       {
-         const osg::Geometry* geometry = dynamic_cast<const osg::Geometry*>(geode->getDrawable(i));
-         if (geometry)
+         const osg::Geometry* geometry = dynamic_cast<const osg::Geometry*>(geode->getDrawable(di));
+         if(geometry)
          {
             osg::Geometry* geom = new osg::Geometry(*geometry
                , osg::CopyOp::DEEP_COPY_ARRAYS | osg::CopyOp::DEEP_COPY_PRIMITIVES);
             new_drawables.push_back(geom);
 
-            for (size_t j = 0; j < geom->getNumPrimitiveSets(); ++j)
+            for( size_t pi = 0; pi < geom->getNumPrimitiveSets( ); ++pi )
             {
-               osg::DrawArrays* drawarray = dynamic_cast<osg::DrawArrays*>(geom->getPrimitiveSet(j));
-               if (drawarray)
+               osg::DrawArrays* drawarray = dynamic_cast<osg::DrawArrays*>( geom->getPrimitiveSet( pi ) );
+               if( drawarray )
                {
                   GLint first = drawarray->getFirst();
-                  GLint last = drawarray->getFirst() + drawarray->getCount();
+                  GLint last  = drawarray->getFirst()+drawarray->getCount();
 
                   // Invert vertex order.
                   osg::Vec3Array* vertices = dynamic_cast<osg::Vec3Array*>(geom->getVertexArray());
-                  if (vertices)
+                  if( vertices )
                   {
-                     reverseWindingOrder(vertices, drawarray->getMode(), first, last);
+                     reverseWindingOrder( vertices, drawarray->getMode(), first, last );
                   }
 
-                  if (osg::getBinding(geom->getNormalArray()) == osg::Array::BIND_PER_VERTEX)
+                  if( osg::getBinding(geom->getNormalArray()) == osg::Array::BIND_PER_VERTEX )
                   {
                      osg::Vec3Array* normals = dynamic_cast<osg::Vec3Array*>(geom->getNormalArray());
-                     if (normals)
+                     if( normals )
                      {
                         // First, invert the direction of the normals.
-                        for (GLint ii = first; ii < last; ++ii)
+                        for( GLint i = first; i < last; ++i )
                         {
-                           (*normals)[ii] = -(*normals)[ii];
+                           (*normals)[i] = -(*normals)[i];
                         }
-                        reverseWindingOrder(normals, drawarray->getMode(), first, last);
+                        reverseWindingOrder( normals, drawarray->getMode(), first, last );
                      }
                   }
 
-                  if (osg::getBinding(geom->getColorArray()) == osg::Array::BIND_PER_VERTEX)
+                  if( osg::getBinding(geom->getColorArray()) == osg::Array::BIND_PER_VERTEX )
                   {
                      osg::Vec4Array* colors = dynamic_cast<osg::Vec4Array*>(geom->getColorArray());
-                     if (colors)
+                     if( colors )
                      {
-                        reverseWindingOrder(colors, drawarray->getMode(), first, last);
+                        reverseWindingOrder( colors, drawarray->getMode(), first, last );
                      }
                   }
 
-                  for (size_t k = 0; k < geom->getNumTexCoordArrays(); ++k)
+                  for( size_t i = 0; i < geom->getNumTexCoordArrays(); ++i )
                   {
-                     osg::Vec2Array* UVs = dynamic_cast<osg::Vec2Array*>(geom->getTexCoordArray(k));
-                     if (UVs)
+                     osg::Vec2Array* UVs = dynamic_cast<osg::Vec2Array*>(geom->getTexCoordArray(i));
+                     if( UVs )
                      {
-                        reverseWindingOrder(UVs, drawarray->getMode(), first, last);
+                        reverseWindingOrder( UVs, drawarray->getMode(), first, last );
                      }
                   }
                }
@@ -128,9 +128,9 @@ namespace flt {
       }
 
       // Now add the new geometry drawable.
-      for (size_t i = 0; i < new_drawables.size(); ++i)
+      for( size_t i = 0; i < new_drawables.size( ); ++i )
       {
-         geode->addDrawable(new_drawables[i]);
+         geode->addDrawable( new_drawables[i] );
       }
    }
 

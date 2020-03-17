@@ -32,12 +32,12 @@ static bool checkHeights( const osg::HeightField& shape )
 static bool readHeights( osgDB::InputStream& is, osg::HeightField& shape )
 {
     osg::ref_ptr<osg::Array> genericArray = is.readArray();
-    osg::FloatArray* array = NULL;
+    osg::FloatArray* farray = NULL;
     if (genericArray && genericArray->getType() == osg::Array::FloatArrayType)
     {
-        array = static_cast<osg::FloatArray*>(genericArray.get());
+        farray = static_cast<osg::FloatArray*>(genericArray.get());
     }
-    if ( array )
+    if ( farray )
     {
         unsigned int numCols = shape.getNumColumns(), numRows = shape.getNumRows();
         if ( array->size()<numRows*numCols ) return false;
@@ -46,7 +46,7 @@ static bool readHeights( osgDB::InputStream& is, osg::HeightField& shape )
         for ( unsigned int r=0; r<numRows; ++r )
         {
             for ( unsigned int c=0; c<numCols; ++c )
-                shape.setHeight( c, r, (*array)[index++] );
+                shape.setHeight( c, r, (*farray)[index++] );
         }
     }
     return true;
