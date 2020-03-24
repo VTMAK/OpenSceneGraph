@@ -38,6 +38,10 @@
 #include <set>
 #include <string>
 
+// BEGIN VRV_PATCH - faster uniforms
+#include <osg/flat_map.hpp>
+// END VRV_PATCH
+
 #ifndef GL_TEXTURE0
 #define GL_TEXTURE0 0x84C0
 #endif
@@ -1109,10 +1113,11 @@ class OSG_EXPORT State : public Referenced
         typedef std::map<StateAttribute::TypeMemberPair,AttributeStack> AttributeMap;
         typedef std::vector<AttributeMap>                               TextureAttributeMapList;
 
-        typedef std::map<std::string, UniformStack>                     UniformMap;
+        // BEGIN VRV_PATCH - faster uniforms
+        typedef chobo::flat_map<std::string, UniformStack>              UniformMap;
+        // END VRV_PATCH
 
-
-        typedef std::vector< ref_ptr<const Matrix> >                     MatrixStack;
+        typedef std::vector< ref_ptr<const Matrix> >                    MatrixStack;
 
         inline const ModeMap&                                           getModeMap() const {return _modeMap;}
         inline const AttributeMap&                                      getAttributeMap() const {return _attributeMap;}

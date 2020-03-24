@@ -86,6 +86,7 @@ SET(TARGET_H
     ${HEADER_PATH}/Export
     ${HEADER_PATH}/ExtendedMaterial
     ${HEADER_PATH}/fast_back_stack
+    ${HEADER_PATH}/flat_map.hpp
     ${HEADER_PATH}/Fog
     ${HEADER_PATH}/FragmentProgram
     ${HEADER_PATH}/FrameBufferObject

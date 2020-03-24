@@ -31,6 +31,10 @@
 #include <osg/Shader>
 #include <osg/StateAttribute>
 
+// BEGIN VRV_PATCH - faster uniforms
+#include <osg/flat_map.hpp>
+// END VRV_PATCH
+
 namespace osg {
 
 class State;
@@ -235,8 +239,9 @@ class OSG_EXPORT Program : public osg::StateAttribute
             GLenum _type;
             GLint _size;
         };
-        typedef std::map< unsigned int, ActiveVarInfo > ActiveUniformMap;
-        typedef std::map< std::string, ActiveVarInfo > ActiveVarInfoMap;
+        // BEGIN VRV_PATCH - faster uniforms
+        typedef chobo::flat_map< unsigned int, ActiveVarInfo > ActiveUniformMap;
+        // END VRV_PATCH;        typedef std::map< std::string, ActiveVarInfo > ActiveVarInfoMap;
         //const ActiveUniformMap& getActiveUniforms(unsigned int contextID) const;
         //const ActiveVarInfoMap& getActiveAttribs(unsigned int contextID) const;
         struct UniformBlockInfo
