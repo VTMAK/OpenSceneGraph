@@ -912,6 +912,26 @@ void GraphicsContext::resizedImplementation(int x, int y, int width, int height)
     _traits->height = height;
 }
 
+// VRV_PATCH BEGIN - Support for adding/removing cameras from gfx context at the channel level
+void osg::GraphicsContext::disableCamera(osg::Camera* camera)
+{
+   Cameras::iterator itr = std::find(_cameras.begin(), _cameras.end(), camera);
+   if (itr != _cameras.end())
+   {
+      _cameras.erase(itr);
+   }
+}
+
+void osg::GraphicsContext::enableCamera(osg::Camera* camera)
+{
+   if (!camera)
+   {
+      return;
+   }
+
+   _cameras.push_back(camera);
+}
+// VRV_PATCH END
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
