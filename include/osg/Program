@@ -241,7 +241,8 @@ class OSG_EXPORT Program : public osg::StateAttribute
         };
         // BEGIN VRV_PATCH - faster uniforms
         typedef chobo::flat_map< unsigned int, ActiveVarInfo > ActiveUniformMap;
-        // END VRV_PATCH;        typedef std::map< std::string, ActiveVarInfo > ActiveVarInfoMap;
+        // END VRV_PATCH;        
+        typedef std::map< std::string, ActiveVarInfo > ActiveVarInfoMap;
         //const ActiveUniformMap& getActiveUniforms(unsigned int contextID) const;
         //const ActiveVarInfoMap& getActiveAttribs(unsigned int contextID) const;
         struct UniformBlockInfo
