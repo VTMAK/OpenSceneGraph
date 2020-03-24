@@ -1179,42 +1179,6 @@ void Program::PerContextProgram::postLinkInitialize()
 }
 //END VRV_PATCH
 
-    // build _attribInfoMap
-    GLint numAttrib = 0;
-    _extensions->glGetProgramiv( _glProgramHandle, GL_ACTIVE_ATTRIBUTES, &numAttrib );
-    _extensions->glGetProgramiv( _glProgramHandle, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &maxLen );
-    if( (numAttrib > 0) && (maxLen > 1) )
-    {
-        GLint size = 0;
-        GLenum type = 0;
-        GLchar* name = new GLchar[maxLen];
-
-        for( GLint i = 0; i < numAttrib; ++i )
-        {
-            _extensions->glGetActiveAttrib( _glProgramHandle,
-                    i, maxLen, 0, &size, &type, name );
-
-            GLint loc = _extensions->glGetAttribLocation( _glProgramHandle, name );
-
-            if( loc != -1 )
-            {
-                _attribInfoMap[reinterpret_cast<char*>(name)] = ActiveVarInfo(loc,type,size);
-
-                OSG_INFO << "\tAttrib \"" << name << "\""
-                         << " loc=" << loc
-                         << " size=" << size
-                         << std::endl;
-            }
-        }
-        delete [] name;
-    }
-    OSG_INFO << std::endl;
-
-
-    //state.checkGLErrors("After Program::PerContextProgram::linkProgram.");
-
-}
-
 bool Program::PerContextProgram::validateProgram()
 {
     if (!_glProgramHandle) return false;
