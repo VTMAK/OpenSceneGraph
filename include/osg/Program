@@ -291,7 +291,9 @@ class OSG_EXPORT Program : public osg::StateAttribute
                 const std::string& getDefineString() const { return _defineStr; }
 
                 void requestLink();
+                virtual void loadProgramBinary();
                 virtual void linkProgram(osg::State& state);
+                virtual void postLinkInitialize();
                 virtual bool validateProgram();
                 bool needsLink() const {return _needsLink;}
                 bool isLinked() const {return _isLinked;}

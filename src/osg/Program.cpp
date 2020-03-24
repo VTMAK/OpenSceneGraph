@@ -230,14 +230,21 @@ void Program::compileGLObjects( osg::State& state ) const
 
     if( _shaderList.empty() ) return;
 
-    for( unsigned int i=0; i < _shaderList.size(); ++i )
+Program::PerContextProgram* pcp = getPCP(state);
+
+    pcp->loadProgramBinary();
+
+    //If the program is already linked then there is no reason to compile the shaders.
+    if (pcp->needsLink())
     {
-        _shaderList[i]->compileShader( state );
+       for (unsigned int i = 0; i < _shaderList.size(); ++i)
+       {
+          _shaderList[i]->compileShader(state);
+       }
     }
 
     if(!_feedbackout.empty())
     {
-        const PerContextProgram* pcp = getPCP(state);
         const GLExtensions* extensions = state.get<GLExtensions>();
 
         unsigned int numfeedback = _feedbackout.size();
@@ -253,7 +260,8 @@ void Program::compileGLObjects( osg::State& state ) const
         extensions->glTransformFeedbackVaryings( pcp->getHandle(), numfeedback, varyings, _feedbackmode);
         delete [] varyings;
     }
-    getPCP( state )->linkProgram(state);
+
+    pcp->linkProgram(state);
 }
 
 void Program::setThreadSafeRefUnref(bool threadSafe)
@@ -734,7 +742,40 @@ void Program::PerContextProgram::requestLink()
     _isLinked = false;
 }
 
+//VRV_PATCH broke up the linkProgram function into three parts
+// this allows us to load a program binary and not attempt to recompile the shaders used by that binary
+void Program::PerContextProgram::loadProgramBinary()
+{
 
+   if (!_needsLink) {
+      return;
+   }
+
+   OsgProfileC("Program::PerContextProgram::loadProgramBinary", tracy::Color::Orange);
+
+   const ProgramBinary* programBinary = _program->getProgramBinary();
+
+   _loadedBinary = false;
+   if (programBinary && programBinary->getSize())
+   {
+      GLint linked = GL_FALSE;
+      _extensions->glProgramBinary(_glProgramHandle, programBinary->getFormat(),
+         reinterpret_cast<const GLvoid*>(programBinary->getData()), programBinary->getSize());
+      _extensions->glGetProgramiv(_glProgramHandle, GL_LINK_STATUS, &linked);
+      _loadedBinary = _isLinked = (linked == GL_TRUE);
+      _needsLink = !_loadedBinary;
+
+      //VRV_PATCH
+      if (_extensions->glObjectLabel && _program->getName().length()) {
+         _extensions->glObjectLabel(GL_PROGRAM, _glProgramHandle, -1, _program->getName().c_str());
+      }
+
+      if (_isLinked)
+      {
+         postLinkInitialize();
+      }
+   }
+}
 
 void Program::PerContextProgram::linkProgram(osg::State& state)
 {
@@ -756,21 +797,9 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
              << " contextID=" << _contextID
              <<  std::endl;
 
-    const ProgramBinary* programBinary = _program->getProgramBinary();
+    loadProgramBinary();
 
-    _loadedBinary = false;
-    if (programBinary && programBinary->getSize())
-    {
-        GLint linked = GL_FALSE;
-        _extensions->glProgramBinary( _glProgramHandle, programBinary->getFormat(),
-            reinterpret_cast<const GLvoid*>(programBinary->getData()), programBinary->getSize() );
-        _extensions->glGetProgramiv( _glProgramHandle, GL_LINK_STATUS, &linked );
-        _loadedBinary = _isLinked = (linked == GL_TRUE);
-        //VRV_PATCH
-        if (_extensions->glObjectLabel && _program->getName().length()) {
-           _extensions->glObjectLabel(GL_PROGRAM, _glProgramHandle, -1, _program->getName().c_str());
-        }
-    }
+    const ProgramBinary* programBinary = _program->getProgramBinary();
 
     if (!_loadedBinary && _extensions->isGeometryShader4Supported)
     {
@@ -919,194 +948,236 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
         }
     }
 
-    if (_extensions->isUniformBufferObjectSupported)
-    {
-        GLuint activeUniformBlocks = 0;
-        GLsizei maxBlockNameLen = 0;
-        _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_UNIFORM_BLOCKS,
-                                    reinterpret_cast<GLint*>(&activeUniformBlocks));
-        _extensions->glGetProgramiv(_glProgramHandle,
-                                    GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH,
-                                    &maxBlockNameLen);
-        if (maxBlockNameLen > 0)
-        {
-            std::vector<GLchar> blockName(maxBlockNameLen);
-            for (GLuint i = 0; i < activeUniformBlocks; ++i)
+    postLinkInitialize();
+}
+
+void Program::PerContextProgram::postLinkInitialize()
+{
+   OsgProfileC("Program::PerContextProgram::postLinkInitialize", tracy::Color::Orange);
+   if (_extensions->isUniformBufferObjectSupported)
+   {
+      GLuint activeUniformBlocks = 0;
+      GLsizei maxBlockNameLen = 0;
+      _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_UNIFORM_BLOCKS,
+         reinterpret_cast<GLint*>(&activeUniformBlocks));
+      _extensions->glGetProgramiv(_glProgramHandle,
+         GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH,
+         &maxBlockNameLen);
+      if (maxBlockNameLen > 0)
+      {
+         std::vector<GLchar> blockName(maxBlockNameLen);
+         for (GLuint i = 0; i < activeUniformBlocks; ++i)
+         {
+            GLsizei len = 0;
+            GLint blockSize = 0;
+            _extensions->glGetActiveUniformBlockName(_glProgramHandle, i,
+               maxBlockNameLen, &len,
+               &blockName[0]);
+            _extensions->glGetActiveUniformBlockiv(_glProgramHandle, i,
+               GL_UNIFORM_BLOCK_DATA_SIZE,
+               &blockSize);
+            _uniformBlockMap
+               .insert(UniformBlockMap::value_type(&blockName[0],
+                  UniformBlockInfo(i, blockSize)));
+         }
+      }
+      // Bind any uniform blocks
+      const UniformBlockBindingList& bindingList = _program->getUniformBlockBindingList();
+      for (UniformBlockMap::iterator itr = _uniformBlockMap.begin(),
+         end = _uniformBlockMap.end();
+         itr != end;
+         ++itr)
+      {
+         const std::string& blockName = itr->first;
+         UniformBlockBindingList::const_iterator bitr = bindingList.find(blockName);
+         if (bitr != bindingList.end())
+         {
+            _extensions->glUniformBlockBinding(_glProgramHandle, itr->second._index,
+               bitr->second);
+            OSG_INFO << "uniform block " << blockName << ": " << itr->second._index
+               << " binding: " << bitr->second << "\n";
+         }
+         else
+         {
+            OSG_WARN << "uniform block " << blockName << " has no binding.\n";
+         }
+      }
+   }
+
+   // TODO: implement when glGetProgramResourceIndex is available
+   // {
+   //    const GLuint ssbo_block_index =
+   //       _extensions->glGetProgramResourceIndex( _glProgramHandle, GL_SHADER_STORAGE_BLOCK,
+   //                                               "vrv_tile_light_index_list" );
+
+   //    if (ssbo_block_index != GL_INVALID_INDEX)
+   //    {
+   //       glShaderStorageBlockBinding( _glProgramHandle, ssbo_block_index, 11);
+   //    }
+   // }
+
+   typedef std::map<GLuint, std::string> AtomicCounterMap;
+   AtomicCounterMap atomicCounterMap;
+
+   // build _uniformInfoMap
+   GLint numUniforms = 0;
+   GLsizei maxLen = 0;
+   _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_UNIFORMS, &numUniforms);
+   _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxLen);
+   if ((numUniforms > 0) && (maxLen > 1))
+   {
+      GLint size = 0;
+      GLenum type = 0;
+      GLchar* name = new GLchar[maxLen];
+
+      for (GLint i = 0; i < numUniforms; ++i)
+      {
+         _extensions->glGetActiveUniform(_glProgramHandle,
+            i, maxLen, 0, &size, &type, name);
+
+         int pos = strlen(name);
+         if (pos > 0 && name[pos - 1] == ']')
+         {
+            // need to trim [..] from end of name as some drivers append this causing problems with look up.
+            --pos;
+            while (pos > 0 && name[pos] != '[') { --pos; }
+            name[pos] = 0;
+         }
+
+         if (type == GL_UNSIGNED_INT_ATOMIC_COUNTER)
+         {
+            atomicCounterMap[i] = name;
+         }
+
+         GLint loc = _extensions->glGetUniformLocation(_glProgramHandle, name);
+
+         if (loc != -1)
+         {
+            _uniformInfoMap[Uniform::getNameID(reinterpret_cast<const char*>(name))] = ActiveVarInfo(loc, type, size);
+
+            OSG_INFO << "\tUniform \"" << name << "\""
+               << " loc=" << loc
+               << " size=" << size
+               << " type=" << Uniform::getTypename((Uniform::Type)type)
+               << std::endl;
+         }
+      }
+      delete[] name;
+   }
+
+   // print atomic counter
+
+   if (_extensions->isShaderAtomicCountersSupported && !atomicCounterMap.empty())
+   {
+      std::vector<GLint> bufferIndex(atomicCounterMap.size(), 0);
+      std::vector<GLuint> uniformIndex;
+      for (AtomicCounterMap::iterator it = atomicCounterMap.begin(), end = atomicCounterMap.end();
+         it != end; ++it)
+      {
+         uniformIndex.push_back(it->first);
+      }
+
+      _extensions->glGetActiveUniformsiv(_glProgramHandle, uniformIndex.size(),
+         &(uniformIndex[0]), GL_UNIFORM_ATOMIC_COUNTER_BUFFER_INDEX,
+         &(bufferIndex[0]));
+
+      for (unsigned int j = 0; j < uniformIndex.size(); ++j)
+      {
+         OSG_INFO << "\tUniform atomic counter \"" << atomicCounterMap[uniformIndex[j]] << "\""
+            << " buffer bind= " << bufferIndex[j] << ".\n";
+      }
+
+      std::map<int, std::vector<int> > bufferIndexToUniformIndices;
+      for (unsigned int i = 0; i < bufferIndex.size(); ++i)
+      {
+         bufferIndexToUniformIndices[bufferIndex[i]].push_back(uniformIndex[i]);
+      }
+
+      GLuint activeAtomicCounterBuffers = 0;
+      _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_ATOMIC_COUNTER_BUFFERS,
+         reinterpret_cast<GLint*>(&activeAtomicCounterBuffers));
+      if (activeAtomicCounterBuffers > 0)
+      {
+         for (GLuint i = 0; i < activeAtomicCounterBuffers; ++i)
+         {
+            GLint bindID = 0;
+            _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
+               GL_ATOMIC_COUNTER_BUFFER_BINDING,
+               &bindID);
+
+            GLsizei num = 0;
+            _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
+               GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTERS,
+               &num);
+            GLsizei minSize = 0;
+            _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
+               GL_ATOMIC_COUNTER_BUFFER_DATA_SIZE,
+               &minSize);
+
+
+            OSG_INFO << "\tUniform atomic counter buffer bind \"" << bindID << "\""
+               << " num active atomic counter= " << num
+               << " min size= " << minSize << "\n";
+
+            if (num)
             {
-                GLsizei len = 0;
-                GLint blockSize = 0;
-                _extensions->glGetActiveUniformBlockName(_glProgramHandle, i,
-                                                         maxBlockNameLen, &len,
-                                                         &blockName[0]);
-                _extensions->glGetActiveUniformBlockiv(_glProgramHandle, i,
-                                                       GL_UNIFORM_BLOCK_DATA_SIZE,
-                                                       &blockSize);
-                _uniformBlockMap
-                    .insert(UniformBlockMap::value_type(&blockName[0],
-                                                        UniformBlockInfo(i, blockSize)));
+               std::vector<GLint> indices(num);
+               _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
+                  GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTER_INDICES,
+                  &(indices[0]));
+               OSG_INFO << "\t\tindices used= ";
+               for (GLint j = 0; j < num; ++j)
+               {
+                  OSG_INFO << indices[j];
+                  if (j < (num - 1))
+                  {
+                     OSG_INFO << ", ";
+                  }
+                  else
+                  {
+                     OSG_INFO << ".\n";
+                  }
+               }
             }
-        }
-        // Bind any uniform blocks
-        const UniformBlockBindingList& bindingList = _program->getUniformBlockBindingList();
-        for (UniformBlockMap::iterator itr = _uniformBlockMap.begin(),
-                 end = _uniformBlockMap.end();
-             itr != end;
-            ++itr)
-        {
-            const std::string& blockName = itr->first;
-            UniformBlockBindingList::const_iterator bitr = bindingList.find(blockName);
-            if (bitr != bindingList.end())
-            {
-                _extensions->glUniformBlockBinding(_glProgramHandle, itr->second._index,
-                                                   bitr->second);
-                OSG_INFO << "uniform block " << blockName << ": " << itr->second._index
-                         << " binding: " << bitr->second << "\n";
-            }
-            else
-            {
-                OSG_WARN << "uniform block " << blockName << " has no binding.\n";
-            }
-        }
-    }
+         }
+      }
+   }
 
-    // TODO: implement when glGetProgramResourceIndex is available
-    // {
-    //    const GLuint ssbo_block_index =
-    //       _extensions->glGetProgramResourceIndex( _glProgramHandle, GL_SHADER_STORAGE_BLOCK,
-    //                                               "vrv_tile_light_index_list" );
+   // build _attribInfoMap
+   GLint numAttrib = 0;
+   _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_ATTRIBUTES, &numAttrib);
+   _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &maxLen);
+   if ((numAttrib > 0) && (maxLen > 1))
+   {
+      GLint size = 0;
+      GLenum type = 0;
+      GLchar* name = new GLchar[maxLen];
 
-    //    if (ssbo_block_index != GL_INVALID_INDEX)
-    //    {
-    //       glShaderStorageBlockBinding( _glProgramHandle, ssbo_block_index, 11);
-    //    }
-    // }
+      for (GLint i = 0; i < numAttrib; ++i)
+      {
+         _extensions->glGetActiveAttrib(_glProgramHandle,
+            i, maxLen, 0, &size, &type, name);
 
-    typedef std::map<GLuint, std::string> AtomicCounterMap;
-    AtomicCounterMap atomicCounterMap;
+         GLint loc = _extensions->glGetAttribLocation(_glProgramHandle, name);
 
-    // build _uniformInfoMap
-    GLint numUniforms = 0;
-    GLsizei maxLen = 0;
-    _extensions->glGetProgramiv( _glProgramHandle, GL_ACTIVE_UNIFORMS, &numUniforms );
-    _extensions->glGetProgramiv( _glProgramHandle, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxLen );
-    if( (numUniforms > 0) && (maxLen > 1) )
-    {
-        GLint size = 0;
-        GLenum type = 0;
-        GLchar* name = new GLchar[maxLen];
+         if (loc != -1)
+         {
+            _attribInfoMap[reinterpret_cast<char*>(name)] = ActiveVarInfo(loc, type, size);
 
-        for( GLint i = 0; i < numUniforms; ++i )
-        {
-            _extensions->glGetActiveUniform( _glProgramHandle,
-                    i, maxLen, 0, &size, &type, name );
-
-            int pos = strlen(name);
-            if (pos>0 && name[pos-1]==']')
-            {
-                // need to trim [..] from end of name as some drivers append this causing problems with look up.
-                --pos;
-                while(pos>0 && name[pos]!='[') { --pos; }
-                name[pos] = 0;
-            }
-
-            if (type == GL_UNSIGNED_INT_ATOMIC_COUNTER)
-            {
-                atomicCounterMap[i] = name;
-            }
-
-            GLint loc = _extensions->glGetUniformLocation( _glProgramHandle, name );
-
-            if( loc != -1 )
-            {
-                _uniformInfoMap[Uniform::getNameID(reinterpret_cast<const char*>(name))] = ActiveVarInfo(loc,type,size);
-
-                OSG_INFO << "\tUniform \"" << name << "\""
-                    << " loc="<< loc
-                    << " size="<< size
-                    << " type=" << Uniform::getTypename((Uniform::Type)type)
-                    << std::endl;
-            }
-        }
-        delete [] name;
-    }
-
-    // print atomic counter
-
-    if (_extensions->isShaderAtomicCountersSupported && !atomicCounterMap.empty())
-    {
-        std::vector<GLint> bufferIndex( atomicCounterMap.size(), 0 );
-        std::vector<GLuint> uniformIndex;
-        for (AtomicCounterMap::iterator it = atomicCounterMap.begin(), end = atomicCounterMap.end();
-             it != end; ++it)
-        {
-            uniformIndex.push_back(it->first);
-        }
-
-        _extensions->glGetActiveUniformsiv( _glProgramHandle, uniformIndex.size(),
-                                            &(uniformIndex[0]), GL_UNIFORM_ATOMIC_COUNTER_BUFFER_INDEX,
-                                            &(bufferIndex[0]) );
-
-        for (unsigned int j = 0; j < uniformIndex.size(); ++j)
-        {
-            OSG_INFO << "\tUniform atomic counter \""<<atomicCounterMap[ uniformIndex[j] ] <<"\""
-                     <<" buffer bind= " << bufferIndex[j] << ".\n";
-        }
-
-        std::map<int, std::vector<int> > bufferIndexToUniformIndices;
-        for (unsigned int i=0; i<bufferIndex.size(); ++i)
-        {
-            bufferIndexToUniformIndices[ bufferIndex[i] ].push_back( uniformIndex[i] );
-        }
-
-        GLuint activeAtomicCounterBuffers = 0;
-        _extensions->glGetProgramiv(_glProgramHandle, GL_ACTIVE_ATOMIC_COUNTER_BUFFERS,
-                                    reinterpret_cast<GLint*>(&activeAtomicCounterBuffers));
-        if (activeAtomicCounterBuffers > 0)
-        {
-            for (GLuint i = 0; i < activeAtomicCounterBuffers; ++i)
-            {
-                GLint bindID = 0;
-                _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
-                                                              GL_ATOMIC_COUNTER_BUFFER_BINDING,
-                                                              &bindID);
-
-                GLsizei num = 0;
-                _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
-                                                              GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTERS,
-                                                              &num);
-                GLsizei minSize = 0;
-                _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
-                                                              GL_ATOMIC_COUNTER_BUFFER_DATA_SIZE,
-                                                              &minSize);
+            OSG_INFO << "\tAttrib \"" << name << "\""
+               << " loc=" << loc
+               << " size=" << size
+               << std::endl;
+         }
+      }
+      delete[] name;
+   }
+   OSG_INFO << std::endl;
 
 
-                OSG_INFO << "\tUniform atomic counter buffer bind \"" << bindID << "\""
-                         << " num active atomic counter= "<< num
-                         << " min size= " << minSize << "\n";
-
-                if (num)
-                {
-                    std::vector<GLint> indices(num);
-                    _extensions->glGetActiveAtomicCounterBufferiv(_glProgramHandle, i,
-                                                                  GL_ATOMIC_COUNTER_BUFFER_ACTIVE_ATOMIC_COUNTER_INDICES,
-                                                                  &(indices[0]));
-                    OSG_INFO << "\t\tindices used= ";
-                    for (GLint j = 0; j < num; ++j)
-                    {
-                        OSG_INFO << indices[j];
-                        if (j < (num-1))
-                        {
-                            OSG_INFO <<  ", ";
-                        }
-                        else
-                        {
-                            OSG_INFO <<  ".\n";
-                        }
-                    }
-                }
-            }
-        }
-    }
+   //state.checkGLErrors("After Program::PerContextProgram::linkProgram.");
+}
+//END VRV_PATCH
 
     // build _attribInfoMap
     GLint numAttrib = 0;
