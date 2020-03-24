@@ -517,6 +517,11 @@ class OSG_EXPORT GraphicsContext : public Object
         virtual const char* libraryName() const { return "osg"; }
         virtual const char* className() const { return "GraphicsContext"; }
 
+        // VRV_PATCH BEGIN - Support for adding/removing cameras from gfx context at the channel level
+        void disableCamera(osg::Camera* camera);
+        void enableCamera(osg::Camera* camera);
+        // VRV_PATCH END
+
     protected:
 
         GraphicsContext();
