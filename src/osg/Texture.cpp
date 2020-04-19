@@ -234,7 +234,7 @@ GLenum assumeSizedInternalFormat(GLint internalFormat, GLenum type)
     return 0;
 }
 
-bool isCompressedInternalFormatSupportedByTexStorrage(GLint internalFormat)
+bool isCompressedInternalFormatSupportedByTexStorage(GLint internalFormat)
 {
     const size_t formatsCount = sizeof(compressedInternalFormats) / sizeof(compressedInternalFormats[0]);
 
@@ -2465,6 +2465,44 @@ glFormatsToString(int compressed_format_type)
    return  "Unknown GL Format";
 }
 
+GLenum Texture::selectSizedInternalFormat(const osg::Image* image) const
+{
+    if (image)
+    {
+        bool compressed_image = isCompressedInternalFormat((GLenum)image->getPixelFormat());
+
+        //calculate sized internal format
+        if(compressed_image)
+        {
+            if(isCompressedInternalFormatSupportedByTexStorage(_internalFormat))
+            {
+                return _internalFormat;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            if(isSizedInternalFormat(_internalFormat))
+            {
+                return _internalFormat;
+            }
+            else
+            {
+                return assumeSizedInternalFormat((GLenum)image->getInternalTextureFormat(), (GLenum)image->getDataType());
+            }
+        }
+    }
+    else
+    {
+        if (isSizedInternalFormat(_internalFormat)) return _internalFormat;
+
+        return assumeSizedInternalFormat(_internalFormat, (_sourceType!=0) ? _sourceType : GL_UNSIGNED_BYTE);
+    }
+}
+
 void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight,GLsizei numMipmapLevels) const
 {
     // if we don't have a valid image we can't create a texture!
@@ -2488,7 +2526,7 @@ char buff[300];
        image->getFileName().c_str(), inwidth, inheight, numMipmapLevels, 
        glFormatsToString(_internalFormat),
        isCompressedInternalFormat((GLenum)image->getPixelFormat()) ? "compressed" : "No Compression",
-       isCompressedInternalFormatSupportedByTexStorrage(_internalFormat) ? "Yes" : "No");
+       isCompressedInternalFormatSupportedByTexStorage(_internalFormat) ? "Yes" : "No");
     std::cout << buff << std::endl; 
 */
     osg::CVMarkerSeries series("Render Tasks");
@@ -2745,7 +2783,7 @@ char buff[300];
                     }
                     else
                     {
-                        if(isCompressedInternalFormatSupportedByTexStorrage(_internalFormat))
+                        if(isCompressedInternalFormatSupportedByTexStorage(_internalFormat))
                         {
                             sizedInternalFormat = _internalFormat;
                         }
