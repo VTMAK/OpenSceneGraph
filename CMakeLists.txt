@@ -703,8 +703,8 @@ check_cxx_source_compiles(
 
 SET(OPENSCENEGRAPH_OPENGL_HEADER "${PROJECT_BINARY_DIR}/include/osg/GL")
 #We have a GL header checked into patches.  Don't allow OSG to configure one here.
-# CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/osg/GL.in"
-               # "${OPENSCENEGRAPH_OPENGL_HEADER}")
+CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/osg/GL.in"
+               "${OPENSCENEGRAPH_OPENGL_HEADER}")
 
 # INSTALL_FILES(/include/osg/ FILES "${OPENSCENEGRAPH_CONFIG_HEADER}")
 
