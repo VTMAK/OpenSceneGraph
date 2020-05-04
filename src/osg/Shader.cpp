@@ -632,7 +632,7 @@ void Shader::PerContextShader::compileShader(osg::State& state)
 #endif
 
     std::string source = _shader->getShaderSource();
-    if ((state.getUseVertexAttributeAliasing() || state.getUseModelViewAndProjectionUniforms()))
+    //if ((state.getUseVertexAttributeAliasing() || state.getUseModelViewAndProjectionUniforms()))
     {
         state.convertShaderSourceToOsgBuiltIns(_shader->getType(), source);
     }
