@@ -708,6 +708,8 @@ unsigned int Image::computeNumComponents(GLenum pixelFormat)
         case(GL_BGRA_INTEGER_EXT): return 4;
         case(GL_LUMINANCE_INTEGER_EXT): return 1;
         case(GL_LUMINANCE_ALPHA_INTEGER_EXT): return 2;
+        case(GL_SRGB8) : return 3;
+        case(GL_SRGB8_ALPHA8) : return 4;
         case (GL_COMPRESSED_RGBA_ASTC_4x4_KHR)           : return 4;
         case (GL_COMPRESSED_RGBA_ASTC_5x4_KHR)           : return 4;
         case (GL_COMPRESSED_RGBA_ASTC_5x5_KHR)           : return 4;
