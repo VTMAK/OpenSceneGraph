@@ -227,15 +227,16 @@ Drawable::Drawable()
     _useDisplayList = false;
 #endif
 
-    _supportsVertexBufferObjects = true; // OSG 3.6
-    _useVertexBufferObjects = false;  // MAK OSG 3.4 (OSG 3.6 = true)
+#if 0
+    _supportsVertexBufferObjects = false;
+    //_useVertexBufferObjects = false;
+    _useVertexBufferObjects = false;
+#else
+    _supportsVertexBufferObjects = true;
+    _useVertexBufferObjects = true;
+#endif
 
-    _useVertexArrayObject = false;   // OSG 3.6
-
-   if (s_useVertexBufferObjectsDefault){
-      _useVertexBufferObjects = true;
-      _useDisplayList = false;
-   }
+    _useVertexArrayObject = false;
 }
 
 Drawable::Drawable(const Drawable& drawable,const CopyOp& copyop):

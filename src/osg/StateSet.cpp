@@ -987,19 +987,6 @@ void StateSet::merge(const StateSet& rhs)
 
 void StateSet::setMode(StateAttribute::GLMode mode, StateAttribute::GLModeValue value)
 {
-   // FIXME if (mode == GL_LIGHT0){
-   //}
-
-#ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
-   // flt files can have this flag coming out of ive files
-   if (mode == GL_NORMALIZE){
-      return;
-   }
-   else if (mode == GL_RESCALE_NORMAL){
-      return;
-   }
-#endif
-
    if (getTextureGLModeSet().isTextureMode(mode))
     {
         OSG_NOTICE<<"Warning: texture mode '"<<mode<<"'passed to setMode(mode,value), "<<std::endl;

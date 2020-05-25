@@ -268,9 +268,7 @@ glFormatsToString(int compressed_format_type)
    case GL_RGBA: return"GL_RGBA";
    case GL_SRGB_ALPHA_EXT: return"GL_SRGB_ALPHA";
    case GL_LUMINANCE: return "GL_LUMINANCE";
-   case GL_SLUMINANCE:   return "GL_SLUMINANCE";
    case GL_LUMINANCE_ALPHA:      return "GL_LUMINANCE_ALPHA";
-   case GL_SLUMINANCE_ALPHA:      return "GL_SLUMINANCE_ALPHA";
    case GL_SRGB8:      return "GL_SRGB8";
    case GL_SRGB8_ALPHA8:      return "GL_SRGB8_ALPHA8";
    case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:    return "GL_COMPRESSED_RGB_S3TC_DXT1";

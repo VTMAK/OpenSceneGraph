@@ -234,7 +234,7 @@ GLenum assumeSizedInternalFormat(GLint internalFormat, GLenum type)
     return 0;
 }
 
-bool isCompressedInternalFormatSupportedByTexStorrage(GLint internalFormat)
+bool isCompressedInternalFormatSupportedByTexStorage(GLint internalFormat)
 {
     const size_t formatsCount = sizeof(compressedInternalFormats) / sizeof(compressedInternalFormats[0]);
 
@@ -2391,9 +2391,7 @@ glFormatsToString(int compressed_format_type)
    case GL_RGBA: return"GL_RGBA";
    case GL_SRGB_ALPHA_EXT: return"GL_SRGB_ALPHA";
    case GL_LUMINANCE: return "GL_LUMINANCE";
-   case GL_SLUMINANCE:   return "GL_SLUMINANCE";
    case GL_LUMINANCE_ALPHA:      return "GL_LUMINANCE_ALPHA";
-   case GL_SLUMINANCE_ALPHA:      return "GL_SLUMINANCE_ALPHA";
    case GL_SRGB8:      return "GL_SRGB8";
    case GL_SRGB8_ALPHA8:      return "GL_SRGB8_ALPHA8";
    case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:    return "GL_COMPRESSED_RGB_S3TC_DXT1";
@@ -2465,7 +2463,45 @@ glFormatsToString(int compressed_format_type)
    return  "Unknown GL Format";
 }
 
-void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight,GLsizei numMipmapLevels) const
+GLenum Texture::selectSizedInternalFormat(const osg::Image* image) const
+{
+    if (image)
+    {
+        bool compressed_image = isCompressedInternalFormat((GLenum)image->getPixelFormat());
+
+        //calculate sized internal format
+        if(compressed_image)
+        {
+            if(isCompressedInternalFormatSupportedByTexStorage(_internalFormat))
+            {
+                return _internalFormat;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            if(isSizedInternalFormat(_internalFormat))
+            {
+                return _internalFormat;
+            }
+            else
+            {
+                return assumeSizedInternalFormat((GLenum)image->getInternalTextureFormat(), (GLenum)image->getDataType());
+            }
+        }
+    }
+    else
+    {
+        if (isSizedInternalFormat(_internalFormat)) return _internalFormat;
+
+        return assumeSizedInternalFormat(_internalFormat, (_sourceType!=0) ? _sourceType : GL_UNSIGNED_BYTE);
+    }
+}
+
+void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLsizei numMipmapLevels) const
 {
     // if we don't have a valid image we can't create a texture!
     if (!image || !image->data())
@@ -2481,32 +2517,32 @@ void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* ima
     }
 
     ElapsedTime elapsedTimer;
-/*
-char buff[300];
+    /*
+    char buff[300];
 
-    sprintf(buff, "Loading %s %ix%i %i mips\n   %s %s textureStorage: %s",
-       image->getFileName().c_str(), inwidth, inheight, numMipmapLevels, 
-       glFormatsToString(_internalFormat),
-       isCompressedInternalFormat((GLenum)image->getPixelFormat()) ? "compressed" : "No Compression",
-       isCompressedInternalFormatSupportedByTexStorrage(_internalFormat) ? "Yes" : "No");
-    std::cout << buff << std::endl; 
-*/
+        sprintf(buff, "Loading %s %ix%i %i mips\n   %s %s textureStorage: %s",
+           image->getFileName().c_str(), inwidth, inheight, numMipmapLevels,
+           glFormatsToString(_internalFormat),
+           isCompressedInternalFormat((GLenum)image->getPixelFormat()) ? "compressed" : "No Compression",
+           isCompressedInternalFormatSupportedByTexStorage(_internalFormat) ? "Yes" : "No");
+        std::cout << buff << std::endl;
+    */
     osg::CVMarkerSeries series("Render Tasks");
     osg::CVMarkerSeries series_rt2("Render TasksSub");
     if (osg::CVMarkerSeries::sMarkersActive)
     {
-       if (image->getName().length())
-       {
-          series.write_alert("image: %s %i mips %ix%i %s", image->getName().c_str(),
-             numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-       }
-       else if (getName().length()) {
-          series.write_alert("texture: %s %i mips %ix%i %s",
-             getName().c_str(), numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-       }
-       else {
-          series.write_alert("? %i mips %ix%i %s", numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-       }
+        if (image->getName().length())
+        {
+            series.write_alert("image: %s %i mips %ix%i %s", image->getName().c_str(),
+                numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
+        }
+        else if (getName().length()) {
+            series.write_alert("texture: %s %i mips %ix%i %s",
+                getName().c_str(), numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
+        }
+        else {
+            series.write_alert("? %i mips %ix%i %s", numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
+        }
     }
     OsgProfileC("applyTexImage2D_load", tracy::Color::Purple);
 
@@ -2514,7 +2550,7 @@ char buff[300];
 
 #ifdef DO_TIMING
     osg::Timer_t start_tick = osg::Timer::instance()->tick();
-    OSG_NOTICE<<"glTexImage2D pixelFormat = "<<std::hex<<image->getPixelFormat()<<std::dec<<std::endl;
+    OSG_NOTICE << "glTexImage2D pixelFormat = " << std::hex << image->getPixelFormat() << std::dec << std::endl;
 #endif
 
     // get extensions object
@@ -2530,101 +2566,99 @@ char buff[300];
     // fail. Revert to uncompressed format in this case.
     if (isCompressedInternalFormat(_internalFormat) &&
         (((inwidth >> 2) << 2) != inwidth ||
-         ((inheight >> 2) << 2) != inheight))
+        ((inheight >> 2) << 2) != inheight))
     {
-        OSG_NOTICE<<"Received a request to compress an image, but image size is not a multiple of four ("<<inwidth<<"x"<<inheight<<"). Reverting to uncompressed.\n";
-        switch(_internalFormat)
+        OSG_NOTICE << "Received a request to compress an image, but image size is not a multiple of four (" << inwidth << "x" << inheight << "). Reverting to uncompressed.\n";
+        switch (_internalFormat)
         {
-            case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
-            case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-            case GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG:
-            case GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG:
-            case GL_ETC1_RGB8_OES:
-            case GL_COMPRESSED_SRGB_EXT:
-            case(GL_COMPRESSED_RGB8_ETC2):
-            case(GL_COMPRESSED_SRGB8_ETC2):
-            case GL_COMPRESSED_RGB: _internalFormat = GL_RGB; break;
-            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
-            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
-            case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
-            case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-            case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-            case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-            case GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG:
-            case GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG:
-            case GL_COMPRESSED_SRGB_ALPHA_EXT:
-            case(GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2):
-            case(GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2):
-            case(GL_COMPRESSED_RGBA8_ETC2_EAC):
-            case(GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC):
-            case GL_COMPRESSED_RGBA: _internalFormat = GL_RGBA; break;
-            case GL_COMPRESSED_ALPHA: _internalFormat = GL_ALPHA; break;
-            case GL_COMPRESSED_SLUMINANCE_EXT:
-            case GL_COMPRESSED_LUMINANCE: _internalFormat = GL_LUMINANCE; break;
-            case GL_COMPRESSED_SLUMINANCE_ALPHA_EXT:
-            case GL_COMPRESSED_LUMINANCE_ALPHA: _internalFormat = GL_LUMINANCE_ALPHA; break;
-            case GL_COMPRESSED_INTENSITY: _internalFormat = GL_INTENSITY; break;
-            case(GL_COMPRESSED_R11_EAC):
-            case(GL_COMPRESSED_SIGNED_R11_EAC):
-            case GL_COMPRESSED_SIGNED_RED_RGTC1_EXT:
-            case GL_COMPRESSED_RED_RGTC1_EXT: _internalFormat = GL_RED; break;
-            case(GL_COMPRESSED_RG11_EAC):
-            case(GL_COMPRESSED_SIGNED_RG11_EAC):
-            case GL_COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT:
-            case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_RG; break;
-            // MARCM_FIXME Statement from 3.1.4 patch.
-            // case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_LUMINANCE_ALPHA; break;
+        case(GL_COMPRESSED_SRGB_S3TC_DXT1_EXT):
+        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
+        case GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG:
+        case GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG:
+        case GL_ETC1_RGB8_OES:
+        case GL_COMPRESSED_SRGB_EXT:
+        case(GL_COMPRESSED_RGB8_ETC2):
+        case(GL_COMPRESSED_SRGB8_ETC2):
+        case GL_COMPRESSED_RGB: _internalFormat = GL_RGB; break;
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT):
+        case(GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT):
+        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
+        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
+        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
+        case GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG:
+        case GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG:
+        case GL_COMPRESSED_SRGB_ALPHA_EXT:
+        case(GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2):
+        case(GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2):
+        case(GL_COMPRESSED_RGBA8_ETC2_EAC):
+        case(GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC):
+        case GL_COMPRESSED_RGBA: _internalFormat = GL_RGBA; break;
+        case GL_COMPRESSED_ALPHA: _internalFormat = GL_ALPHA; break;
+        case GL_COMPRESSED_SLUMINANCE_EXT:
+        case GL_COMPRESSED_LUMINANCE: _internalFormat = GL_LUMINANCE; break;
+        case GL_COMPRESSED_SLUMINANCE_ALPHA_EXT:
+        case GL_COMPRESSED_LUMINANCE_ALPHA: _internalFormat = GL_LUMINANCE_ALPHA; break;
+        case GL_COMPRESSED_INTENSITY: _internalFormat = GL_INTENSITY; break;
+        case(GL_COMPRESSED_R11_EAC):
+        case(GL_COMPRESSED_SIGNED_R11_EAC):
+        case GL_COMPRESSED_SIGNED_RED_RGTC1_EXT:
+        case GL_COMPRESSED_RED_RGTC1_EXT: _internalFormat = GL_RED; break;
+        case(GL_COMPRESSED_RG11_EAC):
+        case(GL_COMPRESSED_SIGNED_RG11_EAC):
+        case GL_COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT:
+        case GL_COMPRESSED_RED_GREEN_RGTC2_EXT: _internalFormat = GL_RG; break;
         }
     }
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT,image->getPacking());
+    glPixelStorei(GL_UNPACK_ALIGNMENT, image->getPacking());
     unsigned int rowLength = image->getRowLength();
 
     bool useClientStorage = extensions->isClientStorageSupported && getClientStorageHint();
     if (useClientStorage)
     {
-        glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE,GL_TRUE);
+        glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
 
-        #if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE) && !defined(OSG_GL3_AVAILABLE)
-            glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_PRIORITY,0.0f);
-        #endif
+#if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE) && !defined(OSG_GL3_AVAILABLE)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_PRIORITY, 0.0f);
+#endif
 
-        #ifdef GL_TEXTURE_STORAGE_HINT_APPLE
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_STORAGE_HINT_APPLE , GL_STORAGE_CACHED_APPLE);
-        #endif
+#ifdef GL_TEXTURE_STORAGE_HINT_APPLE
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+#endif
     }
 
     unsigned char* dataPtr = (unsigned char*)image->data();
 
     // OSG_NOTICE<<"inwidth="<<inwidth<<" inheight="<<inheight<<" image->getFileName()"<<image->getFileName()<<std::endl;
 
-    bool needImageRescale = inwidth!=image->s() || inheight!=image->t();
+    bool needImageRescale = inwidth != image->s() || inheight != image->t();
     if (needImageRescale)
     {
         // resize the image to power of two.
 
         if (image->isMipmap())
         {
-            OSG_WARN<<"Warning:: Mipmapped osg::Image not a power of two, cannot apply to texture."<<std::endl;
+            OSG_WARN << "Warning:: Mipmapped osg::Image not a power of two, cannot apply to texture." << std::endl;
             return;
         }
         else if (compressed_image)
         {
-            OSG_WARN<<"Warning:: Compressed osg::Image not a power of two, cannot apply to texture."<<std::endl;
+            OSG_WARN << "Warning:: Compressed osg::Image not a power of two, cannot apply to texture." << std::endl;
             return;
         }
 
-        unsigned int newTotalSize = osg::Image::computeRowWidthInBytes(inwidth,image->getPixelFormat(),image->getDataType(),image->getPacking())*inheight;
-        dataPtr = new unsigned char [newTotalSize];
+        unsigned int newTotalSize = osg::Image::computeRowWidthInBytes(inwidth, image->getPixelFormat(), image->getDataType(), image->getPacking())*inheight;
+        dataPtr = new unsigned char[newTotalSize];
 
         if (!dataPtr)
         {
-            OSG_WARN<<"Warning:: Not enough memory to resize image, cannot apply to texture."<<std::endl;
+            OSG_WARN << "Warning:: Not enough memory to resize image, cannot apply to texture." << std::endl;
             return;
         }
 
-        if (!image->getFileName().empty()) { OSG_NOTICE << "Scaling image '"<<image->getFileName()<<"' from ("<<image->s()<<","<<image->t()<<") to ("<<inwidth<<","<<inheight<<")"<<std::endl; }
-        else { OSG_NOTICE << "Scaling image from ("<<image->s()<<","<<image->t()<<") to ("<<inwidth<<","<<inheight<<")"<<std::endl; }
+        if (!image->getFileName().empty()) { OSG_NOTICE << "Scaling image '" << image->getFileName() << "' from (" << image->s() << "," << image->t() << ") to (" << inwidth << "," << inheight << ")" << std::endl; }
+        else { OSG_NOTICE << "Scaling image from (" << image->s() << "," << image->t() << ") to (" << inwidth << "," << inheight << ")" << std::endl; }
 
         PixelStorageModes psm;
         psm.pack_alignment = image->getPacking();
@@ -2633,9 +2667,9 @@ char buff[300];
 
         // rescale the image to the correct size.
         gluScaleImage(&psm, image->getPixelFormat(),
-                        image->s(),image->t(),image->getDataType(),image->data(),
-                        inwidth,inheight,image->getDataType(),
-                        dataPtr);
+            image->s(), image->t(), image->getDataType(), image->data(),
+            inwidth, inheight, image->getDataType(),
+            dataPtr);
 
         rowLength = 0;
     }
@@ -2651,7 +2685,7 @@ char buff[300];
         dataPtr = reinterpret_cast<unsigned char*>(pbo->getOffset(image->getBufferIndex()));
         rowLength = 0;
 #ifdef DO_TIMING
-        OSG_NOTICE<<"after PBO "<<osg::Timer::instance()->delta_m(start_tick,osg::Timer::instance()->tick())<<"ms"<<std::endl;
+        OSG_NOTICE << "after PBO " << osg::Timer::instance()->delta_m(start_tick, osg::Timer::instance()->tick()) << "ms" << std::endl;
 #endif
     }
     else
@@ -2659,29 +2693,29 @@ char buff[300];
         pbo = 0;
     }
 #if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE)
-    glPixelStorei(GL_UNPACK_ROW_LENGTH,rowLength);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
 #endif
-    //VRV_PATCH
     unsigned int contextID = state.getContextID();
     TextureObject* textureObject = getTextureObject(contextID);
     textureObject->_currentMipMapToApply = -1;
 
-    if( !mipmappingRequired || useHardwareMipMapGeneration)
+    if (!mipmappingRequired || useHardwareMipMapGeneration)
     {
 
         GenerateMipmapMode mipmapResult = mipmapBeforeTexImage(state, useHardwareMipMapGeneration);
         if (mipmapResult == GENERATE_MIPMAP_NONE) {
-           //std::cout << image->getFileName() << " is not using mipmaps " << std::endl;
+            //std::cout << image->getFileName() << " is not using mipmaps " << std::endl;
         }
 
-        if ( !compressed_image)
+        if (!compressed_image)
         {
             numMipmapLevels = 1;
+
             OsgProfileC("glTexImage2D", tracy::Color::Purple);
 
             osg::CVSpan allocSpan(series_rt2, 4, "glTexImage2D");
 
-            glTexImage2D( target, 0, _internalFormat,
+            glTexImage2D(target, 0, _internalFormat,
                 inwidth, inheight, _borderWidth,
                 (GLenum)image->getPixelFormat(),
                 (GLenum)image->getDataType(),
@@ -2697,10 +2731,10 @@ char buff[300];
             numMipmapLevels = 1;
 
             GLint blockSize, size;
-            getCompressedSize(_internalFormat, inwidth, inheight, 1, blockSize,size);
+            getCompressedSize(_internalFormat, inwidth, inheight, 1, blockSize, size);
 
             extensions->glCompressedTexImage2D(target, 0, _internalFormat,
-                inwidth, inheight,0,
+                inwidth, inheight, 0,
                 size,
                 dataPtr);
         }
@@ -2710,72 +2744,40 @@ char buff[300];
     else
     {
         // we require mip mapping.
-        if(image->isMipmap())
+        if (image->isMipmap())
         {
 
             // image is mip mapped so we take the mip map levels from the image.
 
             numMipmapLevels = image->getNumMipmapLevels();
 
-            int width  = inwidth;
+            int width = inwidth;
             int height = inheight;
 
-            bool useTexStorrage = extensions->isTextureStorageEnabled;
-            GLenum sizedInternalFormat = 0;
+            GLenum texStoragesizedInternalFormat = extensions->isTextureStorageEnabled && extensions->isTexStorage2DSupported() && (_borderWidth == 0) ? selectSizedInternalFormat(image) : 0;
 
-            if(useTexStorrage)
-            {
-                if(extensions->isTexStorage2DSupported() && _borderWidth == 0)
-                {
-                    //calculate sized internal format
-                    if(!compressed_image)
-                    {
-                        if(isSizedInternalFormat(_internalFormat))
-                        {
-                            sizedInternalFormat = _internalFormat;
-                        }
-                        else
-                        {
-                            // VRV_PATCH - Just a comment
-                            // Watch out, this function just returns the first format 
-                            // match which might not be correct (chooses GL_SRGB8 before 
-                            // GL_RGB8 which messes up default Terrapage texture format of GL_RGB8)
-                            sizedInternalFormat = assumeSizedInternalFormat((GLenum)image->getInternalTextureFormat(), (GLenum)image->getDataType());
-                        }
-                    }
-                    else
-                    {
-                        if(isCompressedInternalFormatSupportedByTexStorrage(_internalFormat))
-                        {
-                            sizedInternalFormat = _internalFormat;
-                        }
-                    }
-                }
-
-                useTexStorrage &= sizedInternalFormat != 0;
-            }
-
-            if(useTexStorrage)
+            if (texStoragesizedInternalFormat != 0)
             {
                 {
                     OsgProfileC("glTexStorage2D(alloc)", tracy::Color::Purple);
 
-                    if (getTextureTarget()==GL_TEXTURE_CUBE_MAP)
+                    if (getTextureTarget() == GL_TEXTURE_CUBE_MAP)
                     {
                         osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
 
-                        if (target==GL_TEXTURE_CUBE_MAP_POSITIVE_X)
+                        if (target == GL_TEXTURE_CUBE_MAP_POSITIVE_X)
                         {
-                            extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, sizedInternalFormat, width, height);
+                            // only allocate on first face image
+                            extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, texStoragesizedInternalFormat, width, height);
                         }
                     }
                     else
                     {
-                        extensions->glTexStorage2D(target, numMipmapLevels, sizedInternalFormat, width, height);
+                        extensions->glTexStorage2D(target, numMipmapLevels, texStoragesizedInternalFormat, width, height);
                     }
                 }
-                
-                if( !compressed_image )
+
+                if (!compressed_image)
                 {
                     //VRV_PATCH
                     if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
@@ -2783,7 +2785,7 @@ char buff[300];
                         OsgProfileC("sendMipmaps", tracy::Color::Purple);
                         osg::CVSpan UpdateTick(series_rt2, 4, "sendMipmaps");
 
-                        for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                        for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                         {
 
                             if (width == 0)
@@ -2791,7 +2793,7 @@ char buff[300];
                             if (height == 0)
                                 height = 1;
 
-                            glTexSubImage2D( target, k,
+                            glTexSubImage2D(target, k,
                                 0, 0,
                                 width, height,
                                 (GLenum)image->getPixelFormat(),
@@ -2805,26 +2807,26 @@ char buff[300];
                     //VRV_PATCH
                     else {
                         // start streaming them
-                        textureObject->_currentMipMapToApply = numMipmapLevels-1;
+                        textureObject->_currentMipMapToApply = numMipmapLevels - 1;
                     }
                 }
                 else if (extensions->isCompressedTexImage2DSupported())
                 {
-                   //VRV_PATCH
-                   if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
-                   {
+                    //VRV_PATCH
+                    if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
+                    {
                         OsgProfileC("sendCompressedMipmaps", tracy::Color::Purple);
                         osg::CVSpan UpdateTick(series_rt2, 4, "sendCompressedMipmaps");
 
-                        GLint blockSize,size;
-                        for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                        GLint blockSize, size;
+                        for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                         {
                             if (width == 0)
                                 width = 1;
                             if (height == 0)
                                 height = 1;
 
-                            getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize,size);
+                            getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize, size);
 
                             //state.checkGLErrors("before extensions->glCompressedTexSubImage2D(");
 
@@ -2843,15 +2845,15 @@ char buff[300];
                     }
                     else {
                         // start streaming them
-                        textureObject->_currentMipMapToApply = numMipmapLevels-1;
+                        textureObject->_currentMipMapToApply = numMipmapLevels - 1;
                     }
                 }
             }
             else
             {
-                if( !compressed_image )
+                if (!compressed_image)
                 {
-                    for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                    for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                     {
 
                         if (width == 0)
@@ -2859,8 +2861,8 @@ char buff[300];
                         if (height == 0)
                             height = 1;
 
-                        glTexImage2D( target, k, _internalFormat,
-                             width, height, _borderWidth,
+                        glTexImage2D(target, k, _internalFormat,
+                            width, height, _borderWidth,
                             (GLenum)image->getPixelFormat(),
                             (GLenum)image->getDataType(),
                             dataPtr + image->getMipmapOffset(k));
@@ -2873,18 +2875,18 @@ char buff[300];
                 {
                     GLint blockSize, size;
 
-                    for( GLsizei k = 0 ; k < numMipmapLevels  && (width || height) ;k++)
+                    for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                     {
                         if (width == 0)
                             width = 1;
                         if (height == 0)
                             height = 1;
 
-                        getCompressedSize(_internalFormat, width, height, 1, blockSize,size);
+                        getCompressedSize(_internalFormat, width, height, 1, blockSize, size);
 
                         extensions->glCompressedTexImage2D(target, k, _internalFormat,
-                                                           width, height, _borderWidth,
-                                                           size, dataPtr + image->getMipmapOffset(k));
+                            width, height, _borderWidth,
+                            size, dataPtr + image->getMipmapOffset(k));
 
                         width >>= 1;
                         height >>= 1;
@@ -2894,18 +2896,18 @@ char buff[300];
         }
         else
         {
-            if ( !compressed_image)
+            if (!compressed_image)
             {
                 numMipmapLevels = 0;
 
-                gluBuild2DMipmaps( target, _internalFormat,
-                    inwidth,inheight,
+                gluBuild2DMipmaps(target, _internalFormat,
+                    inwidth, inheight,
                     (GLenum)image->getPixelFormat(), (GLenum)image->getDataType(),
                     dataPtr);
 
-                int width  = image->s();
+                int width = image->s();
                 int height = image->t();
-                for( numMipmapLevels = 0 ; (width || height) ; ++numMipmapLevels)
+                for (numMipmapLevels = 0; (width || height); ++numMipmapLevels)
                 {
                     width >>= 1;
                     height >>= 1;
@@ -2913,7 +2915,7 @@ char buff[300];
             }
             else
             {
-                OSG_WARN<<"Warning:: Compressed image cannot be mip mapped"<<std::endl;
+                OSG_WARN << "Warning:: Compressed image cannot be mip mapped" << std::endl;
             }
 
         }
@@ -2938,20 +2940,20 @@ char buff[300];
 
 #ifdef DO_TIMING
     static double s_total_time = 0.0;
-    double delta_time = osg::Timer::instance()->delta_m(start_tick,osg::Timer::instance()->tick());
+    double delta_time = osg::Timer::instance()->delta_m(start_tick, osg::Timer::instance()->tick());
     s_total_time += delta_time;
-    OSG_NOTICE<<"glTexImage2D "<<delta_time<<"ms  total "<<s_total_time<<"ms"<<std::endl;
+    OSG_NOTICE << "glTexImage2D " << delta_time << "ms  total " << s_total_time << "ms" << std::endl;
 #endif
 
     if (needImageRescale)
     {
         // clean up the resized image.
-        delete [] dataPtr;
+        delete[] dataPtr;
     }
 
     if (useClientStorage)
     {
-        glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE,GL_FALSE);
+        glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_FALSE);
     }
 
     osg::TextureObjectManager * tom = osg::get<TextureObjectManager>(state.getContextID());
@@ -2959,8 +2961,6 @@ char buff[300];
         tom->incrementTimeElapsed(elapsedTimer.elapsedTime());
     }
 }
-
-
 
 void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLint inInternalFormat, GLint numMipmapLevels) const
 {
@@ -3259,7 +3259,7 @@ void Texture::mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult)
             break;
         }
         case GENERATE_MIPMAP_TEX_PARAMETER:
-            glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+            glTexParameteri(getTextureTarget(), GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
             break;
         case GENERATE_MIPMAP_NONE:
             break;

@@ -482,18 +482,9 @@ void Material::setAlpha(Face face,float alpha)
     setDirty(true);
 }
 
-struct osgOglUboMaterial
-{
-   osg::Vec4f ambient;
-   osg::Vec4f diffuse;
-   osg::Vec4f emissivity;
-   osg::Vec4f specular;
-   float shininess;
-};
-
-void Material::apply(State& state) const
-{
 #ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
+void Material::apply(State&) const
+{
 
 #ifdef OSG_GL1_AVAILABLE
     if (_colorMode==OFF)
@@ -579,48 +570,55 @@ void Material::apply(State& state) const
         glMaterialf( GL_FRONT, GL_SHININESS, _shininessFront );
         glMaterialf( GL_BACK, GL_SHININESS, _shininessBack );
     }
+}
 #else
 
-//   static int warn = 1;
+struct osgOglUboMaterial
+{
+   osg::Vec4f ambient;
+   osg::Vec4f diffuse;
+   osg::Vec4f emissivity;
+   osg::Vec4f specular;
+   float shininess;
+};
 
-//   if (warn){
-//      warn = 0;
-//      OSG_NOTICE << "Material interface uses uniforms & modern OpenGL. Fixed Function pipeline is disabled" << std::endl;
-//   }
-   
+void Material::apply(State& state) const
+{
+//    OSG_NOTICE<<"Warning: Material::apply(State&) - not supported."<<std::endl;
+//    state.Color(_diffuseFront.r(), _diffuseFront.g(), _diffuseFront.b(), _diffuseFront.a());
 
-   GLExtensions * _extensions = GLExtensions::Get(state.getContextID(), true);
-   if (_ubo_index == 0)
-   {
-      _extensions->glGenBuffers(1, &_ubo_index);
-      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
-      //OSG_NOTICE << "Material allocating " << _ubo_index << std::endl;
-      if (_extensions->glObjectLabel) {
-         _extensions->glObjectLabel(GL_BUFFER, _ubo_index, -1, "material_uniforms");
-      }
-      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
-      // make sure it happens if the UBO is recreated.
-      _dirty = true;
-   }
+    // VRV Begin
+    GLExtensions * _extensions = GLExtensions::Get(state.getContextID(), true);
+    if (_ubo_index == 0)
+    {
+        _extensions->glGenBuffers(1, &_ubo_index);
+        _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
+        //OSG_NOTICE << "Material allocating " << _ubo_index << std::endl;
+        if (_extensions->glObjectLabel) {
+            _extensions->glObjectLabel(GL_BUFFER, _ubo_index, -1, "material_uniforms");
+        }
+        _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        // make sure it happens if the UBO is recreated.
+        _dirty = true;
+    }
 
-   if (isDirty())
-   {
-      _dirty = false;
-      osgOglUboMaterial material_ubo;
-      material_ubo.diffuse = _diffuseFront;
-      material_ubo.emissivity = _emissionFront;
-      material_ubo.ambient = _ambientFront;
-      material_ubo.specular = _specularFront;
-      material_ubo.shininess = _shininessFront;
-      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
-      _extensions->glBufferData(GL_UNIFORM_BUFFER, sizeof(osgOglUboMaterial), &material_ubo, GL_DYNAMIC_DRAW);
-      _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
-   }
+    if (isDirty())
+    {
+        _dirty = false;
+        osgOglUboMaterial material_ubo;
+        material_ubo.diffuse = _diffuseFront;
+        material_ubo.emissivity = _emissionFront;
+        material_ubo.ambient = _ambientFront;
+        material_ubo.specular = _specularFront;
+        material_ubo.shininess = _shininessFront;
+        _extensions->glBindBuffer(GL_UNIFORM_BUFFER, _ubo_index);
+        _extensions->glBufferData(GL_UNIFORM_BUFFER, sizeof(osgOglUboMaterial), &material_ubo, GL_DYNAMIC_DRAW);
+        _extensions->glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
 
-   // FIXME matches hard code in program.cpp
-   const int MATERIAL_INDEX = 0;
-	_extensions->glBindBufferBase(GL_UNIFORM_BUFFER, MATERIAL_INDEX, _ubo_index);
-   
-#endif
-
+    // FIXME matches hard code in program.cpp
+    const int MATERIAL_INDEX = 0;
+    _extensions->glBindBufferBase(GL_UNIFORM_BUFFER, MATERIAL_INDEX, _ubo_index);
+    // VRV End
 }
+#endif

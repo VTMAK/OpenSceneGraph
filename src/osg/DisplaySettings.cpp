@@ -117,7 +117,6 @@ void DisplaySettings::setDisplaySettings(const DisplaySettings& vs)
     _glContextFlags = vs._glContextFlags;
     _glContextProfileMask = vs._glContextProfileMask;
     _swapMethod = vs._swapMethod;
-    _syncSwapBuffers = vs._syncSwapBuffers;
 
     _vertexBufferHint = vs._vertexBufferHint;
 
@@ -241,7 +240,7 @@ void DisplaySettings::setDefaults()
 
     _implicitBufferAttachmentRenderMask = DEFAULT_IMPLICIT_BUFFER_ATTACHMENT;
     _implicitBufferAttachmentResolveMask = DEFAULT_IMPLICIT_BUFFER_ATTACHMENT;
-    _glContextVersion = "1.0";
+    _glContextVersion = OSG_GL_CONTEXT_VERSION;
     _glContextFlags = 0;
     _glContextProfileMask = 0;
 
