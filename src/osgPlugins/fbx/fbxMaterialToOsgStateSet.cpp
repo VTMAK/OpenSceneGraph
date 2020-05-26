@@ -75,18 +75,18 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
                       case FbxLayeredTexture::EBlendMode::eModulate:
                          texenv->setMode(osg::TexEnv::MODULATE);
                          break;
-                      //case FbxLayeredTexture::EBlendMode::eOver:
-                      //     texenv->setMode(osg::TexEnv::BLEND);
+                      //case AttrData::TEXENV_BLEND:
+                      //     texenv->setMode(osg::TexEnv::BLEND);  // No equivalent in FBX
                       //     break;
-                      //case AttrData::TEXENV_DECAL:
-                      //     texenv->setMode(osg::TexEnv::DECAL);
-                      //    break;
-                         //case AttrData::TEXENV_COLOR:
-                         //   texenv->setMode(osg::TexEnv::REPLACE);
-                         //   break;
-                      case FbxLayeredTexture::EBlendMode::eAdditive:
-                         texenv->setMode(osg::TexEnv::ADD);
-                         break;
+                     case FbxLayeredTexture::EBlendMode::eTranslucent:
+                        texenv->setMode(osg::TexEnv::DECAL);
+                        break;
+                     case FbxLayeredTexture::EBlendMode::eNormal:
+                        texenv->setMode(osg::TexEnv::REPLACE);
+                        break;
+                     case FbxLayeredTexture::EBlendMode::eAdditive:
+                        texenv->setMode(osg::TexEnv::ADD);
+                        break;
                       }
                    }
                    //stateset->setTextureAttribute(0, texenv);
