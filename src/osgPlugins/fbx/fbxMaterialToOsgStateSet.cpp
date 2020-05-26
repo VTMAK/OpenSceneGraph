@@ -46,20 +46,72 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
     const FbxProperty lProperty = pFbxMat->FindProperty(FbxSurfaceMaterial::sDiffuse);
     if (lProperty.IsValid())
     {
-        int lNbTex = lProperty.GetSrcObjectCount<FbxFileTexture>();
-        for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
-        {
-            FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty.GetSrcObject<FbxFileTexture>(lTextureIndex));
-            if (lTexture)
-            {
+       //FbxSurfaceMaterial::sMultiLayer
+       int layeredTextureCount = lProperty.GetSrcObjectCount<FbxLayeredTexture>();
+       if (layeredTextureCount > 0)
+       {
+          for (int j = 0; j < layeredTextureCount; j++)
+          {
+             FbxLayeredTexture* layered_texture = FbxCast<FbxLayeredTexture>(lProperty.GetSrcObject<FbxLayeredTexture>(j));
+             if (layered_texture)
+             {
+                int lcount = layered_texture->GetSrcObjectCount<FbxTexture>();
+                for (int k = 0; k < lcount; k++)
+                {
+                   FbxFileTexture* texture2 = FbxCast<FbxFileTexture>(layered_texture->GetSrcObject<FbxFileTexture>(k));
+
+                   result.diffuseLayerTexture.push_back(fbxTextureToOsgTexture(texture2));
+                   result.diffuseLayerChannel.push_back(std::string(texture2->UVSet.Get()));
+                   result.diffuseLayerScaleU.push_back(texture2->GetScaleU());
+                   result.diffuseLayerScaleV.push_back(texture2->GetScaleV());
+
+                   FbxLayeredTexture::EBlendMode BlendMode;
+                   osg::ref_ptr<osg::TexEnv> texenv = new osg::TexEnv;
+
+                   if (layered_texture->GetTextureBlendMode(k, BlendMode))
+                   {
+                      switch (BlendMode)
+                      {
+                      case FbxLayeredTexture::EBlendMode::eModulate:
+                         texenv->setMode(osg::TexEnv::MODULATE);
+                         break;
+                      //case FbxLayeredTexture::EBlendMode::eOver:
+                      //     texenv->setMode(osg::TexEnv::BLEND);
+                      //     break;
+                      //case AttrData::TEXENV_DECAL:
+                      //     texenv->setMode(osg::TexEnv::DECAL);
+                      //    break;
+                         //case AttrData::TEXENV_COLOR:
+                         //   texenv->setMode(osg::TexEnv::REPLACE);
+                         //   break;
+                      case FbxLayeredTexture::EBlendMode::eAdditive:
+                         texenv->setMode(osg::TexEnv::ADD);
+                         break;
+                      }
+                   }
+                   //stateset->setTextureAttribute(0, texenv);
+                   result.diffuseLayerEnv.push_back(texenv);
+                }
+             }
+          }
+       }
+       else
+       {
+          int lNbTex = lProperty.GetSrcObjectCount<FbxFileTexture>();
+          for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+          {
+             FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty.GetSrcObject<FbxFileTexture>(lTextureIndex));
+             if (lTexture)
+             {
                 result.diffuseTexture = fbxTextureToOsgTexture(lTexture);
                 result.diffuseChannel = lTexture->UVSet.Get();
                 result.diffuseScaleU = lTexture->GetScaleU();
                 result.diffuseScaleV = lTexture->GetScaleV();
-            }
-            //For now only allow 1 texture
-            break;
-        }
+             }
+             //For now only allow 1 texture
+             break;
+          }
+       }
     }
 
     double transparencyColorFactor = 1.0;

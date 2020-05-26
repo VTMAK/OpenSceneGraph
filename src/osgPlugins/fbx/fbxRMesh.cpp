@@ -227,14 +227,25 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
        pGeometry->setColorArray(colors.get());
        pGeometry->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
     }
-
+    else
+    {
+       // create the color of the geometry, one single for the whole geometry.
+       // for consistency of design even one single color must added as an element
+       // in a color array.
+       osg::Vec4Array* colors = new osg::Vec4Array;
+       // add a white color, colors take the form r,g,b,a with 0.0 off, 1.0 full on.
+       colors->push_back(osg::Vec4(1.0f, 1.0f, 0.0f, 1.0f));
+       // pass the color array to points geometry, note the binding to tell the geometry
+       // that only use one color for the whole object.
+       pGeometry->setColorArray(colors, osg::Array::BIND_OVERALL);
+    }
 
     if (mti < stateSetList.size())
     {
         osg::StateSet* stateSet = pGeometry->getOrCreateStateSet();
 
         bool transparent = false;
-        const StateSetContent& ssc = stateSetList[mti];
+        StateSetContent& ssc = stateSetList[mti];
         bool addExtendedMaterial = false;
 
         // set material...
@@ -242,6 +253,49 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         {
             stateSet->setAttributeAndModes(pMaterial);
             transparent = pMaterial->getDiffuse(osg::Material::FRONT).w() < 1.0f;
+        }
+
+        // diffuse multilayer texture map...
+        if (ssc.diffuseLayerTexture.size() > 0)
+        {
+           for (size_t i=0; i < ssc.diffuseLayerTexture.size(); i++)
+           {
+              std::string textureUnitName = kDIFFUSE_TEXTURE_UNIT;
+              // for the first texture we will use the default diffuse texture unit name
+              // after we will create new ones to have a different texture unit
+              if (i > 0)
+              {
+                 char buffer[3];
+                 _itoa(i, buffer, 10);
+                 textureUnitName += buffer;
+              }
+              unsigned int textureUnit = textureMap.getOrCreate(textureUnitName).index();
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.diffuseLayerTexture[i].get());
+              // Keep the texture unit in a map to reuse when generated texture coordinate
+              ssc.diffuseLayerTextureMap.insert(std::pair<int, std::string>(textureUnit, textureUnitName));
+              // Add other texture coordinated for multitexture
+              if (textureUnitName != kDIFFUSE_TEXTURE_UNIT)  // the diffuse texture coordinate have been added a little bit above
+              {
+                 pGeometry->setTexCoordArray(textureMap.getOrCreate(textureUnitName).index(), createVec2Array((precision & osgDB::Options::DOUBLE_PRECISION_TEX_COORD) != 0), osg::Array::BIND_PER_VERTEX);
+              }
+
+              if (ssc.diffuseLayerScaleU[i] != 1.0 || ssc.diffuseLayerScaleV[i] != 1.0)
+              {
+                 // set UV scaling...
+                 osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+                 osg::Matrix uvScaling;
+                 uvScaling.makeScale(osg::Vec3(ssc.diffuseLayerScaleU[i], ssc.diffuseLayerScaleV[i], 1.0));
+                 texmat->setMatrix(uvScaling);
+                 stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+              }
+
+              // setup transparency
+              if (!transparent && ssc.diffuseLayerTexture[i]->getImage())
+                 transparent = ssc.diffuseLayerTexture[i]->getImage()->isImageTranslucent();
+
+              // set texture environ
+              stateSet->setTextureAttribute(textureUnit, ssc.diffuseLayerEnv[i]);
+           }
         }
 
         // diffuse texture map...
@@ -643,7 +697,16 @@ std::string getUVChannelForTextureMap(std::vector<StateSetContent>& stateSetList
     for (unsigned int i = 0; i < stateSetList.size(); i++)
     {
         if (0 == strcmp(pName, FbxSurfaceMaterial::sDiffuse))
-            return stateSetList[i].diffuseChannel;
+        {
+           if (stateSetList[i].diffuseChannel.empty() == false)
+           {
+              return stateSetList[i].diffuseChannel;
+           }
+           else if(stateSetList[i].diffuseLayerChannel.size() > 0)
+           {
+              return stateSetList[i].diffuseLayerChannel[0];
+           }
+        }
         if (0 == strcmp(pName, FbxSurfaceMaterial::sTransparentColor))
             return stateSetList[i].opacityChannel;
         if (0 == strcmp(pName, FbxSurfaceMaterial::sReflection))
@@ -669,6 +732,11 @@ bool hasTexture(std::vector<StateSetContent>& stateSetList, const char* pName)
       if (0 == strcmp(pName, FbxSurfaceMaterial::sDiffuse))
       {
          if (stateSetList[i].diffuseTexture.get() != NULL)
+         {
+            return true;
+         }
+         // check if we have a multi layer
+         if (stateSetList[i].diffuseLayerTexture.size() > 0)
          {
             return true;
          }
@@ -731,6 +799,7 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
                       osg::Array* pVertices,
                       osg::Array* pNormals,
                       osg::Array* pTexCoords_diffuse,
+                      std::vector<osg::Array*>& pTexCoords_Multi_diffuse,
                       osg::Array* pTexCoords_opacity,
                       osg::Array* pTexCoords_emissive,
                       osg::Array* pTexCoords_ambient,
@@ -771,7 +840,16 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
         addVec2ArrayElement(*pTexCoords_diffuse, getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly0, meshVertex0));
         addVec2ArrayElement(*pTexCoords_diffuse, getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly1, meshVertex1));
         addVec2ArrayElement(*pTexCoords_diffuse, getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly2, meshVertex2));
+
+        // multi-texture
+        for (size_t j = 0; j < pTexCoords_Multi_diffuse.size(); j++)
+        {
+           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly0, meshVertex0));
+           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly1, meshVertex1));
+           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly2, meshVertex2));
+        }
     }
+
     if (pTexCoords_opacity && (pTexCoords_opacity != pTexCoords_diffuse))
     {
         addVec2ArrayElement(*pTexCoords_opacity, getElement(pFbxUVs_opacity, fbxMesh, i, posInPoly0, meshVertex0));
@@ -795,7 +873,14 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
     }
     // add more texture maps here...
 
-    if (pColors && bColorProperty == false)
+    if (pColors->getBinding() == osg::Geometry::BIND_OVERALL)  // if we set the color to be only one
+    {
+       // if we have a unique color
+       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty);
+    }
+    else if (pColors && bColorProperty == false)
     {
         addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly0, meshVertex0));
         addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly1, meshVertex1));
@@ -1038,11 +1123,24 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
         osg::Array* pNormals = pGeometry->getNormalArray();
 
         osg::Array* pTexCoords_diffuse = NULL;
+        std::vector<osg::Array*> pTexCoords_Multi_diffuse; // the first multi layer coordinate are in pTexCoords_diffuse
         osg::Array* pTexCoords_opacity = NULL;
         osg::Array* pTexCoords_emissive = NULL;
         osg::Array* pTexCoords_ambient = NULL;
         if (pFbxUVs_diffuse != 0)
+        {
            pTexCoords_diffuse = pGeometry->getTexCoordArray(textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index());
+           // Check diffuse multi layer
+           multiLayerMap::const_iterator iter = stateSetList[materialIndex].diffuseLayerTextureMap.begin();
+           for (;iter != stateSetList[materialIndex].diffuseLayerTextureMap.end(); ++iter)
+           { 
+              // if this is a multilayer, create other coord (this first on is created above 
+              if (iter->second != kDIFFUSE_TEXTURE_UNIT)
+              {
+                 pTexCoords_Multi_diffuse.push_back(pGeometry->getTexCoordArray(textureMap.getOrCreate(iter->second).index()));
+              }
+           }
+        }
         if (pFbxUVs_opacity != 0)
            pTexCoords_opacity = pGeometry->getTexCoordArray(textureMap.getOrCreate(kOPACITY_TEXTURE_UNIT).index());
         if (pFbxUVs_emissive != 0)
@@ -1062,7 +1160,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-               pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+               pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                pColors, foundColorProperty, lColorProperty);
             nVertex += 3;
         }
@@ -1080,7 +1178,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                 pColors, foundColorProperty, lColorProperty);
             readMeshTriangle(fbxMesh, i,
                 p10, 2, 3,
@@ -1088,7 +1186,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 fbxToOsgVertMap, osgToFbxNormMap,
                 pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                 pGeometry,
-                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                pColors, foundColorProperty, lColorProperty);
             nVertex += 4;
         }
@@ -1111,7 +1209,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                     fbxToOsgVertMap, osgToFbxNormMap,
                     pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
                     pGeometry,
-                    pVertices, pNormals, pTexCoords_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient, 
+                    pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                     pColors, foundColorProperty, lColorProperty);
             }
         }

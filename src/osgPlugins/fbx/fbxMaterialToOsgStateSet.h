@@ -7,6 +7,7 @@
 #include <osg/StateSet>
 #include <osgDB/Options>
 #include <osg/Texture2D>
+#include <osg/TexEnv>
 #include <osg/ExtendedMaterial>
 
 #include <vector>
@@ -17,6 +18,8 @@
 #pragma warning( default : 4996 )
 #endif
 #include <fbxsdk.h>
+
+typedef std::map<int, std::string> multiLayerMap;
 
 //The only things we need to create a new StateSet are texture and materials. So we store that in a pair.
 //We Don't store directly in stateSet because getOrCreateStateSet function set some parameters.
@@ -59,7 +62,11 @@ struct StateSetContent
 
     osg::ref_ptr<osg::Material> material;
 
+    // MultiLayer texture unit map
+    multiLayerMap diffuseLayerTextureMap;
+
     // textures objects...
+    std::vector<osg::ref_ptr<osg::Texture2D> > diffuseLayerTexture;
     osg::ref_ptr<osg::Texture2D> diffuseTexture;
     osg::ref_ptr<osg::Texture2D> opacityTexture;
     osg::ref_ptr<osg::Texture2D> reflectionTexture;
@@ -72,6 +79,7 @@ struct StateSetContent
     osg::ref_ptr<osg::Texture2D> glossTexture; // shininess 
 
     // textures maps channels names...
+    std::vector<std::string> diffuseLayerChannel;
     std::string diffuseChannel;
     std::string opacityChannel;
     std::string reflectionChannel;
@@ -91,6 +99,8 @@ struct StateSetContent
     // more combining factors here...
     double normalFactor;
 
+    std::vector<double> diffuseLayerScaleU;
+    std::vector<double> diffuseLayerScaleV;
     double diffuseScaleU;
     double diffuseScaleV;
     double opacityScaleU;
@@ -107,6 +117,8 @@ struct StateSetContent
     double specularScaleV;
     double glossScaleU;
     double glossScaleV;
+
+    std::vector<osg::ref_ptr<osg::TexEnv>> diffuseLayerEnv;
 
     osg::ref_ptr<osg::ExtendedMaterial> extendedmaterial;
 };
