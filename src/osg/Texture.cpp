@@ -855,10 +855,12 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* 
     // not using so we have to search _orphanedTextureObjects for one
     // that is marked with _canDelete = true
     ref_ptr<Texture::TextureObject> to = NULL;
-
-    for (Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
-        itr != _orphanedTextureObjects.end(); ++itr)
+    TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
+    for (TextureObjectList::iterator nextItr = itr;
+        itr != _orphanedTextureObjects.end(); itr = nextItr)
     {
+        nextItr++;
+
         // VRV is done with the texture object
         if ((*itr)->getCanDelete())
         {
