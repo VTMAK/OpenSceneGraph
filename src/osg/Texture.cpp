@@ -855,8 +855,8 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* 
     // not using so we have to search _orphanedTextureObjects for one
     // that is marked with _canDelete = true
     ref_ptr<Texture::TextureObject> to = NULL;
-    TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
-    for (TextureObjectList::iterator nextItr = itr;
+    Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
+    for (Texture::TextureObjectList::iterator nextItr = itr;
         itr != _orphanedTextureObjects.end(); itr = nextItr)
     {
         nextItr++;
