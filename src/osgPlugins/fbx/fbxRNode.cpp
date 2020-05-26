@@ -928,9 +928,12 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
         }
     }
 
+    // IMPORTANT NOTE : for now we are disabling reading the animation key frame
+    // This cause a problem in VRF (defect 67974 "Placement of entities near another FBX entity"
     osgAnimation::Animation* animation = NULL;
+    std::string animName;
     // NOTE animName = the target name of the animation
-    std::string animName = readFbxAnimation(pNode, pNode->GetName(), animation);
+    //std::string animName = readFbxAnimation(pNode, pNode->GetName(), animation); 
 
     osg::Matrix localMatrix;
     makeLocalMatrix(pNode, localMatrix, appName);
