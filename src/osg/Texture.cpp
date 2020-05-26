@@ -862,13 +862,22 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* 
         // VRV is done with the texture object
         if ((*itr)->getCanDelete())
         {
-            to = *itr;
-            // OSG is going to re-use this texture object
-            // so tell VRV that it is no longer orphaned
-            to->setIsOrphaned(false);
-
-            _orphanedTextureObjects.erase(itr);
-            break;
+            if ((*itr)->getImmutable())
+            {
+               //immutable textures cannot be reused so delete it
+               GLuint id = (*itr)->id();
+               glDeleteTextures(1L, &id);
+               _orphanedTextureObjects.erase(itr);
+            }
+            else
+            {
+               to = *itr;
+               // OSG is going to re-use this texture object
+               // so tell VRV that it is no longer orphaned
+               to->setIsOrphaned(false);
+               _orphanedTextureObjects.erase(itr);
+               break;
+            }
         }
     }
 

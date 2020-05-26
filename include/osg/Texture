@@ -1036,7 +1036,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _canDelete(true),
                 // It is not orphaned - an orphaned texture is one that
                 // OSG says is OK to delete
-                _isOrphaned(false)
+                _isOrphaned(false),
+                _immutable(false)
                 // END VRV PATCH
             {}
 
@@ -1059,7 +1060,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _canDelete(true),
                 // It is not orphaned - an orphaned texture is one that
                 // OSG says is OK to delete
-                _isOrphaned(false)
+                _isOrphaned(false),
+                _immutable(false)
                 // END VRV PATCH
             {}
 
@@ -1090,7 +1092,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _canDelete(true),
                 // It is not orphaned - an orphaned texture is one that
                 // OSG says is OK to delete
-                _isOrphaned(false)
+                _isOrphaned(false),
+                _immutable(false)
                 // END VRV PATCH
             {}                
 
@@ -1147,6 +1150,22 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             inline void setCanDelete(bool deleteTexObj ) { _canDelete = deleteTexObj; }
             inline bool getCanDelete() { return _canDelete; }
 
+            //Used by VRV to set a texture that has been made resident to immutable. 
+            // Currently does nothing except tells OSG to delete this texture object instead of 
+            // attempting to reuse it. 
+            //In the future it could be used to avoid calling any opengl functions that might modify the textures state.
+            inline void setImmutable(bool immutable) 
+            { 
+               if (!_immutable)
+               {
+                  _immutable = immutable;
+               }
+            }
+            inline bool getImmutable()
+            {
+               return _immutable;
+            }
+
             // When a texture is added to the _orphanedTextureObjects then _isOrphaned is true
             // This means that OSG is done with this texture (but not necessarily VRV)
             inline void setIsOrphaned(bool orphaned)  { _isOrphaned = orphaned; }
@@ -1168,6 +1187,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             int                 _subCurrentMipMapToApply;
             bool                _canDelete;
             bool                _isOrphaned;
+            bool                _immutable;
             // ENV VRV PATCH
         protected:
             virtual ~TextureObject();
