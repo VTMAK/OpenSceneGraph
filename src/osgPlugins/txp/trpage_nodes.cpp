@@ -814,6 +814,10 @@ trpgChildRef::~trpgChildRef()
     Reset();
 }
 
+// Generic macros for min()/max() cause issues with std::numeric_limits<>::min()/max() below.
+#undef min
+#undef max
+
 // Reset
 void trpgChildRef::Reset()
 {

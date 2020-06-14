@@ -15,6 +15,8 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0 FATAL_ERROR)
 
+cmake_policy( SET CMP0074 NEW )  # Allow FOO_ROOT variables to allow easier package searching.
+
 if(COMMAND cmake_policy)
     # Works around warnings libraries linked against that don't
     # have absolute paths (e.g. -lpthreads)
