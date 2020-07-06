@@ -227,18 +227,6 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
        pGeometry->setColorArray(colors.get());
        pGeometry->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
     }
-    else
-    {
-       // create the color of the geometry, one single for the whole geometry.
-       // for consistency of design even one single color must added as an element
-       // in a color array.
-       osg::Vec4Array* colors = new osg::Vec4Array;
-       // add a white color, colors take the form r,g,b,a with 0.0 off, 1.0 full on.
-       colors->push_back(osg::Vec4(1.0f, 1.0f, 0.0f, 1.0f));
-       // pass the color array to points geometry, note the binding to tell the geometry
-       // that only use one color for the whole object.
-       pGeometry->setColorArray(colors, osg::Array::BIND_OVERALL);
-    }
 
     if (mti < stateSetList.size())
     {
@@ -258,6 +246,16 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         // diffuse multilayer texture map...
         if (ssc.diffuseLayerTexture.size() > 0)
         {
+            // create the color of the geometry, one single for the whole geometry.
+            // for consistency of design even one single color must added as an element
+            // in a color array.
+            osg::Vec4Array* colors = new osg::Vec4Array;
+            // add a white color, colors take the form r,g,b,a with 0.0 off, 1.0 full on.
+            colors->push_back(osg::Vec4(1.0f, 1.0f, 0.0f, 1.0f));
+            // pass the color array to points geometry, note the binding to tell the geometry
+            // that only use one color for the whole object.
+            pGeometry->setColorArray(colors, osg::Array::BIND_OVERALL);
+
            for (size_t i=0; i < ssc.diffuseLayerTexture.size(); i++)
            {
               std::string textureUnitName = kDIFFUSE_TEXTURE_UNIT;
@@ -873,7 +871,7 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
     }
     // add more texture maps here...
 
-    if (pColors->getBinding() == osg::Geometry::BIND_OVERALL)  // if we set the color to be only one
+    if (pColors && pColors->getBinding() == osg::Geometry::BIND_OVERALL)  // if we set the color to be only one
     {
        // if we have a unique color
        addColorArrayElement(*pColors, colorProperty);
