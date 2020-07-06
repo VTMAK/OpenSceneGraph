@@ -253,6 +253,8 @@ SET(TARGET_H
 #    ${OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC}
 #    ${LIB_PUBLIC_HEADERS}
 SET(TARGET_SRC
+    #Referenced.cpp needs to be first so that the global mutex is the first static create and last one destroyed.
+    Referenced.cpp
     os_utils.cpp
     AlphaFunc.cpp
     AnimationPath.cpp
@@ -373,7 +375,6 @@ SET(TARGET_SRC
     Projection.cpp
     ProxyNode.cpp
     Quat.cpp
-    Referenced.cpp
     SampleMaski.cpp
     Sampler.cpp
     Scissor.cpp
