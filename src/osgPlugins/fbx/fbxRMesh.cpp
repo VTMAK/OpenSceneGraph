@@ -1131,13 +1131,16 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
         {
            pTexCoords_diffuse = pGeometry->getTexCoordArray(textureMap.getOrCreate(kDIFFUSE_TEXTURE_UNIT).index());
            // Check diffuse multi layer
-           multiLayerMap::const_iterator iter = stateSetList[materialIndex].diffuseLayerTextureMap.begin();
-           for (;iter != stateSetList[materialIndex].diffuseLayerTextureMap.end(); ++iter)
-           { 
-              // if this is a multilayer, create other coord (this first on is created above 
-              if (iter->second != kDIFFUSE_TEXTURE_UNIT)
+           if (stateSetList.size() > 0)
+           {
+              multiLayerMap::const_iterator iter = stateSetList[materialIndex].diffuseLayerTextureMap.begin();
+              for (; iter != stateSetList[materialIndex].diffuseLayerTextureMap.end(); ++iter)
               {
-                 pTexCoords_Multi_diffuse.push_back(pGeometry->getTexCoordArray(textureMap.getOrCreate(iter->second).index()));
+                 // if this is a multilayer, create other coord (this first on is created above 
+                 if (iter->second != kDIFFUSE_TEXTURE_UNIT)
+                 {
+                    pTexCoords_Multi_diffuse.push_back(pGeometry->getTexCoordArray(textureMap.getOrCreate(iter->second).index()));
+                 }
               }
            }
         }
