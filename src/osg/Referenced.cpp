@@ -119,6 +119,19 @@ OpenThreads::Mutex& getNumObjectMutex()
 static int s_numObjects = 0;
 #endif
 
+//Start VRV_PATCH
+//#define DEBUG_ENABLE_OBJECT_TRACKING
+
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+bool Referenced::theEnableObjectTracking = true;
+#else
+bool Referenced::theEnableObjectTracking = false;
+#endif
+
+std::set<Referenced*>* Referenced::theTrackedObjectSet = 0;
+OpenThreads::Mutex* Referenced::theObjectTrackingMutex = 0;
+//End VRV_PATCH
+
 Referenced::Referenced():
 #if defined(_OSG_REFERENCED_USE_ATOMIC_OPERATIONS)
     _observerSet(0),
@@ -141,6 +154,15 @@ Referenced::Referenced():
     }
 #endif
 
+    //Start VRV_PATCH
+    #ifdef DEBUG_ENABLE_OBJECT_TRACKING
+        if (isObjectTrackingEnabled())
+        {
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(objectTrackingMutex());
+        trackedObjects().insert(this);
+        }
+    #endif
+    //End VRV_PATCH
 }
 
 Referenced::Referenced(bool /*threadSafeRefUnref*/):
@@ -164,6 +186,15 @@ Referenced::Referenced(bool /*threadSafeRefUnref*/):
         printf("Object created, total num=%d\n",s_numObjects);
     }
 #endif
+//Start VRV_PATCH
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+    if (isObjectTrackingEnabled())
+    {
+       OpenThreads::ScopedLock<OpenThreads::Mutex> lock(objectTrackingMutex());
+       trackedObjects().insert(this);
+    }
+#endif
+//End VRV_PATCH
 }
 
 Referenced::Referenced(const Referenced&):
@@ -187,6 +218,15 @@ Referenced::Referenced(const Referenced&):
         printf("Object created, total num=%d\n",s_numObjects);
     }
 #endif
+//Start VRV_PATCH
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+    if (isObjectTrackingEnabled())
+    {
+       OpenThreads::ScopedLock<OpenThreads::Mutex> lock(objectTrackingMutex());
+       trackedObjects().insert(this);
+    }
+#endif
+//End VRV_PATCH
 }
 
 Referenced::~Referenced()
@@ -218,6 +258,52 @@ Referenced::~Referenced()
 #if !defined(_OSG_REFERENCED_USE_ATOMIC_OPERATIONS)
     if (_refMutex) delete _refMutex;
 #endif
+
+//Start VRV_PATCH
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+    if (isObjectTrackingEnabled())
+    {
+       OpenThreads::ScopedLock<OpenThreads::Mutex> lock(objectTrackingMutex());
+       trackedObjects().erase(this);
+    }
+#endif
+}
+
+bool Referenced::isObjectTrackingEnabled()
+{
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+   return theEnableObjectTracking;
+#else
+   return false;
+#endif
+}
+
+void Referenced::setObjectTrackingEnabled(bool enable)
+{
+#ifdef DEBUG_ENABLE_OBJECT_TRACKING
+   theEnableObjectTracking = enable;
+#endif
+}
+
+std::set<Referenced*>& Referenced::trackedObjects()
+{
+   //Create the set the first time we need it
+   if(theTrackedObjectSet == NULL)
+   {
+      theTrackedObjectSet = new std::set<Referenced*>();
+   }
+   return *theTrackedObjectSet;
+}
+
+OpenThreads::Mutex& Referenced::objectTrackingMutex()
+{
+   //Create the mutex the first time we need it
+   if(theObjectTrackingMutex == NULL)
+   {
+      theObjectTrackingMutex = new OpenThreads::Mutex();
+   }
+   return *theObjectTrackingMutex;
+//End VRV_PATCH
 }
 
 ObserverSet* Referenced::getOrCreateObserverSet() const

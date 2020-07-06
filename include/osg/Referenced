@@ -20,6 +20,8 @@
 #include <OpenThreads/Mutex>
 #include <OpenThreads/Atomic>
 
+#include <set>
+
 #if !defined(_OPENTHREADS_ATOMIC_USE_MUTEX)
 # define _OSG_REFERENCED_USE_ATOMIC_OPERATIONS
 #endif
@@ -135,6 +137,14 @@ public:
         /** Get a DeleteHandler.*/
         static DeleteHandler* getDeleteHandler();
 
+        //These are placeholders for when object tracking is compiled on. 
+        // isObjectTrackingEnabled will return false unless DEBUG_ENABLE_OBJECT_TRACKING is defined
+        //We must maintain binary compatibility between object tracking on and off so the only
+        // dll needed is the osg dll for turning object tracking on.
+        static bool isObjectTrackingEnabled();
+        static void setObjectTrackingEnabled(bool enable);
+        static std::set<Referenced*>& trackedObjects();
+        static OpenThreads::Mutex& objectTrackingMutex();
 
     protected:
 
@@ -156,6 +166,13 @@ public:
 
         mutable void*                   _observerSet;
 #endif
+
+        // VRV_PATCH
+
+        static bool theEnableObjectTracking;
+        static std::set<Referenced*>* theTrackedObjectSet;
+        static OpenThreads::Mutex*  theObjectTrackingMutex;
+        //end VRV_PATCH
 };
 
 inline int Referenced::ref() const
