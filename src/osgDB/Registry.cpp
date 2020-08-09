@@ -1348,7 +1348,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
     std::sort(results.begin(), results.end());
     ReaderWriter::ReadResult result = results.back();
 
-    pluginLog << libraryName << "," << readFunctor._filename << ToString(result.status()) << std::endl;
+    pluginLog << libraryName << "," << readFunctor._filename << "," << ToString(result.status()) << std::endl;
 
     return result;
 }
