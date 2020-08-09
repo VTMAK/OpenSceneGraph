@@ -1248,7 +1248,11 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
             ReaderWriter::ReadResult result = openArchiveImplementation(archiveName,ReaderWriter::READ, 4096, readFunctor._options);
 
-            if (!result.validArchive()) return result;
+            if (!result.validArchive()) 
+            {
+                pluginLog << libraryName << "," << archiveExtension << ",INVALID ARCHIVE" << std::endl;
+                return result;
+            }
 
             osgDB::Archive* archive = result.getArchive();
 
@@ -1267,6 +1271,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
             if (rf->isValid(result))
             {
                 OSG_INFO<<"Read object from archive"<<std::endl;
+                pluginLog << libraryName << "," << archiveExtension << ",LOADED" << std::endl;
                 return result;
             }
             OSG_INFO<<"Failed to read object from archive"<<std::endl;
@@ -1282,7 +1287,11 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
     for(;itr.valid();++itr)
     {
         ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
-        if (readFunctor.isValid(rr)) return rr;
+        if (readFunctor.isValid(rr)) 
+        {
+            pluginLog << libraryName << "," << readFunctor._filename << ",LOADED" << std::endl;
+            return rr;
+        }
         else results.push_back(rr);
     }
 
@@ -1291,7 +1300,11 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
     for(;aaitr.valid();++aaitr)
     {
         ReaderWriter::ReadResult rr = readFunctor.doRead(*aaitr);
-        if (readFunctor.isValid(rr)) return rr;
+        if (readFunctor.isValid(rr)) 
+        {
+            pluginLog << libraryName << "," << readFunctor._filename << ",LOADED" << std::endl;
+            return rr;
+        }
         else
         {
             // don't pass on FILE_NOT_FOUND results as we don't want to prevent non archive plugins that haven't been
@@ -1330,10 +1343,12 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
         if (rw)
         {
+            pluginLog << libraryName << "," << readFunctor._filename << ",FOUND" << std::endl;
             return readFunctor.doRead(*rw);
         }
         else
         {
+            pluginLog << "CURL to read from server!!," << readFunctor._filename << ",NOT FOUND" << std::endl;
             return  ReaderWriter::ReadResult("Could not find the .curl plugin to read from server.");
         }
     }
