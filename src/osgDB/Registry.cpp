@@ -1250,7 +1250,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
             if (!result.validArchive()) 
             {
-                pluginLog << libraryName << "," << archiveExtension << ",INVALID ARCHIVE" << std::endl;
+                pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << archiveExtension << ",INVALID ARCHIVE" << std::endl;
                 return result;
             }
 
@@ -1271,7 +1271,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
             if (rf->isValid(result))
             {
                 OSG_INFO<<"Read object from archive"<<std::endl;
-                pluginLog << libraryName << "," << archiveExtension << ",LOADED" << std::endl;
+                pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << archiveExtension << ",LOADED" << std::endl;
                 return result;
             }
             OSG_INFO<<"Failed to read object from archive"<<std::endl;
@@ -1289,7 +1289,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << libraryName << "," << readFunctor._filename << ",LOADED" << std::endl;
+            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << readFunctor._filename << ",LOADED" << std::endl;
             return rr;
         }
         else results.push_back(rr);
@@ -1302,7 +1302,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*aaitr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << libraryName << "," << readFunctor._filename << ",LOADED" << std::endl;
+            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << readFunctor._filename << ",LOADED" << std::endl;
             return rr;
         }
         else
