@@ -1289,7 +1289,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << readFunctor._filename << ",LOADED" << std::endl;
+            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << getFileExtension(readFunctor._filename) << ",LOADED" << std::endl;
             return rr;
         }
         else results.push_back(rr);
@@ -1302,7 +1302,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*aaitr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << readFunctor._filename << ",LOADED" << std::endl;
+            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << getFileExtension(readFunctor._filename) << ",LOADED" << std::endl;
             return rr;
         }
         else
@@ -1322,7 +1322,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
             ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
             if (readFunctor.isValid(rr)) 
             {
-                pluginLog << libraryName << "," << readFunctor._filename << ",FOUND" << std::endl;
+                pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",FOUND" << std::endl;
                 return rr;
             }
             else
@@ -1343,19 +1343,19 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
         if (rw)
         {
-            pluginLog << libraryName << "," << readFunctor._filename << ",FOUND" << std::endl;
+            pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",FOUND" << std::endl;
             return readFunctor.doRead(*rw);
         }
         else
         {
-            pluginLog << "CURL to read from server!!," << readFunctor._filename << ",NOT FOUND" << std::endl;
+            pluginLog << "CURL to read from server!!," << getFileExtension(readFunctor._filename) << ",NOT FOUND" << std::endl;
             return  ReaderWriter::ReadResult("Could not find the .curl plugin to read from server.");
         }
     }
 
     if (results.empty())
     {
-        pluginLog << libraryName << "," << readFunctor._filename << ",NOT FOUND" << std::endl;
+        pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",NOT FOUND" << std::endl;
         return ReaderWriter::ReadResult("Could not find plugin to read objects from file \""+readFunctor._filename+"\".");
     }
 
@@ -1363,7 +1363,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
     std::sort(results.begin(), results.end());
     ReaderWriter::ReadResult result = results.back();
 
-    pluginLog << libraryName << "," << readFunctor._filename << "," << ToString(result.status()) << std::endl;
+    pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << "," << ToString(result.status()) << std::endl;
 
     return result;
 }
