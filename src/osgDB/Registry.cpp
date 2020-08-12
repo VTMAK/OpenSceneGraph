@@ -67,7 +67,6 @@ static osg::ApplicationUsageProxy Registry_e2(osg::ApplicationUsage::ENVIRONMENT
 // from MimeTypes.cpp
 extern const char* builtinMimeTypeExtMappings[];
 
-
 static const char *pluginLogPath = ::getenv("OSG_PLUGIN_LOG_PATH");
 class PluginLog
 {
@@ -80,7 +79,7 @@ public:
             if (!logger.out.is_open())
             {
                 logger.out.open(pluginLogPath);
-                logger.out.seekp(std::ios_base::end, 0);
+                logger.out.seekp(0, std::ios_base::end);
             }
 
             logger.out << output;
@@ -103,6 +102,38 @@ private:
 };
 
 static PluginLog pluginLog;
+
+static std::string ToString(Registry::LoadStatus status)
+{
+    if (status == Registry::LoadStatus::LOADED)
+    {
+        return "LOADED";
+    }
+    else if (status == Registry::LoadStatus::NOT_LOADED)
+    {
+        return "NOT LOADED";
+    }
+    else if (status == Registry::LoadStatus::PREVIOUSLY_LOADED)
+    {
+        return "PREVIOUSLY LOADED";
+    }
+
+    return "** UNKNOWN **";
+}
+
+static Registry::LoadStatus TimedLoadLibrary(Registry *registry, const std::string &libraryName, const std::string &extension, bool writeToLog)
+{
+    osg::Timer_t start = osg::Timer::instance()->tick();
+    const auto loadStatus = registry->loadLibrary(libraryName);
+    const auto loadLibraryTime = osg::Timer::instance()->delta_m(start,osg::Timer::instance()->tick());
+
+    if (writeToLog)
+    {
+        pluginLog << libraryName << "," << extension << "," << loadLibraryTime << "," << ToString(loadStatus) << std::endl;
+    }
+
+    return loadStatus;
+}
 
 class Registry::AvailableReaderWriterIterator
 {
@@ -693,19 +724,16 @@ ImageProcessor* Registry::getImageProcessorForExtension(const std::string& ext)
     std::string libraryName = createLibraryNameForExtension(ext);
     OSG_INFO << "Now checking for plug-in "<<libraryName<< std::endl;
     bool loaded = false;
-    if (loadLibrary(libraryName)==LOADED)
+    if (TimedLoadLibrary(this, libraryName, ext, true)==LOADED)
     {
         loaded = true;
         OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_pluginMutex);
         if (!_ipList.empty())
         {
             OSG_INFO << "Loaded plug-in "<<libraryName<<" and located ImageProcessor"<< std::endl;
-            pluginLog << libraryName << "," << ext << ",FOUND" << std::endl;
             return _ipList.front().get();
         }
     }
-
-    pluginLog << libraryName << "," << ext << (loaded ? ",REJECTED" : ",NOT FOUND") << std::endl;
 
     return 0;
 }
@@ -856,7 +884,10 @@ Registry::LoadStatus Registry::loadLibrary(const std::string& fileName)
     OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_pluginMutex);
 
     DynamicLibraryList::iterator ditr = getLibraryItr(fileName);
-    if (ditr!=_dlList.end()) return PREVIOUSLY_LOADED;
+    if (ditr!=_dlList.end()) 
+    {
+        return PREVIOUSLY_LOADED;
+    }
 
     _openingLibrary=true;
 
@@ -930,7 +961,7 @@ ReaderWriter* Registry::getReaderWriterForExtension(const std::string& ext)
     OSG_NOTIFY(INFO) << "Now checking for plug-in "<<libraryName<< std::endl;
 
     bool loaded = false;
-    if (loadLibrary(libraryName)==LOADED)
+    if (TimedLoadLibrary(this, libraryName, ext, true)==LOADED)
     {
         loaded = true;
         for(ReaderWriterList::iterator itr=_rwList.begin();
@@ -941,17 +972,13 @@ ReaderWriter* Registry::getReaderWriterForExtension(const std::string& ext)
             {
                 if ((*itr)->acceptsExtension(ext))
                 {
-                    pluginLog << libraryName << "," << ext << ",FOUND" << std::endl;
                     return (*itr).get();
                 }
             }
         }
     }
 
-    pluginLog << libraryName << "," << ext << (loaded ? ",REJECTED" : ",NOT FOUND") << std::endl;
-
     return NULL;
-
 }
 
 ReaderWriter* Registry::getReaderWriterForMimeType(const std::string& mimeType)
@@ -1184,49 +1211,6 @@ std::string Registry::findLibraryFileImplementation(const std::string& filename,
     return std::string();
 }
 
-static std::string ToString(ReaderWriter::ReadResult::ReadStatus result)
-{
-    /*
-                        NOT_IMPLEMENTED, //!< read*() method not implemented in concrete ReaderWriter.
-                    FILE_NOT_HANDLED, //!< File is not appropriate for this file reader, due to some incompatibility, but *not* a read error.
-                    FILE_NOT_FOUND, //!< File could not be found or could not be read.
-                    ERROR_IN_READING_FILE, //!< File found, loaded, but an error was encountered during processing.
-                    FILE_LOADED, //!< File successfully found, loaded, and converted into osg.
-                    FILE_LOADED_FROM_CACHE, //!< File found in cache and returned.
-                    FILE_REQUESTED, //!< Asynchronous file read has been requested, but returning immediately, keep polling plugin until file read has been completed.
-                    INSUFFICIENT_MEMORY_TO_LOAD //!< File found but not loaded because estimated required memory surpasses available memory.
-    */
-    switch(result) 
-    {
-    case ReaderWriter::ReadResult::ReadStatus::NOT_IMPLEMENTED:
-        return "NOT IMPLEMENTED";
-
-    case ReaderWriter::ReadResult::ReadStatus::FILE_NOT_HANDLED:
-        return "FILE NOT HANDLED";
-
-    case ReaderWriter::ReadResult::ReadStatus::FILE_NOT_FOUND:
-        return "NOT FOUND";
-
-    case ReaderWriter::ReadResult::ReadStatus::ERROR_IN_READING_FILE:
-        return "ERROR READING FILE";
-
-    case ReaderWriter::ReadResult::ReadStatus::FILE_LOADED:
-        return "LOADED";
-
-    case ReaderWriter::ReadResult::ReadStatus::FILE_LOADED_FROM_CACHE:
-        return "LOADED (FROM CACHE)";
-
-    case ReaderWriter::ReadResult::ReadStatus::FILE_REQUESTED:
-        return "LOADED (ASYNC)";
-
-    case ReaderWriter::ReadResult::ReadStatus::INSUFFICIENT_MEMORY_TO_LOAD:
-        return "OUT OF MEMORY";
-    
-    default:
-        return "BAD RESULT STATUS**";
-    }
-}
-
 ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 {
     for(ArchiveExtensionList::iterator aitr=_archiveExtList.begin();
@@ -1250,7 +1234,6 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
             if (!result.validArchive()) 
             {
-                pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << archiveExtension << ",INVALID ARCHIVE" << std::endl;
                 return result;
             }
 
@@ -1271,7 +1254,6 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
             if (rf->isValid(result))
             {
                 OSG_INFO<<"Read object from archive"<<std::endl;
-                pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << archiveExtension << ",LOADED" << std::endl;
                 return result;
             }
             OSG_INFO<<"Failed to read object from archive"<<std::endl;
@@ -1289,7 +1271,6 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << getFileExtension(readFunctor._filename) << ",LOADED" << std::endl;
             return rr;
         }
         else results.push_back(rr);
@@ -1302,7 +1283,6 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
         ReaderWriter::ReadResult rr = readFunctor.doRead(*aaitr);
         if (readFunctor.isValid(rr)) 
         {
-            pluginLog << createLibraryNameForFile(readFunctor._filename) << "," << getFileExtension(readFunctor._filename) << ",LOADED" << std::endl;
             return rr;
         }
         else
@@ -1315,14 +1295,14 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
     // now look for a plug-in to load the file.
     std::string libraryName = createLibraryNameForFile(readFunctor._filename);
-    if (loadLibrary(libraryName)!=NOT_LOADED)
+    const bool writeToLog = (readFunctor._filename[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(readFunctor._filename), writeToLog)!=NOT_LOADED)
     {
         for(;itr.valid();++itr)
         {
             ReaderWriter::ReadResult rr = readFunctor.doRead(*itr);
             if (readFunctor.isValid(rr)) 
             {
-                pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",FOUND" << std::endl;
                 return rr;
             }
             else
@@ -1343,27 +1323,22 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
         if (rw)
         {
-            pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",FOUND" << std::endl;
             return readFunctor.doRead(*rw);
         }
         else
         {
-            pluginLog << "CURL to read from server!!," << getFileExtension(readFunctor._filename) << ",NOT FOUND" << std::endl;
             return  ReaderWriter::ReadResult("Could not find the .curl plugin to read from server.");
         }
     }
 
     if (results.empty())
     {
-        pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << ",NOT FOUND" << std::endl;
         return ReaderWriter::ReadResult("Could not find plugin to read objects from file \""+readFunctor._filename+"\".");
     }
 
     // sort the results so the most relevant (i.e. ERROR_IN_READING_FILE is more relevant than FILE_NOT_FOUND) results get placed at the end of the results list.
     std::sort(results.begin(), results.end());
     ReaderWriter::ReadResult result = results.back();
-
-    pluginLog << libraryName << "," << getFileExtension(readFunctor._filename) << "," << ToString(result.status()) << std::endl;
 
     return result;
 }
@@ -1469,12 +1444,16 @@ ReaderWriter::WriteResult Registry::writeObjectImplementation(const Object& obj,
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
             ReaderWriter::WriteResult rr = itr->writeObject(obj,fileName,options);
-            if (rr.success()) return rr;
+            if (rr.success()) 
+            {
+                return rr;
+            }
             else results.push_back(rr);
         }
     }
@@ -1515,7 +1494,8 @@ ReaderWriter::WriteResult Registry::writeImageImplementation(const Image& image,
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
@@ -1560,7 +1540,8 @@ ReaderWriter::WriteResult Registry::writeHeightFieldImplementation(const HeightF
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
@@ -1617,8 +1598,8 @@ ReaderWriter::WriteResult Registry::writeNodeImplementation(const Node& node,con
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
@@ -1665,7 +1646,8 @@ ReaderWriter::WriteResult Registry::writeShaderImplementation(const Shader& shad
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
@@ -1710,7 +1692,8 @@ ReaderWriter::WriteResult Registry::writeScriptImplementation(const Script& imag
 
     // now look for a plug-in to save the file.
     std::string libraryName = createLibraryNameForFile(fileName);
-    if (loadLibrary(libraryName)==LOADED)
+    const bool writeToLog = (fileName[0] == '.' ? false : true);
+    if (TimedLoadLibrary(this, libraryName, getFileExtension(fileName), writeToLog)==LOADED)
     {
         for(;itr.valid();++itr)
         {
