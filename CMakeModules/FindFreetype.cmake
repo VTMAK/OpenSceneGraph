@@ -116,6 +116,7 @@ if(NOT FREETYPE_LIBRARY)
       freetype
       libfreetype
       freetype219
+      freetype239mt
     ${FREETYPE_FIND_ARGS}
     PATH_SUFFIXES
       lib
@@ -125,6 +126,7 @@ if(NOT FREETYPE_LIBRARY)
       freetyped
       libfreetyped
       freetype219d
+      freetype239mt_d
     ${FREETYPE_FIND_ARGS}
     PATH_SUFFIXES
       lib

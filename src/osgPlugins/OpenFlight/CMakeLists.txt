@@ -1,3 +1,5 @@
+FIND_PACKAGE(Boost REQUIRED)
+
 SET(TARGET_SRC
     AncillaryRecords.cpp
     AttrData.cpp

@@ -15,8 +15,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0 FATAL_ERROR)
 
-cmake_policy( SET CMP0074 NEW )  # Allow FOO_ROOT variables to allow easier package searching.
-
 if(COMMAND cmake_policy)
     # Works around warnings libraries linked against that don't
     # have absolute paths (e.g. -lpthreads)
@@ -150,8 +148,9 @@ SET(OPENTHREADS_SONAMES TRUE)
 SET(OpenThreads_SOURCE_DIR ${OpenSceneGraph_SOURCE_DIR})
 
 # We have some custom .cmake scripts not in the official distribution.
-# Maybe this can be used override existing behavior if needed?
-SET(CMAKE_MODULE_PATH "${OpenSceneGraph_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}")
+# Make sure the previous CMAKE_MODULE_PATH is searched first in case other modules from parent
+# projects want to override those in CMakeModules.
+SET(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${OpenSceneGraph_SOURCE_DIR}/CMakeModules")
 
 # Change the default build type to Release
 IF(NOT CMAKE_BUILD_TYPE)
