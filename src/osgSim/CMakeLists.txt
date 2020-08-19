@@ -5,11 +5,7 @@ ELSE()
     ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
 ENDIF()
 
-#VRV_PATCH
-include_directories(${PROFILE_INCLUDE_DIR})
-if (MAK_TRACY_FOUND)
-   link_libraries(${PROFILE_LIBS})
-endif(MAK_TRACY_FOUND)
+include_directories(${TRACY_INCLUDE_DIR})
 
 SET(LIB_NAME osgSim)
 SET(HEADER_PATH ${OpenSceneGraph_SOURCE_DIR}/include/${LIB_NAME})
@@ -75,6 +71,7 @@ SET(TARGET_LIBRARIES
     osgDB
     osg
     OpenThreads
+    ${TRACY_LIBRARY}
 )
 
 SETUP_LIBRARY(${LIB_NAME})
