@@ -716,6 +716,12 @@ class OSG_EXPORT Texture : public osg::StateAttribute
           * parameters. */
         void dirtyTextureParameters();
 
+        // VRV_PATCH: start
+        /** Check if any texture object in the texture object buffer 
+        * is immutable(resident) */
+        bool anyTextureObjectImmutable(void) const;
+        // VRV_PATCH: end        
+
         /** Force a manual allocation of the mipmap levels on the next apply() call.
           * User is responsible for filling the mipmap levels with valid data.
           * The OpenGL's glGenerateMipmapEXT function is used to generate the mipmap levels.

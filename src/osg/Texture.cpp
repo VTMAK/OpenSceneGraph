@@ -1687,8 +1687,32 @@ void Texture::dirtyTextureObject()
     }
 }
 
+// VRV_PATCH: start
+bool Texture::anyTextureObjectImmutable(void) const
+{
+	for (unsigned int i = 0; i < _textureObjectBuffer.size(); ++i)
+	{
+		TextureObject* textureObject = _textureObjectBuffer[i];
+		if (textureObject && textureObject->getImmutable())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+// VRV_PATCH: end
+
 void Texture::dirtyTextureParameters()
 {
+    // VRV_PATCH: start
+	if (getNotifyLevel() >= osg::INFO && anyTextureObjectImmutable())
+	{
+      osg::notify(osg::INFO) << "osg::Texture::dirtyTextureParameters: " << std::endl
+         << "\t Dirtying parameters for immutable(resident) texture address!" << std::endl
+         << "\t This can cause OpenGL errors/render corruption on (possible)" << std::endl
+         << "\t re-application of texture parameters!" << std::endl;
+	}
+	// VRV_PATCH: end
     _texParametersDirtyList.setAllElementsTo(1);
 }
 
@@ -2243,6 +2267,15 @@ void Texture::applyTexParameters(GLenum target, State& state) const
         if (wt == CLAMP) wt = CLAMP_TO_EDGE;
         if (wr == CLAMP) wr = CLAMP_TO_EDGE;
     #endif
+
+    // VRV_PATCH: start
+	if (getNotifyLevel() >= osg::INFO && anyTextureObjectImmutable())
+	{
+      osg::notify(osg::INFO) << "osg::Texture::applyTexParameters: " << std::endl
+         << "\t Re-applying texture parameters for immutable(resident) texture address!" << std::endl
+         << "\t This will cause OpenGL errors/render corruption!" << std::endl;
+	}
+	// VRV_PATCH: end
 
     const Image * image = getImage(0);
     if( image &&
