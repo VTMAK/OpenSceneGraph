@@ -389,11 +389,9 @@ void Texture2DArray::apply(State& state) const
             osg::Image* image = itr->get();
             if (image)
             {
-                if (getModifiedCount(n,contextID) != image->getModifiedCount())
-                {
-                    getModifiedCount(n,contextID) = image->getModifiedCount();
-                    applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels);
-                }
+                //Without a texture object we  need to send down the image every time regardless of the modified count
+                applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels);
+                getModifiedCount(n,contextID) = image->getModifiedCount();
                 n += image->r();
             }
         }
