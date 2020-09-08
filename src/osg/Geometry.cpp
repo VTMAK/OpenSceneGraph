@@ -989,6 +989,9 @@ void Geometry::drawVertexArraysImplementation(RenderInfo& renderInfo) const
 
     if ( handleVertexAttributes )
     {
+        // Make sure the vertex array state is sized correctly (related to _vertexAttribList).
+        vas->assignVertexAttribArrayDispatcher(_vertexAttribList.size());
+
         for(unsigned int index = 0; index < _vertexAttribList.size(); ++index)
         {
             const Array* array = _vertexAttribList[index].get();
