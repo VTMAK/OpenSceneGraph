@@ -450,6 +450,15 @@ bool TextureObjectSet::checkConsistency() const
     return true;
 }
 
+
+osg::ref_ptr<TextureObjectManager>& Texture::getTextureObjectManager(unsigned int contextID)
+{
+    typedef osg::buffered_object< ref_ptr<TextureObjectManager> > TextureObjectManagerBuffer;
+    static TextureObjectManagerBuffer s_TextureObjectManager;
+    if (!s_TextureObjectManager[contextID]) s_TextureObjectManager[contextID] = new TextureObjectManager(contextID);
+    return s_TextureObjectManager[contextID];
+}
+
 void TextureObjectSet::handlePendingOrphandedTextureObjects()
 {
     // OSG_NOTICE<<"handlePendingOrphandedTextureObjects()"<<_pendingOrphanedTextureObjects.size()<<std::endl;
