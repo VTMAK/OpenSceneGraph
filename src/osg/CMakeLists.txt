@@ -8,7 +8,9 @@ ENDIF()
 
 include_directories(${MSVCCONVIS_INCLUDE_DIR} ${TRACY_INCLUDE_DIR})
 if (TRACY_FOUND)
-   add_compile_options("/bigobj")
+   if(WIN32)
+      add_compile_options("/bigobj")
+   endif(WIN32)
 endif(TRACY_FOUND)
 
 SET(LIB_NAME osg)
