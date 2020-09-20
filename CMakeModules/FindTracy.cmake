@@ -22,7 +22,7 @@ if (WIN32) # Only supported on Windows
   )
 
   FIND_LIBRARY(TRACY_LIBRARY 
-      NAMES TracyClient
+      NAMES TracyProfiler
       PATHS
       ~/Library/Frameworks
       /Library/Frameworks

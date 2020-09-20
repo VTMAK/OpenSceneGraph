@@ -774,6 +774,12 @@ ELSE()
     IF (NOT WIN32)
         FIND_PACKAGE(Asio)
     ENDIF()
+
+    # If on Windows, ensure the Concurrency Macros are found since osg::Profiler requires them.
+    if (WIN32)
+        FIND_PACKAGE(CVMacros REQUIRED)
+    ENDIF()
+
     FIND_PACKAGE(ZeroConf)
 
     FIND_PACKAGE(Tracy REQUIRED)
