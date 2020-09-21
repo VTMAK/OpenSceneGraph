@@ -775,14 +775,15 @@ ELSE()
         FIND_PACKAGE(Asio)
     ENDIF()
 
-    # If on Windows, ensure the Concurrency Macros are found since osg::Profiler requires them.
     if (WIN32)
+        # On Windows, ensure the Concurrency Macros are found since osg::Profiler requires them to compile.
         FIND_PACKAGE(CVMacros REQUIRED)
+
+        # On Windows, Tracy is required in order for profiling macros (OsgProfile/OsgProfileSample/etc) to compile.
+        FIND_PACKAGE(Tracy REQUIRED)
     ENDIF()
 
     FIND_PACKAGE(ZeroConf)
-
-    FIND_PACKAGE(Tracy REQUIRED)
 
     FIND_PACKAGE(LIBLAS)
 
