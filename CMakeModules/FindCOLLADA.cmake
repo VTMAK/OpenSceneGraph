@@ -37,6 +37,30 @@ ELSE(APPLE)
   SET(COLLADA_BUILDNAME "linux")
 ENDIF(APPLE)
 
+FIND_PATH(COLLADA_INCLUDE_DIR dae.h
+    PATHS
+    ${COLLADA_DOM_ROOT}/include
+    $ENV{COLLADA_DIR}/include
+    $ENV{COLLADA_DIR}
+    ~/Library/Frameworks
+    /Library/Frameworks
+    /opt/local/Library/Frameworks #macports
+    /usr/local/include
+    /usr/include/
+    /sw/include # Fink
+    /opt/local/include # DarwinPorts
+    /opt/csw/include # Blastwave
+    /opt/include
+    /usr/freeware/include
+    ${ACTUAL_3DPARTY_DIR}/include
+    PATH_SUFFIXES
+    colladadom
+    collada-dom
+    collada-dom2.5
+    collada-dom2.4
+    collada-dom2.2
+)
+
 FIND_LIBRARY(COLLADA_DYNAMIC_LIBRARY 
     NAMES collada_dom collada14dom Collada14Dom libcollada14dom21 libcollada14dom22 collada14dom2-${COLLADA_BUILDNAME}-mt
     PATHS
