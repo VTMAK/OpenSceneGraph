@@ -1233,6 +1233,13 @@ void State::disableAllVertexArrays()
 void State::dirtyAllVertexArrays()
 {
     OSG_INFO << "State::dirtyAllVertexArrays()" << std::endl;
+
+    // VRV_PATCH: start
+    if (_vas)
+    {
+       _vas->resetBufferObjectPointers();
+    }
+    // VRV_PATCH: end
 }
 
 bool State::setClientActiveTextureUnit( unsigned int unit )

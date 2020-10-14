@@ -660,9 +660,21 @@ class OSG_EXPORT State : public Referenced
 
         inline void bindVertexArrayObject(const VertexArrayState* vas) { bindVertexArrayObject(vas->getVertexArrayObject()); }
 
-        inline void bindVertexArrayObject(GLuint vao) { if (_currentVAO!=vao) { _glExtensions->glBindVertexArray(vao); _currentVAO = vao; } }
+		// VRV_PATCH: start
+        inline void bindVertexArrayObject(GLuint vao) {
+           if (_currentVAO!=vao) {
+              _glExtensions->glBindVertexArray(vao); _currentVAO = vao;
+              dirtyAllVertexArrays();
+           } 
+        }
 
-        inline void unbindVertexArrayObject() { if (_currentVAO!=0) { _glExtensions->glBindVertexArray(0); _currentVAO = 0; } }
+        inline void unbindVertexArrayObject() { 
+           if (_currentVAO!=0) {
+              _glExtensions->glBindVertexArray(0); _currentVAO = 0;
+              dirtyAllVertexArrays();
+           } 
+        }
+		// VRV_PATCH: end
 
 
         typedef std::vector<GLushort> IndicesGLushort;
