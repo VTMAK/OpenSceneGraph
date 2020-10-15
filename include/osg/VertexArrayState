@@ -289,12 +289,16 @@ inline void VertexArrayState::applyDisablingOfVertexAttributes(osg::State& state
         ++itr)
     {
         ArrayDispatch* ad = (*itr);
-        if (!ad->active)
+        // VRV_PATCH: start
+        // The refcount might've gone to zero due to setArrays between the 
+        // lazyDisablingOfVertexAttributes and this function.
+        if (!ad->active && ad->referenceCount() > 0)
         {
             ad->disable(state);
             ad->array = 0;
             ad->modifiedCount = 0xffffffff;
         }
+        // VRV_PATCH: end
     }
     _previous_activeDispatchers.clear();
 }

@@ -567,7 +567,11 @@ bool VertexArrayState::correctArrayDispatchAssigned(const ArrayDispatch* ad)
 namespace {
     VertexArrayState::ArrayDispatch* getOrCreateVertexAttributeDispatch(VertexArrayState::ArrayDispatchList& list, int slot)
     {
-        list.resize(slot + 1);
+        // VRV_PATCH: start
+		// make sure we don't resize it by mistake to something
+		// lesser than its current size
+        list.resize(std::max(int(list.size()), slot + 1));
+        // VRV_PATCH: end
         osg::ref_ptr<VertexArrayState::ArrayDispatch>& ad = list[slot];
         if (!ad.valid())
             ad = new VertexAttribArrayDispatch(slot);
@@ -750,16 +754,22 @@ void VertexArrayState::setArray(ArrayDispatch* vad, osg::State& state, const osg
         else if (new_array!=vad->array || new_array->getModifiedCount()!=vad->modifiedCount)
         {
             GLBufferObject* vbo = isVertexBufferObjectSupported() ? new_array->getOrCreateGLBufferObject(state.getContextID()) : 0;
+            // VRV_PATCH: start
+			// This used to be just dispatch()
+			// Changed it to enable_and_dispatch()
+			// We need to make sure we are enabling the vertex attrib array as well
+			// This could have been externally changed for example
             if (vbo)
             {
                 bindVertexBufferObject(vbo);
-                vad->dispatch(state, new_array, vbo);
+                vad->enable_and_dispatch(state, new_array, vbo);
             }
             else
             {
                 unbindVertexBufferObject();
-                vad->dispatch(state, new_array);
+                vad->enable_and_dispatch(state, new_array);
             }
+            // VRV_PATCH: end
         }
 
         vad->array = new_array;

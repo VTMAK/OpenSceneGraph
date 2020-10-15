@@ -166,16 +166,23 @@ State::State():
     _isVertexBufferObjectSupported = false;
     _isVertexArrayObjectSupported = false;
 
+	// VRV_PATCH: start
+	// This matches exactly the settings for when
+	// the display settings hints are to use VBOs
+	// We seem to need this to make sure that VBOs/VAOs work
+	// correctly, especially when we use VAOs, VBOs is external
+	// middleware (e.g. di-guy, etc)
     if (OSG_GL3_FEATURES)
     {
         _forceVertexBufferObject = true;
-        _forceVertexArrayObject = true;
+        _forceVertexArrayObject = false;
     }
     else 
     {
         _forceVertexBufferObject = false;
         _forceVertexArrayObject = false;
     }
+	// VRV_PATCH: end
 
     _lastAppliedProgramObject = 0;
     _lastAppliedFboId = 0;
@@ -280,10 +287,13 @@ void State::initializeExtensionProcs()
 
     const DisplaySettings* ds = getDisplaySettings() ? getDisplaySettings() : osg::DisplaySettings::instance().get();
 
-    if (ds->getVertexBufferHint()==DisplaySettings::VERTEX_BUFFER_OBJECT)
+	if (ds->getVertexBufferHint()==DisplaySettings::VERTEX_BUFFER_OBJECT)
     {
+		// VRV_PATCH: start
+		// These match the startup settings for these booleans in the constructor
         _forceVertexBufferObject = true;
         _forceVertexArrayObject = false;
+		// VRV_PATCH: end
     }
     else if (ds->getVertexBufferHint()==DisplaySettings::VERTEX_ARRAY_OBJECT)
     {

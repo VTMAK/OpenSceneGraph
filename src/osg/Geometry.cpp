@@ -994,11 +994,43 @@ void Geometry::drawVertexArraysImplementation(RenderInfo& renderInfo) const
 
         for(unsigned int index = 0; index < _vertexAttribList.size(); ++index)
         {
+            // VRV_PATCH: start
+			// Just make sure that the vertex attribute 
+			// pointer we are setting, matches the type
             const Array* array = _vertexAttribList[index].get();
-            if (array && array->getBinding()==osg::Array::BIND_PER_VERTEX)
-            {
-                vas->setVertexAttribArray(state, index, array);
-            }
+			if (array == nullptr)
+			{
+				continue;
+			}
+
+			if (array->getBinding() == osg::Array::BIND_PER_VERTEX)
+			{
+				if (array->getPreserveDataType())
+				{
+					const GLenum dataType = array->getDataType();
+					if (dataType == GL_FLOAT)
+					{
+						state.setVertexAttribPointer(index, array);
+					}
+					else if (dataType == GL_DOUBLE)
+					{
+						state.setVertexAttribLPointer(index, array);
+					}
+					else
+					{
+						state.setVertexAttribIPointer(index, array);
+					}
+				}
+				else
+				{
+					state.setVertexAttribPointer(index, array);
+				}
+			}
+			else if (array->getBinding() == osg::Array::BIND_PER_VERTEX)
+			{
+				vas->setVertexAttribArray(state, index, array);
+			}
+            // VRV_PATCH: end
         }
     }
 
