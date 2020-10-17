@@ -165,24 +165,6 @@ static void ConvertLong(GLuint *array, long length)
     }
 }
 
-
-static void RawImageClose(rawImageRec *raw)
-{
-    if (raw)
-    {
-        if (raw->tmp) delete [] raw->tmp;
-        if (raw->tmpR) delete [] raw->tmpR;
-        if (raw->tmpG) delete [] raw->tmpG;
-        if (raw->tmpB) delete [] raw->tmpB;
-        if (raw->tmpA) delete [] raw->tmpA;
-
-        if (raw->rowStart) delete [] raw->rowStart;
-        if (raw->rowSize) delete [] raw->rowSize;
-
-        delete raw;
-    }
-}
-
 static osg::ref_ptr<refImageRec> RawImageOpen(std::istream& fin)
 {
     union
@@ -605,7 +587,12 @@ class ReaderWriterRGB : public osgDB::ReaderWriter
                OSG_INFO << "Unable to read RGB file correctly (possibly a corrupted file)" << std::endl;
                return ReadResult::ERROR_IN_READING_FILE;
             }
-            RawImageClose(raw);
+			// VRV_PATCH: start
+			// PPP: Prevent double deletion
+			// removed RawImageClose.
+			// Found and fixed this while debugging.
+			// Later found that this is not present in osg 3.6 either.
+			// VRV_PATCH: end
 
             Image* image = new Image();
             image->setImage(s,t,r,
