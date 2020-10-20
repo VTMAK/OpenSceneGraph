@@ -5039,6 +5039,23 @@ static void fill_image(const PixelStorageModes *psm,
         elements_per_line = width * components;
 
         iter2 = newimage;
+
+        // VRV_PATCH: start
+        // common case
+        if (type == GL_UNSIGNED_BYTE && !index_format)
+        {
+           for (i = 0; i < height; ++i) {
+              iter = start;
+              for (j = 0; j < elements_per_line; ++j) {
+                 *iter2++ = (*iter) * 257;
+                 iter += element_size;
+              } /* for j */
+              start += rowsize;
+           } /* for i */
+        }
+        // VRV_PATCH: end
+        else
+        {
         for (i = 0; i < height; i++) {
             iter = start;
             for (j = 0; j < elements_per_line; j++) {
@@ -5198,6 +5215,9 @@ static void fill_image(const PixelStorageModes *psm,
             iter= start;
 #endif
         } /* for i */
+// VRV_PATCH: start
+      }
+// VRV_PATCH: end
 
        /* iterators should be one byte past end */
        if (!isTypePackedPixel(type)) {
