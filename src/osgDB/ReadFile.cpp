@@ -30,11 +30,40 @@ using namespace osg;
 using namespace osgDB;
 
 #ifdef OSG_PROVIDE_READFILE
-Object* osgDB::readObjectFile(const std::string& filename,const Options* options)
+
+// VRV_PATCH: start
+// Declare/Define only here to minimize impact/changes to headers, triggering a full rebuild
+static void reportStatus(const ReaderWriter::ReadResult& rr, const std::string& fileName, const std::string& fileType)
 {
-    ReaderWriter::ReadResult rr = Registry::instance()->readObject(filename,options);
-    if (rr.validObject()) return rr.takeObject();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+	if (rr.status() == ReaderWriter::ReadResult::FILE_LOADED || rr.status() == ReaderWriter::ReadResult::FILE_LOADED_FROM_CACHE)
+	{
+		return;
+	}
+	// If not loaded or not loaded from cache, report what went wrong
+	if (rr.status() == ReaderWriter::ReadResult::ERROR_IN_READING_FILE)
+	{
+		OSG_WARN << "Error in reading "<<fileType<<" file: " << fileName << std::endl;
+	}
+	else if (rr.status() == ReaderWriter::ReadResult::INSUFFICIENT_MEMORY_TO_LOAD)
+	{
+		OSG_WARN << "Insufficient memory to load "<<fileType<<" file: " << fileName << std::endl;
+	}
+	else if (rr.status() == ReaderWriter::ReadResult::FILE_NOT_FOUND)
+	{
+		OSG_INFO << "("<<fileType<<") file not found: " << fileName << std::endl;
+	}
+}
+// VRV_PATCH: end
+
+Object* osgDB::readObjectFile(const std::string& filename, const Options* options)
+{
+	ReaderWriter::ReadResult rr = Registry::instance()->readObject(filename, options);
+	if (rr.validObject()) return rr.takeObject();
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "object");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -43,7 +72,11 @@ Image* osgDB::readImageFile(const std::string& filename,const Options* options)
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readImage(filename,options);
     if (rr.validImage()) return rr.takeImage();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "image");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -51,7 +84,11 @@ Shader* osgDB::readShaderFile(const std::string& filename,const Options* options
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readShader(filename,options);
     if (rr.validShader()) return rr.takeShader();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "shader");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -60,7 +97,11 @@ HeightField* osgDB::readHeightFieldFile(const std::string& filename,const Option
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readHeightField(filename,options);
     if (rr.validHeightField()) return rr.takeHeightField();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "height field");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -69,7 +110,11 @@ Node* osgDB::readNodeFile(const std::string& filename,const Options* options)
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readNode(filename,options);
     if (rr.validNode()) return rr.takeNode();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "node");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -88,7 +133,11 @@ Script* osgDB::readScriptFile(const std::string& filename,const Options* options
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readScript(filename,options);
     if (rr.validScript()) return rr.takeScript();
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+    
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "script");
+	// VRV_PATCH: end
+
     return NULL;
 }
 #endif
@@ -97,7 +146,11 @@ osg::ref_ptr<osg::Object> osgDB::readRefObjectFile(const std::string& filename,c
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readObject(filename,options);
     if (rr.validObject()) return osg::ref_ptr<osg::Object>(rr.getObject());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+    
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref object");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -105,7 +158,11 @@ osg::ref_ptr<osg::Image> osgDB::readRefImageFile(const std::string& filename,con
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readImage(filename,options);
     if (rr.validImage()) return osg::ref_ptr<osg::Image>(rr.getImage());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+    
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref image");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -113,7 +170,11 @@ osg::ref_ptr<osg::Shader> osgDB::readRefShaderFile(const std::string& filename,c
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readShader(filename,options);
     if (rr.validShader()) return osg::ref_ptr<osg::Shader>(rr.getShader());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+    
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref shader");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -121,7 +182,11 @@ osg::ref_ptr<osg::HeightField> osgDB::readRefHeightFieldFile(const std::string& 
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readHeightField(filename,options);
     if (rr.validHeightField()) return osg::ref_ptr<osg::HeightField>(rr.getHeightField());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref height field");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -129,7 +194,11 @@ osg::ref_ptr<osg::Node> osgDB::readRefNodeFile(const std::string& filename,const
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readNode(filename,options);
     if (rr.validNode()) return osg::ref_ptr<osg::Node>(rr.getNode());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+    
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref node");
+	// VRV_PATCH: end
+
     return NULL;
 }
 
@@ -137,7 +206,11 @@ osg::ref_ptr<osg::Script> osgDB::readRefScriptFile(const std::string& filename,c
 {
     ReaderWriter::ReadResult rr = Registry::instance()->readScript(filename,options);
     if (rr.validScript()) return osg::ref_ptr<osg::Script>(rr.getScript());
-    if (!rr.success()) OSG_WARN << "Error reading file " << filename << ": " << rr.statusMessage() << std::endl;
+
+	// VRV_PATCH: start
+	reportStatus(rr, filename, "ref script");
+	// VRV_PATCH: end
+
     return NULL;
 }
 

@@ -930,8 +930,25 @@ void DatabasePager::DatabaseThread::run()
 
             osg::ref_ptr<osg::Node> loadedModel;
             if (rr.validNode()) loadedModel = rr.getNode();
-            if (!rr.success()) OSG_WARN<<"Error in reading file "<<fileName<<" : "<<rr.statusMessage() << std::endl;
-            if (rr.notEnoughMemory()) OSG_INFO<<"Not enough memory to load file "<<fileName << std::endl;
+
+			// VRV_PATCH: start
+			// If not loaded or not loaded from cache, report what went wrong
+			if (!rr.success())
+			{
+				if (rr.status() == ReaderWriter::ReadResult::ERROR_IN_READING_FILE)
+				{
+					OSG_WARN << "Error in reading file: " << fileName << std::endl;
+				}
+				else if (rr.status() == ReaderWriter::ReadResult::INSUFFICIENT_MEMORY_TO_LOAD)
+				{
+					OSG_WARN << "Insufficient memory to load file: " << fileName << std::endl;
+				}
+				else if (rr.status() == ReaderWriter::ReadResult::FILE_NOT_FOUND)
+				{
+					OSG_INFO << "File not found: " << fileName << std::endl;
+				}
+			}
+			// VRV_PATCH: end
 
             if (loadedModel.valid() &&
                 fileCache.valid() &&
