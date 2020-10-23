@@ -1026,10 +1026,6 @@ void Geometry::drawVertexArraysImplementation(RenderInfo& renderInfo) const
 					state.setVertexAttribPointer(index, array);
 				}
 			}
-			else if (array->getBinding() == osg::Array::BIND_PER_VERTEX)
-			{
-				vas->setVertexAttribArray(state, index, array);
-			}
             // VRV_PATCH: end
         }
     }

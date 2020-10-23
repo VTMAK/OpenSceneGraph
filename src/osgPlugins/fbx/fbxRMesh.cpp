@@ -687,8 +687,21 @@ void addColorArrayElement(osg::Array& a, const FbxColor& c)
     }
 }
 
+// scans StateSetList looking for the number of multi texture in the diffuse channel
+int getNbDiffuseTexture(std::vector<StateSetContent>& stateSetList, const char* pName)
+{
+   for (unsigned int i = 0; i < stateSetList.size(); i++)
+   {
+      if (0 == strcmp(pName, FbxSurfaceMaterial::sDiffuse))
+      {
+         return stateSetList[i].diffuseLayerEnv.size();
+      }
+   }
+   return 0;
+}
+
 // scans StateSetList looking for the (first) channel name for the specified map type...
-std::string getUVChannelForTextureMap(std::vector<StateSetContent>& stateSetList, const char* pName)
+std::string getUVChannelForTextureMap(std::vector<StateSetContent>& stateSetList, const char* pName, int diffuseMultiLayer=0)
 {
     // will return the first occurrence in the state set list...
     // TODO: what if more than one channel for the same map type?
@@ -702,7 +715,7 @@ std::string getUVChannelForTextureMap(std::vector<StateSetContent>& stateSetList
            }
            else if(stateSetList[i].diffuseLayerChannel.size() > 0)
            {
-              return stateSetList[i].diffuseLayerChannel[0];
+              return stateSetList[i].diffuseLayerChannel[diffuseMultiLayer];
            }
         }
         if (0 == strcmp(pName, FbxSurfaceMaterial::sTransparentColor))
@@ -792,6 +805,7 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
                       const FbxLayerElementUV* pFbxUVs_opacity,
                       const FbxLayerElementUV* pFbxUVs_emissive,
                       const FbxLayerElementUV* pFbxUVs_ambient,
+                      std::vector<const FbxLayerElementUV*>& pFbxUVs_MultiDiffuse,
                       const FbxLayerElementVertexColor* pFbxColors,
                       osg::Geometry* pGeometry,
                       osg::Array* pVertices,
@@ -840,11 +854,18 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
         addVec2ArrayElement(*pTexCoords_diffuse, getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly2, meshVertex2));
 
         // multi-texture
+        if (pFbxUVs_MultiDiffuse.size() == pTexCoords_Multi_diffuse.size())
+        {
         for (size_t j = 0; j < pTexCoords_Multi_diffuse.size(); j++)
         {
-           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly0, meshVertex0));
-           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly1, meshVertex1));
-           addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_diffuse, fbxMesh, i, posInPoly2, meshVertex2));
+              addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_MultiDiffuse[j], fbxMesh, i, posInPoly0, meshVertex0));
+              addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_MultiDiffuse[j], fbxMesh, i, posInPoly1, meshVertex1));
+              addVec2ArrayElement(*pTexCoords_Multi_diffuse[j], getElement(pFbxUVs_MultiDiffuse[j], fbxMesh, i, posInPoly2, meshVertex2));
+        }
+    }
+        else
+        {
+           OSG_WARN << "FBX:readMeshTriangle problem with the multi layer diffuse texture. UV coordinate won't be accurate." << std::endl;
         }
     }
 
@@ -1025,6 +1046,19 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
    const FbxLayerElementUV* pFbxUVs_emissive = getUVElementForChannel(emissiveChannel, FbxLayerElement::eTextureEmissive, fbxMesh);
    const FbxLayerElementUV* pFbxUVs_ambient = getUVElementForChannel(ambientChannel, FbxLayerElement::eTextureAmbient, fbxMesh);
    // more UV elements here...
+   // check multi diffuse texture layer
+   int nbDiffuseTexture = getNbDiffuseTexture(stateSetList, FbxSurfaceMaterial::sDiffuse);
+   std::vector<const FbxLayerElementUV*> pFbxUVs_MultiDiffuse;
+   for (int multiTexure = 1; multiTexure < nbDiffuseTexture; multiTexure++)
+   {
+      std::string diffuseMultiChannel = getUVChannelForTextureMap(stateSetList, FbxSurfaceMaterial::sDiffuse, multiTexure);
+      const FbxLayerElementUV* multiDiff = getUVElementForChannel(diffuseMultiChannel, FbxLayerElement::eTextureDiffuse, fbxMesh);
+      // check elements validity...
+      if (layerElementValid(multiDiff))
+      {
+         pFbxUVs_MultiDiffuse.push_back(multiDiff);
+      }
+   }
 
    // check elements validity...
    if (!layerElementValid(pFbxNormals)) pFbxNormals = 0;
@@ -1159,8 +1193,9 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 0, 1, 2,
                 nVertex, nVertex+1, nVertex+2,
                 fbxToOsgVertMap, osgToFbxNormMap,
-                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
-                pGeometry,
+                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, 
+                pFbxUVs_MultiDiffuse, 
+                pFbxColors, pGeometry,
                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                pColors, foundColorProperty, lColorProperty);
             nVertex += 3;
@@ -1177,16 +1212,18 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 0, 1, p02,
                 nVertex, nVertex+1, nVertex+p02,
                 fbxToOsgVertMap, osgToFbxNormMap,
-                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
-                pGeometry,
+                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, 
+                pFbxUVs_MultiDiffuse,
+                pFbxColors,pGeometry,
                 pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                 pColors, foundColorProperty, lColorProperty);
             readMeshTriangle(fbxMesh, i,
                 p10, 2, 3,
                 nVertex+p10, nVertex+2, nVertex+3,
                 fbxToOsgVertMap, osgToFbxNormMap,
-                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
-                pGeometry,
+                pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, 
+                pFbxUVs_MultiDiffuse, 
+                pFbxColors, pGeometry,
                 pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                pColors, foundColorProperty, lColorProperty);
             nVertex += 4;
@@ -1208,8 +1245,9 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                     0, j - 1, j,
                     nVertex0, nVertex - 1, nVertex,
                     fbxToOsgVertMap, osgToFbxNormMap,
-                    pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, pFbxColors,
-                    pGeometry,
+                    pFbxVertices, pFbxNormals, pFbxUVs_diffuse, pFbxUVs_opacity, pFbxUVs_emissive, pFbxUVs_ambient, 
+                    pFbxUVs_MultiDiffuse, 
+                    pFbxColors, pGeometry,
                     pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
                     pColors, foundColorProperty, lColorProperty);
             }
