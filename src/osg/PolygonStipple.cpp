@@ -84,7 +84,14 @@ void PolygonStipple::apply(State&) const
 #ifdef OSG_GL1_AVAILABLE
     glPolygonStipple(_mask);
 #else
-    OSG_NOTICE<<"Warning: PolygonStipple::apply(State&) - not supported."<<std::endl;
+	// VRV_PATCH: start
+	// re-enabled this to maintain backward compatibility because some of our tactical graphics 
+	// (osg ribbon) still use PolygonStipple attribute. 
+	// We use it directly (non-osg) in vrvGraphicsUtils as well.
+	// We should switch both to use shader based stippling.
+	glPolygonStipple(_mask);
+    // OSG_NOTICE<<"Warning: PolygonStipple::apply(State&) - not supported."<<std::endl;
+	// VRV_PATCH: end
 #endif
 }
 
