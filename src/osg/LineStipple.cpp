@@ -43,7 +43,14 @@ void LineStipple::apply(State&) const
 #ifdef OSG_GL1_AVAILABLE
     glLineStipple(_factor, _pattern);
 #else
-    OSG_NOTICE<<"Warning: LineStipple::apply(State&) - not supported."<<std::endl;
+	// VRV_PATCH: start
+	// re-enabled this to maintain backward compatibility because some of our
+	// tactical graphics still use this LineStipple attribute and its used by vrvGraphicsUtils
+	// as well.
+	// We should switch both to use shader based stippling
+	glLineStipple(_factor, _pattern);
+	//OSG_NOTICE << "Warning: LineStipple::apply(State&) - not supported." << std::endl;
+	// VRV_PATCH: end
 #endif
 }
 
