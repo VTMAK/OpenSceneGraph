@@ -1503,16 +1503,17 @@ bool State::convertShaderSourceToOsgBuiltIns(osg::Shader::Type shader_type, std:
     // precede a "#version" compiler directive, so we must insert new declarations after it.
 
     // GNP- 4.5 is unhappy with anything before "#extension" compiler directive
+    std::string::size_type versionPos = source.rfind("#version ");
     std::string::size_type declPos = source.rfind( "#extension ");
     if (declPos == std::string::npos) {
-       declPos = source.rfind("#version ");
+        declPos = versionPos;
     }
 
     if ( declPos != std::string::npos )
     {
-        declPos = source.find(" ", declPos); // move to the first space after "#version"
-        declPos = source.find_first_not_of(std::string(" "), declPos); // skip all the spaces until you reach the version number
-        std::string versionNumber(source, declPos, 3);
+        declPos = source.find(" ", versionPos); // move to the first space after "#version"
+        declPos = source.find_first_not_of(std::string(" "), versionPos); // skip all the spaces until you reach the version number
+        std::string versionNumber(source, versionPos, 3);
         int glslVersion = atoi(versionNumber.c_str());
         OSG_INFO<<"shader version found: "<< glslVersion <<std::endl;
         if (glslVersion >= 130) attributeQualifier = "in ";
