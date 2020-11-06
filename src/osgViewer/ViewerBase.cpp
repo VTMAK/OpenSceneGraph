@@ -80,6 +80,8 @@ void ViewerBase::viewerBaseInit()
     osg::getEnvVar("OSG_RUN_MAX_FRAME_RATE", _runMaxFrameRate);
 
     _useConfigureAffinity = true;
+
+    _mainThreadOperation = nullptr;
 }
 
 void ViewerBase::configureAffinity()
