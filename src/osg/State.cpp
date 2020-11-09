@@ -1511,8 +1511,8 @@ bool State::convertShaderSourceToOsgBuiltIns(osg::Shader::Type shader_type, std:
 
     if ( declPos != std::string::npos )
     {
-        declPos = source.find(" ", versionPos); // move to the first space after "#version"
-        declPos = source.find_first_not_of(std::string(" "), versionPos); // skip all the spaces until you reach the version number
+        versionPos = source.find(" ", versionPos); // move to the first space after "#version"
+        versionPos = source.find_first_not_of(std::string(" "), versionPos); // skip all the spaces until you reach the version number
         std::string versionNumber(source, versionPos, 3);
         int glslVersion = atoi(versionNumber.c_str());
         OSG_INFO<<"shader version found: "<< glslVersion <<std::endl;
