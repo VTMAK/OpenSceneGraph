@@ -966,8 +966,7 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
 	osgViewer::View* view = dynamic_cast<osgViewer::View*>(_camera->getView());
     bool acquireGPUStats = false;
 
-    const osg::FrameStamp* fs = sceneView->getFrameStamp();
-    unsigned int frameNumber = fs ? fs->getFrameNumber() : 0;
+    unsigned int frameNumber = 0;
     osg::Timer_t beforeCullTick ;
     osg::Timer_t afterCullTick;
 
@@ -977,6 +976,13 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
     osgViewer::ViewerBase* viewer = view ? view->getViewerBase() : 0;
     {
        updateSceneView(sceneView);
+
+       // VRV_PATCH: start
+       // Don't collect the frame number until after the sceneView has been updated, which
+       // propagates the view's frame stamp into the sceneView.
+       const osg::FrameStamp* fs = sceneView->getFrameStamp();
+       frameNumber = fs ? fs->getFrameNumber() : 0;
+       // VRV_PATCH: end
 
        if (_compileOnNextDraw && viewer)
        {
