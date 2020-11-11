@@ -1714,14 +1714,19 @@ bool Texture::anyTextureObjectImmutable(void) const
 void Texture::dirtyTextureParameters()
 {
     // VRV_PATCH: start
-	if (getNotifyLevel() >= osg::INFO && anyTextureObjectImmutable())
-	{
-      osg::notify(osg::INFO) << "osg::Texture::dirtyTextureParameters: " << std::endl
-         << "\t Dirtying parameters for immutable(resident) texture address!" << std::endl
-         << "\t This can cause OpenGL errors/render corruption on (possible)" << std::endl
-         << "\t re-application of texture parameters!" << std::endl;
-	}
-	// VRV_PATCH: end
+    // early out if attempting to dirty for an immutable(resident) texture
+    if (anyTextureObjectImmutable())
+    {
+        if (getNotifyLevel() >= osg::INFO)
+        {
+            osg::notify(osg::INFO) << "osg::Texture::dirtyTextureParameters: " << std::endl
+                << "\t Dirtying parameters for immutable(resident) texture address!" << std::endl
+                << "\t This can cause OpenGL errors/render corruption on (possible)" << std::endl
+                << "\t re-application of texture parameters!" << std::endl;
+        }
+        return;
+    }
+    // VRV_PATCH: end
     _texParametersDirtyList.setAllElementsTo(1);
 }
 
@@ -2225,6 +2230,20 @@ void Texture::getCompressedSize(GLenum internalFormat, GLint width, GLint height
 
 void Texture::applyTexParameters(GLenum target, State& state) const
 {
+    // VRV_PATCH: start
+    // early out if attempting to dirty for an immutable(resident) texture
+    if (anyTextureObjectImmutable())
+    {
+        if (getNotifyLevel() >= osg::INFO)
+        {
+            osg::notify(osg::INFO) << "osg::Texture::applyTexParameters: " << std::endl
+                << "\t Re-applying texture parameters for immutable(resident) texture address!" << std::endl
+                << "\t This will cause OpenGL errors/render corruption!" << std::endl;
+        }
+        return;
+    }
+    // VRV_PATCH: end
+
     // get the contextID (user defined ID of 0 upwards) for the
     // current OpenGL context.
     const unsigned int contextID = state.getContextID();
@@ -2276,15 +2295,6 @@ void Texture::applyTexParameters(GLenum target, State& state) const
         if (wt == CLAMP) wt = CLAMP_TO_EDGE;
         if (wr == CLAMP) wr = CLAMP_TO_EDGE;
     #endif
-
-    // VRV_PATCH: start
-	if (getNotifyLevel() >= osg::INFO && anyTextureObjectImmutable())
-	{
-      osg::notify(osg::INFO) << "osg::Texture::applyTexParameters: " << std::endl
-         << "\t Re-applying texture parameters for immutable(resident) texture address!" << std::endl
-         << "\t This will cause OpenGL errors/render corruption!" << std::endl;
-	}
-	// VRV_PATCH: end
 
     const Image * image = getImage(0);
     if( image &&
