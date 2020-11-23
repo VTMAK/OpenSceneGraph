@@ -32,6 +32,7 @@ typedef struct
     unsigned int Alpha;
 } pngInfo;
 
+
 class PNGError
 {
 public:
@@ -58,8 +59,34 @@ void user_error_fn(png_structp /*png_ptr*/, png_const_charp error_msg)
 #endif
 }
 
+// VRV_PATCH: start
+static bool ingoreWarningMessage(png_const_charp warning_msg)
+{
+    if (warning_msg == 0)
+    {
+        return true;
+    }
+    std::string strWarningMsg(warning_msg);
+
+    // see: https://stackoverflow.com/questions/22745076/libpng-warning-iccp-known-incorrect-srgb-profile
+    // "Libpng-1.6 is more stringent about checking ICC profiles than previous versions. You can ignore the warning. To get rid of it, remove the iCCP chunk from the PNG image."
+    // We will just ignore it rather than en-masse batch converting our png files
+    if (strWarningMsg.find("iCCP: known incorrect sRGB profile") != std::string::npos)
+    {
+        return true;
+    }
+    return false;
+}
+// VRV_PATCH: end
+
 void user_warning_fn(png_structp /*png_ptr*/, png_const_charp warning_msg)
 {
+    // VRV_PATCH: start
+    if (ingoreWarningMessage(warning_msg))
+    {
+        return;
+    }
+    // VRV_PATCH: end
     OSG_WARN << "PNG lib warning : " << warning_msg << std::endl;
 }
 
