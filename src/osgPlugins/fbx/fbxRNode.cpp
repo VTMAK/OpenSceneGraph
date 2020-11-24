@@ -12,7 +12,7 @@
 #include <osg/Material>
 #include <osg/Texture2D>
 #include <osg/Switch>
-#include <osg/Lod>
+#include <osg/LOD>
 #include <osg/Sequence>
 #include <osg/Geometry>
 #include <osg/CullFace>
@@ -1525,7 +1525,7 @@ osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, o
    float loopDuration = 0.0f;
    bool swing = false;
    bool forwardAnim = true;
-   std::string comment = pComment;
+   std::string comment = pComment.Buffer();
    readFlipBookAnimationParameters(comment, nbFrame, skip, loopCount, lastFrameTime, loopDuration, swing, forwardAnim);
 
    // format of the comment: "animation num_frames_per_second [ skip | noskip ] loopCount count lastFrameTime time"

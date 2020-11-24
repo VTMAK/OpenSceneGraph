@@ -263,9 +263,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
               // after we will create new ones to have a different texture unit
               if (i > 0)
               {
-                 char buffer[3];
-                 _itoa(i, buffer, 10);
-                 textureUnitName += buffer;
+                 textureUnitName += std::to_string(i);
               }
               unsigned int textureUnit = textureMap.getOrCreate(textureUnitName).index();
               stateSet->setTextureAttributeAndModes(textureUnit, ssc.diffuseLayerTexture[i].get());

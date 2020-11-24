@@ -40,6 +40,7 @@ ENDIF()
 
 IF(WIN32)
     SET(TARGET_EXTERNAL_LIBRARIES wininet)
+    link_directories(${XML_LIB_DIR})
 ENDIF(WIN32)
 
 IF(APPLE)
@@ -55,7 +56,12 @@ else(${MAK_PLATFORM} STREQUAL "linux-rhentws7")
 endif(${MAK_PLATFORM} STREQUAL "linux-rhentws7")
 
 SET(TARGET_LIBRARIES_VARS FBX_LIBRARY)
-SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim)
+
+IF(WIN32)
+    SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim libxml2_a_64)
+ELSE()
+    SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim)
+ENDIF(WIN32)
 
 #### end var setup  ###
 SETUP_PLUGIN(fbx)
