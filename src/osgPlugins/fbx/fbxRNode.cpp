@@ -1536,7 +1536,7 @@ osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, o
 
    // Regardless of forwards or backwards, animation could have swing bit set.
    osg::Sequence::LoopMode loopMode = (swing) ?
-      osg::Sequence::LOOP : osg::Sequence::SWING;
+      osg::Sequence::SWING : osg::Sequence::LOOP;
 
    if (forwardAnim)
       pSequence->setInterval(loopMode, 0, -1);
