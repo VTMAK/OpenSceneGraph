@@ -10,6 +10,7 @@
 #include "fbxReader.h"
 #include <osgSim/LightPointNode>
 #include <osgSim/LightPoint>
+#include "fbxUtil.h"
 
 static const std::string disLightpoint = "@dis lightpoint";
 
@@ -183,7 +184,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxLight(FbxNode* pNode, int& 
     // and not a FBX dynamic light
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
-    std::string strComment = pComment.Buffer();
+    std::string strComment = fbxUtil::removeReturn(pComment);
     size_t lightPointPos = strComment.find(disLightpoint);
     if (lightPointPos != std::string::npos)
     {

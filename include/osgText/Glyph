@@ -109,8 +109,9 @@ public:
 protected:
 
     virtual ~Glyph();
-
-    Font*                       _font;
+    // VRV_PATCH: start
+    osg::ref_ptr<Font>          _font;
+    // VRV_PATCH: end
     unsigned int                _glyphCode;
 
     FontResolution              _fontResolution;
@@ -228,7 +229,9 @@ protected:
 
     virtual ~Glyph3D() {}
 
-    Font*                       _font;
+    // VRV_PATCH: start
+    osg::ref_ptr <Font>         _font;
+    // VRV_PATCH: end
     unsigned int                _glyphCode;
 
     float                       _width;
