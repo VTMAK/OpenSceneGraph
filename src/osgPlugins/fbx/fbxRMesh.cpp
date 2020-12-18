@@ -286,7 +286,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
               }
 
               // setup transparency
-              if (!transparent && ssc.diffuseLayerTexture[i]->getImage())
+              if (!transparent && ssc.diffuseLayerTexture[i] && ssc.diffuseLayerTexture[i]->getImage())
                  transparent = ssc.diffuseLayerTexture[i]->getImage()->isImageTranslucent();
 
               // set texture environ
