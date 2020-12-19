@@ -137,8 +137,20 @@ class OSG_EXPORT State : public Referenced
         inline unsigned int getNonSharedContextID() const { return _nonSharedContextID; }
         // VRV_PATCH
 
+        // VRV_PATCH: start
+        // Bug fix: osg was using:
+        // const std::type_info* id(&typeid(T));
+        // and that is not guaranteed to be same across different modules:
+        // From: https://en.cppreference.com/w/cpp/language/typeid
+        // const std::type_info& ti1 = typeid(A);
+        // const std::type_info& ti2 = typeid(A);
+
+        // assert(&ti1 == &ti2); // not guaranteed
+        // assert(ti1.hash_code() == ti2.hash_code()); // guaranteed
+        // assert(std::type_index(ti1) == std::type_index(ti2)); // guaranteed
+
         // ExtensionMap contains GL Extentsions objects used by StateAttribue to call OpenGL extensions/advanced features
-        typedef std::map<const std::type_info*, osg::ref_ptr<osg::Referenced> > ExtensionMap;
+        typedef std::map<size_t, osg::ref_ptr<osg::Referenced> > ExtensionMap;
         ExtensionMap _extensionMap;
 
         /** Get a specific GL extensions object or GraphicsObjectManager, initialize if not already present.
@@ -146,7 +158,7 @@ class OSG_EXPORT State : public Referenced
         template<typename T>
         T* get()
         {
-            const std::type_info* id(&typeid(T));
+           size_t id(typeid(T).hash_code());
             osg::ref_ptr<osg::Referenced>& ptr = _extensionMap[id];
             if (!ptr)
             {
@@ -161,7 +173,7 @@ class OSG_EXPORT State : public Referenced
         template<typename T>
         const T* get() const
         {
-            const std::type_info* id(&typeid(T));
+           size_t id(typeid(T).hash_code());
             ExtensionMap::const_iterator itr = _extensionMap.find(id);
             if (itr==_extensionMap.end()) return 0;
             else return itr->second.get();
@@ -171,9 +183,10 @@ class OSG_EXPORT State : public Referenced
         template<typename T>
         void set(T* ptr)
         {
-            const std::type_info* id(&typeid(T));
+            size_t id(typeid(T).hash_code());
             _extensionMap[id] = ptr;
         }
+        // VRV_PATCH: end
 
         /* deprecated.*/
         void setShaderCompositionEnabled(bool flag) { _shaderCompositionEnabled = flag; }

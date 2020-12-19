@@ -28,28 +28,59 @@
 #include <osg/ContextData>
 #include <osg/Timer>
 
+// VRV_PATCH: start
+#define OSG_FBO_DEBUG 0
+
+#if OSG_FBO_DEBUG
+#if defined(__linux__)
+#include "GL/glx.h"
+#else
+#include <windows.h>
+#endif
+#include <iostream>
+#endif
+// VRV_PATCH: end
 using namespace osg;
 
 
-GLRenderBufferManager::GLRenderBufferManager(unsigned int contextID):
-    GLObjectManager("GLRenderBufferManager",contextID)
+// VRV_PATCH: start
+GLRenderBufferManager::GLRenderBufferManager(unsigned int nonSharedContextID):
+    GLObjectManager("GLRenderBufferManager", nonSharedContextID)
 {}
 
 void GLRenderBufferManager::deleteGLObject(GLuint globj)
 {
     const GLExtensions* extensions = GLExtensions::Get(_contextID,true);
+
+#if OSG_FBO_DEBUG
+#if defined(WIN32) || defined(WIN64)
+    HGLRC currentGlContext = wglGetCurrentContext();
+#else
+    GLXContext currentGlContext = glXGetCurrentContext();
+#endif
+    std::cout << "deleted rbo: " << globj << " , context: " << currentGlContext << std::endl;
+#endif
     if (extensions->isGlslSupported) extensions->glDeleteRenderbuffers(1, &globj );
 }
 
-GLFrameBufferObjectManager::GLFrameBufferObjectManager(unsigned int contextID):
-    GLObjectManager("GLFrameBufferObjectManager",contextID)
+GLFrameBufferObjectManager::GLFrameBufferObjectManager(unsigned int nonSharedContextID):
+    GLObjectManager("GLFrameBufferObjectManager", nonSharedContextID)
 {}
 
 void GLFrameBufferObjectManager::deleteGLObject(GLuint globj)
 {
+#if OSG_FBO_DEBUG
+#if defined(WIN32) || defined(WIN64)
+   HGLRC currentGlContext = wglGetCurrentContext();
+#else
+   GLXContext currentGlContext = glXGetCurrentContext();
+#endif
+    std::cout << "deleted fbo: " << globj << " , context: " << currentGlContext << std::endl;
+#endif
     const GLExtensions* extensions = GLExtensions::Get(_contextID,true);
     if (extensions->isGlslSupported) extensions->glDeleteFramebuffers(1, &globj );
 }
+// VRV_PATCH: end
 
 
 /**************************************************************************
@@ -107,16 +138,25 @@ int RenderBuffer::getMaxSamples(unsigned int contextID, const GLExtensions* ext)
 
     return maxSamples;
 }
-
-GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext) const
+// VRV_PATCH: start
+GLuint RenderBuffer::getObjectID(unsigned int nonSharedContextId, const GLExtensions* ext) const
 {
-    GLuint &objectID = _objectID[contextID];
+    GLuint &objectID = _objectID[nonSharedContextId];
 
-    int &dirty = _dirty[contextID];
+    int &dirty = _dirty[nonSharedContextId];
 
     if (objectID == 0)
     {
         ext->glGenRenderbuffers(1, &objectID);
+
+#if OSG_FBO_DEBUG
+#if defined(WIN32) || defined(WIN64)
+        HGLRC currentGlContext = wglGetCurrentContext();
+#else
+        GLXContext currentGlContext = glXGetCurrentContext();
+#endif
+        std::cout << "created rbo: " << objectID << " , context: " << currentGlContext <<", nonSharedContextId: " << nonSharedContextId<< std::endl;
+#endif
         if (objectID == 0)
             return 0;
         dirty = 1;
@@ -143,7 +183,7 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
 
         if (_samples > 0 && ext->isRenderbufferMultisampleCoverageSupported())
         {
-            int samples = minimum(_samples, getMaxSamples(contextID, ext));
+            int samples = minimum(_samples, getMaxSamples(nonSharedContextId, ext));
             int colorSamples = minimum(_colorSamples, samples);
 
             ext->glRenderbufferStorageMultisampleCoverageNV(GL_RENDERBUFFER_EXT,
@@ -151,7 +191,7 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
         }
         else if (_samples > 0 && ext->isRenderbufferMultisampleSupported())
         {
-            int samples = minimum(_samples, getMaxSamples(contextID, ext));
+            int samples = minimum(_samples, getMaxSamples(nonSharedContextId, ext));
 
             ext->glRenderbufferStorageMultisample(GL_RENDERBUFFER_EXT,
                 samples, _internalFormat, _width, _height);
@@ -165,6 +205,7 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
 
     return objectID;
 }
+// VRV_PATCH: end
 
 void RenderBuffer::resizeGLObjectBuffers(unsigned int maxSize)
 {
@@ -172,15 +213,16 @@ void RenderBuffer::resizeGLObjectBuffers(unsigned int maxSize)
     _dirty.resize(maxSize);
 }
 
+// VRV_PATCH: start
 void RenderBuffer::releaseGLObjects(osg::State* state) const
 {
     if (state)
     {
-        unsigned int contextID = state->getContextID();
-        if (_objectID[contextID])
+        unsigned int nonSharedContextID = state->getNonSharedContextID();
+        if (_objectID[nonSharedContextID])
         {
-            osg::get<GLRenderBufferManager>(contextID)->scheduleGLObjectForDeletion(_objectID[contextID]);
-            _objectID[contextID] = 0;
+            osg::get<GLRenderBufferManager>(nonSharedContextID)->scheduleGLObjectForDeletion(_objectID[nonSharedContextID]);
+            _objectID[nonSharedContextID] = 0;
         }
     }
     else
@@ -195,7 +237,7 @@ void RenderBuffer::releaseGLObjects(osg::State* state) const
         }
     }
 }
-
+// VRV_PATCH: end
 /**************************************************************************
  * FrameBufferAttachment
  **************************************************************************/
@@ -480,13 +522,15 @@ void FrameBufferAttachment::createRequiredTexturesAndApplyGenerateMipMap(State &
     }
 }
 
+// VRV_PATCH: start
 void FrameBufferAttachment::attach(State &state, GLenum target, GLenum attachment_point, const GLExtensions* ext) const
 {
     unsigned int contextID = state.getContextID();
+    unsigned int nonSharedContextId = state.getNonSharedContextID();
 
     if (_ximpl->targetType == Pimpl::RENDERBUFFER)
     {
-        ext->glFramebufferRenderbuffer(target, attachment_point, GL_RENDERBUFFER_EXT, _ximpl->renderbufferTarget->getObjectID(contextID, ext));
+        ext->glFramebufferRenderbuffer(target, attachment_point, GL_RENDERBUFFER_EXT, _ximpl->renderbufferTarget->getObjectID(nonSharedContextId, ext));
         return;
     }
 
@@ -566,7 +610,7 @@ void FrameBufferAttachment::attach(State &state, GLenum target, GLenum attachmen
         break;
     }
 }
-
+// VRV_PATCH: end
 int FrameBufferAttachment::compare(const FrameBufferAttachment &fa) const
 {
     if (&fa == this) return 0;
@@ -677,16 +721,16 @@ void FrameBufferObject::resizeGLObjectBuffers(unsigned int maxSize)
         itr->second.resizeGLObjectBuffers(maxSize);
     }
 }
-
+// VRV_PATCH: start
 void FrameBufferObject::releaseGLObjects(osg::State* state) const
 {
     if (state)
     {
-        unsigned int contextID = state->getContextID();
-        if (_fboID[contextID])
+        unsigned int nonSharedContextID = state->getNonSharedContextID();
+        if (_fboID[nonSharedContextID])
         {
-            osg::get<GLFrameBufferObjectManager>(contextID)->scheduleGLObjectForDeletion(_fboID[contextID]);
-            _fboID[contextID] = 0;
+            osg::get<GLFrameBufferObjectManager>(nonSharedContextID)->scheduleGLObjectForDeletion(_fboID[nonSharedContextID]);
+            _fboID[nonSharedContextID] = 0;
         }
     }
     else
@@ -706,6 +750,7 @@ void FrameBufferObject::releaseGLObjects(osg::State* state) const
         itr->second.releaseGLObjects(state);
     }
 }
+// VRV_PATCH: end
 // helper function in RenderStage
 static const char* getBufferComponentStr(Camera::BufferComponent buffer)
 {
@@ -779,18 +824,19 @@ void FrameBufferObject::apply(State &state) const
     apply(state, READ_DRAW_FRAMEBUFFER);
 }
 
+// VRV_PATCH: start
 void FrameBufferObject::apply(State &state, BindTarget target) const
 {
-    unsigned int contextID = state.getContextID();
+    unsigned int nonSharedContextId = state.getNonSharedContextID();
 
-    if (_unsupported[contextID])
+    if (_unsupported[nonSharedContextId])
         return;
 
 
     GLExtensions* ext = state.get<GLExtensions>();
     if (!ext->isFrameBufferObjectSupported)
     {
-        _unsupported[contextID] = 1;
+        _unsupported[nonSharedContextId] = 1;
         OSG_WARN << "Warning: EXT_framebuffer_object is not supported" << std::endl;
         return;
     }
@@ -802,12 +848,20 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
         return;
     }
 
-    int &dirtyAttachmentList = _dirtyAttachmentList[contextID];
+    int &dirtyAttachmentList = _dirtyAttachmentList[nonSharedContextId];
 
-    GLuint &fboID = _fboID[contextID];
+    GLuint &fboID = _fboID[nonSharedContextId];
     if (fboID == 0)
     {
         ext->glGenFramebuffers(1, &fboID);
+#if OSG_FBO_DEBUG
+#if defined(WIN32) || defined(WIN64)
+        HGLRC currentGlContext = wglGetCurrentContext();
+#else
+        GLXContext currentGlContext = glXGetCurrentContext();
+#endif
+        std::cout << "created fbo: " << fboID << " , context: " << currentGlContext << ", nonSharedContextId: " << nonSharedContextId << ", gc: "<<state.getGraphicsContext()<< std::endl;
+#endif
         if (fboID == 0)
         {
             OSG_WARN << "Warning: FrameBufferObject: could not create the FBO" << std::endl;
@@ -896,7 +950,7 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
     }
 
 }
-
+// VRV_PATCH: end
 bool FrameBufferObject::isMultisample() const
 {
     if (_attachments.size())

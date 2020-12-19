@@ -497,7 +497,11 @@ void GraphicsContext::close(bool callCloseImplementation)
 
                 osg::flushAllDeletedGLObjects(_state->getContextID());
             }
-
+            // VRV_PATCH: start
+            // attempt to delete any fbos/rbos that were left around for this OpenGL context
+            osg::get<GLFrameBufferObjectManager>(_state->getNonSharedContextID())->flushAllDeletedGLObjects();
+            osg::get<GLRenderBufferManager>(_state->getNonSharedContextID())->flushAllDeletedGLObjects();
+            // VRV_PATCH: end
             releaseContext();
         }
         else

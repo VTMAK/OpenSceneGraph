@@ -418,20 +418,23 @@ inline void FrameBufferObject::dirtyAll()
     _dirtyAttachmentList.setAllElementsTo(1);
 }
 
+// VRV_PATCH: start
+// Use opengl context specific (non-shared context id) fbos, rbos.
+// fbos cannot be shared across multiple OpenGL contexts
 class OSG_EXPORT GLRenderBufferManager : public GLObjectManager
 {
 public:
-    GLRenderBufferManager(unsigned int contextID);
+   GLRenderBufferManager(unsigned int nonSharedContextID);
     virtual void deleteGLObject(GLuint globj);
 };
 
 class OSG_EXPORT GLFrameBufferObjectManager : public GLObjectManager
 {
 public:
-    GLFrameBufferObjectManager(unsigned int contextID);
+    GLFrameBufferObjectManager(unsigned int nonSharedContextID);
     virtual void deleteGLObject(GLuint globj);
 };
-
+// VRV_PATCH: end
 }
 
 #endif

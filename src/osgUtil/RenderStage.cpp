@@ -797,8 +797,11 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                 fbo = 0;
 
                 // clean up.
-                osg::get<osg::GLRenderBufferManager>(state.getContextID())->flushAllDeletedGLObjects();
-                osg::get<osg::GLFrameBufferObjectManager>(state.getContextID())->flushAllDeletedGLObjects();
+                // VRV_PATCH: start
+                // do this at the end of the function instead of a specific nested case in the function
+                //osg::get<osg::GLRenderBufferManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+                //osg::get<osg::GLFrameBufferObjectManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+                // VRV_PATCH: end
             }
             else
             {
@@ -829,8 +832,11 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
                         _resolveFbo = 0;
 
                         // clean up.
-                        osg::get<osg::GLRenderBufferManager>(state.getContextID())->flushAllDeletedGLObjects();
-                        osg::get<osg::GLFrameBufferObjectManager>(state.getContextID())->flushAllDeletedGLObjects();
+                        // VRV_PATCH: start
+                        // do this at the end of the function instead of a specific nested case in the function
+                        //osg::get<osg::GLRenderBufferManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+                        //osg::get<osg::GLFrameBufferObjectManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+                        // VRV_PATCH: end
                     }
                     else
                     {
@@ -1068,6 +1074,11 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
         }
     }
 
+    // VRV_PATCH: start
+    // delete any fbos that were scheduled for deletion (via the old fbo(s) getting deleted)
+    osg::get<GLFrameBufferObjectManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+    osg::get<GLRenderBufferManager>(state.getNonSharedContextID())->flushAllDeletedGLObjects();
+    // VRV_PATCH: end
 }
 
 void RenderStage::copyTexture(osg::RenderInfo& renderInfo)
