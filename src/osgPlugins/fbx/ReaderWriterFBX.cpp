@@ -206,7 +206,9 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             else
                 localOptions = new osgDB::Options();
             localOptions->setObjectCacheHint(osgDB::ReaderWriter::Options::CACHE_IMAGES);
-
+            //Add the current file path to the path list so external references with relative paths work correctly.
+            localOptions->getDatabasePathList().push_front(currentFilePath);
+            
             std::string filePath = osgDB::getFilePath(filename);
             FbxMaterialToOsgStateSet fbxMaterialToOsgStateSet(filePath, localOptions.get(), lightmapTextures);
 
