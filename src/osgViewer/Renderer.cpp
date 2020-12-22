@@ -299,6 +299,12 @@ void ARBQuerySupport::checkQuery(osg::Stats* stats, osg::State* state,
     {
         GLint available = 0;
         // If the end query is available, the begin query must be too.
+        // VRV_PATCH: start
+        // You cannot share queries across multiple windows/contexts
+        // check whether query being operated on is infact a query
+        // in this context
+        if (_extensions->glIsQuery(itr->queries.second))
+        {
         _extensions->glGetQueryObjectiv(itr->queries.second,
                                         GL_QUERY_RESULT_AVAILABLE, &available);
         if (available)
@@ -371,6 +377,12 @@ void ARBQuerySupport::checkQuery(osg::Stats* stats, osg::State* state,
         {
             ++itr;
         }
+    }
+        else
+        {
+           ++itr;
+        }
+        // VRV_PATCH: end
     }
 }
 
