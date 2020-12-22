@@ -821,6 +821,14 @@ class OSG_EXPORT GLExtensions : public osg::Referenced
         void (GL_APIENTRY * glPushDebugGroup)(GLenum source, GLuint id, GLsizei length, const char * message);
         void (GL_APIENTRY * glPopDebugGroup) (void);
 
+        // VRV_PATCH: start
+        void (GL_APIENTRY * glGetProgramInterfaceiv) (GLuint program, GLenum programInterface, GLenum pname, GLint* params);
+        GLuint(GL_APIENTRY * glGetProgramResourceIndex) (GLuint program, GLenum programInterface, const GLchar* name);
+        GLint(GL_APIENTRY * glGetProgramResourceLocation) (GLuint program, GLenum programInterface, const GLchar* name);
+        GLint(GL_APIENTRY * glGetProgramResourceLocationIndex) (GLuint program, GLenum programInterface, const GLchar* name);
+        void (GL_APIENTRY * glGetProgramResourceName) (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei* length, GLchar *name);
+        void (GL_APIENTRY * glGetProgramResourceiv) (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum* props, GLsizei bufSize, GLsizei *length, GLint *params);
+        // VRV_PATCH: end
     protected:
         virtual ~GLExtensions();
 };

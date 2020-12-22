@@ -373,6 +373,10 @@ class OSG_EXPORT Program : public osg::StateAttribute
 
             protected:        /*methods*/
                 virtual ~PerContextProgram();
+                
+                // VRV_PATCH: start
+                virtual int uboBinding(const std::string& name) const;
+                // VRV_PATCH: end
 
             protected:        /*data*/
                 /** Pointer to our parent Program */

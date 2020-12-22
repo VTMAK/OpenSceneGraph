@@ -676,6 +676,16 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     setGLExtensionFuncPtr(glGetActiveUniformBlockName, "glGetActiveUniformBlockName", validContext);
     setGLExtensionFuncPtr(glUniformBlockBinding, "glUniformBlockBinding", validContext);
 
+    // VRV_PATCH: start
+    // GL_ARB_program_interface_query
+    setGLExtensionFuncPtr(glGetProgramInterfaceiv, "glGetProgramInterfaceiv", validContext);
+    setGLExtensionFuncPtr(glGetProgramResourceIndex, "glGetProgramResourceIndex", validContext);
+    setGLExtensionFuncPtr(glGetProgramResourceLocation, "glGetProgramResourceLocation", validContext);
+    setGLExtensionFuncPtr(glGetProgramResourceLocationIndex, "glGetProgramResourceLocationIndex", validContext);
+    setGLExtensionFuncPtr(glGetProgramResourceName, "glGetProgramResourceName", validContext);
+    setGLExtensionFuncPtr(glGetProgramResourceiv, "glGetProgramResourceiv", validContext);
+    // VRV_PATCH: end
+
     // ARB_get_program_binary
     setGLExtensionFuncPtr(glGetProgramBinary, "glGetProgramBinary", validContext);
     setGLExtensionFuncPtr(glProgramBinary, "glProgramBinary", validContext);

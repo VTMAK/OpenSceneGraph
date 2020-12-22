@@ -950,7 +950,24 @@ void Program::PerContextProgram::linkProgram(osg::State& state)
 
     postLinkInitialize();
 }
+// VRV_PATCH: start
+int Program::PerContextProgram::uboBinding(const std::string& name) const
+{
+   if (_extensions == 0)
+   {
+      return -1;
+   }
+   
+   GLuint blockIndex = _extensions->glGetProgramResourceIndex(_glProgramHandle, GL_UNIFORM_BLOCK, name.c_str());
 
+   std::array<GLint, 1> values;
+   std::array<GLenum, 1> blockProperties = { GL_BUFFER_BINDING };
+   _extensions->glGetProgramResourceiv(_glProgramHandle, GL_UNIFORM_BLOCK, blockIndex, blockProperties.size(), &blockProperties[0], blockProperties.size(), NULL, &values[0]);
+
+   return values[0];
+
+}
+// VRV_PATCH: end
 void Program::PerContextProgram::postLinkInitialize()
 {
    OsgProfileC("Program::PerContextProgram::postLinkInitialize", tracy::Color::Orange);
@@ -999,11 +1016,23 @@ void Program::PerContextProgram::postLinkInitialize()
          }
          else
          {
-            OSG_WARN << "uniform block " << blockName << " has no binding.\n";
+// VRV_PATCH: start
+            // see if it was specified in the shader
+            const int bindingOfUbo = uboBinding(blockName);
+            if (bindingOfUbo==-1)
+            {
+               OSG_WARN << "uniform block " << blockName << " has no binding.\n";
+            }
+            else
+            {
+               OSG_INFO << "uniform block " << blockName << " binding: "<< bindingOfUbo<<"\n";
+            }
+// VRV_PATCH: end
          }
       }
    }
 
+   // VRV_PATCH: PPP: TO DO
    // TODO: implement when glGetProgramResourceIndex is available
    // {
    //    const GLuint ssbo_block_index =
