@@ -58,8 +58,14 @@
     #define CHECK_CONSISTENCY
 #endif
 
-//VRV_PATCH
-static int DEBUG_TEXTURE_DELETION = 0;
+// VRV_PATCH: start
+#define OSG_TEXTURE_CREATION_DELETION_DEBUG 0
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+// osg warn/info doesn't always work right with threads/new lines and
+// does not reliably flush. Just use iostream/std cout for logging
+#include <iostream>
+#endif
+// VRV_PATCH: end
 
 #include <osg/ConcurrencyViewerMacros>
 #include <osg/Profile>
@@ -581,6 +587,38 @@ void TextureObjectSet::discardAllTextureObjects()
     _parent->getNumberDeleted() += numDeleted;
 }
 
+
+// VRV PATCH: start
+static std::string getTextureName(GLuint id)
+{
+   if (id == 0)
+   {
+      return "id==0";
+   }
+   const int contextId = 0; // just use context 0. doesn't really matter for textures
+   const GLExtensions* extensions = GLExtensions::Get(contextId, true);
+   if (extensions == 0)
+   {
+      return "extensions==0";
+   }
+   GLint maxLabelLength = 0;
+   glGetIntegerv(GL_MAX_LABEL_LENGTH, &maxLabelLength);
+
+   std::vector<char> nameData(maxLabelLength);
+   GLsizei nameLength = 0;
+   extensions->glGetObjectLabel(GL_TEXTURE, id, nameData.size(), &nameLength, &nameData[0]);
+
+   if (nameLength > 0)
+   {
+      return std::string(nameData.begin(), nameData.end() - 1);
+   }
+   else
+   {
+      return "unnamed";
+   }
+}
+// VRV PATCH: end
+
 void TextureObjectSet::flushAllDeletedTextureObjects()
 {
     // OSG_NOTICE<<"TextureObjectSet::flushAllDeletedTextureObjects()"<<std::endl;
@@ -593,10 +631,6 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
         }
     }
 
-    //VRV_PATCH for texture deletion debugging
-    const unsigned int contextID = 0; // set to 0 right now, assume same parameters for each graphics context...
-    const GLExtensions* extensions = GLExtensions::Get(contextID, false);
-
     // VRV PATCH
     // OSG is going to start getting rid of orphaned textures
     // we have to intervene in the case that VRV is not done
@@ -608,20 +642,11 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
         itr != _orphanedTextureObjects.end();
         ++itr)
     {
-
-        GLuint id = (*itr)->id();
+        const GLuint id = (*itr)->id();
         //VRV_PATCH for texture deletion debugging
-        if(DEBUG_TEXTURE_DELETION)
-        {
-           char texture_name[200];
-           GLsizei texture_name_len = 0;
-           if (extensions){
-              extensions->glGetObjectLabel(GL_TEXTURE, id, 200, &texture_name_len, texture_name);
-           }
-           if (texture_name_len) {
-              OSG_WARN << " deleting: " << texture_name << std::endl;
-           }
-        }
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+        std::cout << " deleting: " << getTextureName(id) << std::endl;
+#endif
 
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
         // VRV PATCH
@@ -729,10 +754,6 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     OSG_INFO<<"_parent->getCurrTexturePoolSize()="<<_parent->getCurrTexturePoolSize() <<" _parent->getMaxTexturePoolSize()="<< _parent->getMaxTexturePoolSize()<<std::endl;
     OSG_INFO<<"Looking to reclaim "<<sizeRequired<<", going to look to remove "<<maxNumObjectsToDelete<<" from "<<_orphanedTextureObjects.size()<<" orphans"<<std::endl;
 
-    //VRV_PATCH for texture deletion debugging
-    const unsigned int contextID = 0; //  set to 0 right now, assume same parameters for each graphics context...
-    const GLExtensions* extensions = GLExtensions::Get(contextID, true);
-
     ElapsedTime timer;
 
     // VRV PATCH
@@ -747,18 +768,12 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
         itr != _orphanedTextureObjects.end() && timer.elapsedTime()<availableTime && numDeleted<maxNumObjectsToDelete;
         ++itr)
     {
+        const GLuint id = (*itr)->id();
 
-        GLuint id = (*itr)->id();
         //VRV_PATCH for texture deletion debugging
-        if(DEBUG_TEXTURE_DELETION)
-        {
-           char texture_name[200];
-           GLsizei texture_name_len = 0;
-           extensions->glGetObjectLabel(GL_TEXTURE, id, 200, &texture_name_len, texture_name);
-           if (texture_name_len) {
-              OSG_WARN << " deleting: " << texture_name << std::endl;
-           }
-        }
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+        std::cout << " deleting: " << getTextureName(id) << std::endl;
+#endif
 
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
 
@@ -769,7 +784,6 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
         {
         // END VRV PATCH
             glDeleteTextures( 1L, &id);
-
             ++numDeleted;
         // VRV PATCH
         }
@@ -804,7 +818,7 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     // Eventually VRV will be done with them and delete them 
     // or VRV will tell OSG that it is OK for OSG to delete the
     // texture objects
-    for (Texture::TextureObjectList::iterator itr = almostOrphanedTextures.begin();
+    for (itr = almostOrphanedTextures.begin();
         itr != almostOrphanedTextures.end(); ++itr)
     {
         _orphanedTextureObjects.push_back(*itr);
@@ -1033,6 +1047,10 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeOrGenerate(Texture* t
           extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getImage(0)->getName().c_str());
        }
     }
+
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+    std::cout << " created: " << getTextureName(id) << std::endl;
+#endif
 
     return to;
 }
