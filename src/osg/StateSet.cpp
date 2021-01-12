@@ -705,7 +705,11 @@ void StateSet::setGlobalDefaults()
         program->addShader(new osg::Shader(osg::Shader::VERTEX, gl3_VertexShader));
         program->addShader(new osg::Shader(osg::Shader::FRAGMENT, gl3_FragmentShader));
         setAttributeAndModes(program.get());
-        setTextureAttribute(0, createDefaultTexture());
+        // VRV_PATCH: start
+        osg::ref_ptr<osg::Texture2D> globalDefaultTeture = createDefaultTexture();
+        globalDefaultTeture->setName("osg::StateSet:globalDefaultTeture");
+        setTextureAttribute(0, globalDefaultTeture);
+        // VRV_PATCH: end
         addUniform(new osg::Uniform("baseTexture", 0));
     }
     else if (shaderHint==osg::DisplaySettings::SHADER_GL2 || shaderHint==osg::DisplaySettings::SHADER_GLES2)
