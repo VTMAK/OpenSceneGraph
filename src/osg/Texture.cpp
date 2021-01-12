@@ -589,6 +589,7 @@ void TextureObjectSet::discardAllTextureObjects()
 
 
 // VRV PATCH: start
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
 static std::string getTextureName(GLuint id)
 {
    if (id == 0)
@@ -617,6 +618,7 @@ static std::string getTextureName(GLuint id)
       return "unnamed";
    }
 }
+#endif
 // VRV PATCH: end
 
 void TextureObjectSet::flushAllDeletedTextureObjects()
@@ -643,16 +645,16 @@ void TextureObjectSet::flushAllDeletedTextureObjects()
         ++itr)
     {
         const GLuint id = (*itr)->id();
-        //VRV_PATCH for texture deletion debugging
-#if OSG_TEXTURE_CREATION_DELETION_DEBUG
-        std::cout << " deleting: " << getTextureName(id) << std::endl;
-#endif
 
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
         // VRV PATCH
         // VRV is done with the texture so OSG can do what it wants
         if ((*itr)->getCanDelete())
         {
+           //VRV_PATCH for texture deletion debugging
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+           std::cout << " deleting: " << getTextureName(id) << std::endl;
+#endif
         // END VRV PATCH
             glDeleteTextures( 1L, &id);
         // VRV PATCH
@@ -770,11 +772,6 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
     {
         const GLuint id = (*itr)->id();
 
-        //VRV_PATCH for texture deletion debugging
-#if OSG_TEXTURE_CREATION_DELETION_DEBUG
-        std::cout << " deleting: " << getTextureName(id) << std::endl;
-#endif
-
         // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
 
         // VRV PATCH
@@ -782,6 +779,10 @@ void TextureObjectSet::flushDeletedTextureObjects(double /*currentTime*/, double
         // OSG to delete it
         if ((*itr)->getCanDelete())
         {
+           //VRV_PATCH for texture deletion debugging
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+           std::cout << " deleting: " << getTextureName(id) << std::endl;
+#endif
         // END VRV PATCH
             glDeleteTextures( 1L, &id);
             ++numDeleted;
@@ -890,7 +891,13 @@ osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* 
             if ((*itr)->getImmutable())
             {
                //immutable textures cannot be reused so delete it
-               GLuint id = (*itr)->id();
+               const GLuint id = (*itr)->id();
+
+               //VRV_PATCH for texture deletion debugging
+#if OSG_TEXTURE_CREATION_DELETION_DEBUG
+               std::cout << " deleting: " << getTextureName(id) << std::endl;
+#endif
+
                glDeleteTextures(1L, &id);
                _orphanedTextureObjects.erase(itr);
             }
