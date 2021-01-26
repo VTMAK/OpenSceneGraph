@@ -185,6 +185,9 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxLight(FbxNode* pNode, int& 
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
     std::string strComment = fbxUtil::removeReturn(pComment);
+    // replace forward slash with back slash (Maya removes the backslashes)
+    // but the light point table is all back slashes
+    std::replace(strComment.begin(), strComment.end(), '/', '\\');
     size_t lightPointPos = strComment.find(disLightpoint);
     if (lightPointPos != std::string::npos)
     {

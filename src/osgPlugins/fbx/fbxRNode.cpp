@@ -222,8 +222,13 @@ void makeLocalMatrix(const FbxNode* pNode, osg::Matrix& m, const FbxString& appN
     FbxDouble3 fbxLclRot = pNode->LclRotation.Get();
     FbxDouble3 fbxPostRot; // post rotation that we don't want to add in Vantage
     
-    // only add the 3ds Max light post rotation for light
-    if (!(lAttributeType == FbxNodeAttribute::eLight && appName == "3ds Max"))
+    
+    if ((lAttributeType == FbxNodeAttribute::eLight && appName == "Maya") ||
+       (lAttributeType == FbxNodeAttribute::eLight && appName == "3ds Max"))
+    {
+       // Don't set the fbxPostRot for Maya and 3ds Max light 
+    }
+    else
     {
        fbxPostRot = pNode->PostRotation.Get();
     }
