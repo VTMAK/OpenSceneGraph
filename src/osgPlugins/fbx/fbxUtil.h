@@ -55,6 +55,7 @@ public:
    // Remove \n and \r from the string
    static std::string removeReturn(const FbxString& pComment);
    static std::string removeReturn(const std::string& pComment);
+   static std::string replaceReturnWithSpaces(const FbxString& pComment);
 
    //! Remove \" 
    static void removeQuote(std::string& pComment);

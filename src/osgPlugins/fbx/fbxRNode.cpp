@@ -1427,7 +1427,7 @@ osg::Group* addState(FbxNode* pNode, const FbxString& pComment, bool foundStateN
 osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComment, const osg::Matrix& localMatrix, bool& hasDof,
    FbxScene& fbxScene)
 {
-   std::string strComment = fbxUtil::removeReturn(pComment);
+   std::string strComment = fbxUtil::replaceReturnWithSpaces(pComment);
    int partNumber = 0;
    osg::Vec3f translate_min, translate_current, translate_max, translate_step,
       rotate_min, rotate_current, rotate_max, rotate_step,

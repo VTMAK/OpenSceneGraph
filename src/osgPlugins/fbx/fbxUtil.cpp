@@ -281,6 +281,18 @@ std::string fbxUtil::removeReturn(const std::string& pComment)
    return temp;
 }
 
+// Replace \n and \r from the string with spaces
+std::string fbxUtil::replaceReturnWithSpaces(const FbxString& pComment)
+{
+   std::string temp = pComment.Buffer();
+   const std::string nl = "\\n";
+   const std::string ret = "\\r";
+   const std::string space = " ";
+   std::replace(temp.begin(), temp.end(), '\n', ' ');
+   std::replace(temp.begin(), temp.end(), '\r', ' ');
+   return temp;
+}
+
 // Remove \" 
 void fbxUtil::removeQuote(std::string& pComment)
 {
