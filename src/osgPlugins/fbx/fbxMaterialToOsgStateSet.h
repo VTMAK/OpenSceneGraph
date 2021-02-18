@@ -32,6 +32,7 @@ const std::string kNORMAL_TEXTURE_UNIT = "NORMAL_TEXTURE_UNIT";
 const std::string kBUMP_TEXTURE_UNIT = "BUMP_TEXTURE_UNIT";
 const std::string kSPECULAR_TEXTURE_UNIT = "SPECULAR_TEXTURE_UNIT";
 const std::string kGLOSS_TEXTURE_UNIT = "GLOSS_TEXTURE_UNIT";
+const std::string kMETAL_TEXTURE_UNIT = "METAL_TEXTURE_UNIT";
 
 struct StateSetContent
 {
@@ -56,7 +57,9 @@ struct StateSetContent
         specularScaleU(1.0),
         specularScaleV(1.0),
         glossScaleU(1.0),
-        glossScaleV(1.0)
+        glossScaleV(1.0),
+        metalScaleU(1.0),
+        metalScaleV(1.0)
     {
     }
 
@@ -77,6 +80,7 @@ struct StateSetContent
     osg::ref_ptr<osg::Texture2D> bumpTexture;
     osg::ref_ptr<osg::Texture2D> specularTexture;
     osg::ref_ptr<osg::Texture2D> glossTexture; // shininess 
+    osg::ref_ptr<osg::Texture2D> metalTexture; // metalness 
 
     // textures maps channels names...
     std::vector<std::string> diffuseLayerChannel;
@@ -90,6 +94,7 @@ struct StateSetContent
     std::string bumpChannel;
     std::string specularChannel;
     std::string glossChannel;
+    std::string metalChannel;
 
     // combining factors...
     double diffuseFactor;
@@ -117,6 +122,8 @@ struct StateSetContent
     double specularScaleV;
     double glossScaleU;
     double glossScaleV;
+    double metalScaleU;
+    double metalScaleV;
 
     std::vector<osg::ref_ptr<osg::TexEnv>> diffuseLayerEnv;
 

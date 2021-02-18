@@ -496,6 +496,26 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
            addExtendedMaterial = true;
         }
 
+        // metal map
+        if (ssc.metalTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kMETAL_TEXTURE_UNIT).index();
+           if (ssc.metalScaleU != 1.0 || ssc.metalScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.metalScaleU, ssc.metalScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.metalTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
         // Add extended material
         if (ssc.extendedmaterial.get() && addExtendedMaterial)
         {

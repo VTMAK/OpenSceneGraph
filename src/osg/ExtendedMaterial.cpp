@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2019 MAK Technologies, Inc.
+** Copyright (c) 2021 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -75,7 +75,7 @@ bool ExtendedMaterial::isEffectTexture(const std::string& name, EffectTextureLay
    {
       return false;
    }
-   for (int i = osg::ExtendedMaterial::AMBIENT_LAYER; i <= osg::ExtendedMaterial::GLOSS_MAP_LAYER; ++i)
+   for (int i = osg::ExtendedMaterial::AMBIENT_LAYER; i <= osg::ExtendedMaterial::METAL_MAP_LAYER; ++i)
    {
       //Diffuse texture should never be treated as effect texture since it's actually the base texture
       if (i == osg::ExtendedMaterial::DIFFUSE_LAYER)

@@ -277,7 +277,7 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
              result.glossChannel = lTexture->UVSet.Get();
              result.glossScaleU = lTexture->GetScaleU();
              result.glossScaleV = lTexture->GetScaleV();
-
+             // this map to "Specular Power" in Vantage GUI
              result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::GLOSS_MAP_LAYER, lTexture->GetFileName());
           }
           //For now only allow 1 texture
@@ -346,6 +346,109 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
           break;
        }
     }
+
+    // VANTAGE specific implementation
+    // PBR texture will overwrite normal textures if present
+
+    // "3dsMax|main|base_color_map"  act as a diffuse texture
+    const FbxProperty lProperty3dsMaxBase = pFbxMat->FindPropertyHierarchical("3dsMax|main|base_color_map");
+    if (lProperty3dsMaxBase.IsValid())
+    {
+       int lNbTex = lProperty3dsMaxBase.GetSrcObjectCount<FbxFileTexture>();
+       for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+       {
+          FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxBase.GetSrcObject<FbxFileTexture>(lTextureIndex));
+          if (lTexture)
+          {
+             result.diffuseTexture = fbxTextureToOsgTexture(lTexture);
+             result.diffuseChannel = lTexture->UVSet.Get();
+             result.diffuseScaleU = lTexture->GetScaleU();
+             result.diffuseScaleV = lTexture->GetScaleV();
+          }
+       }
+    }
+
+    // "3dsMax|main|metalness_map"
+    const FbxProperty lProperty3dsMaxMetal= pFbxMat->FindPropertyHierarchical("3dsMax|main|metalness_map");
+    if (lProperty3dsMaxMetal.IsValid())
+    {
+       int lNbTex = lProperty3dsMaxMetal.GetSrcObjectCount<FbxFileTexture>();
+       for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+       {
+          FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxMetal.GetSrcObject<FbxFileTexture>(lTextureIndex));
+          if (lTexture)
+          {
+             result.metalTexture = fbxTextureToOsgTexture(lTexture);
+             result.metalChannel = lTexture->UVSet.Get();
+             result.metalScaleU = lTexture->GetScaleU();
+             result.metalScaleV = lTexture->GetScaleV();
+
+             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::METAL_MAP_LAYER, lTexture->GetFileName());
+          }
+       }
+    }
+
+    // "3dsMax|main|roughness_map" act as gloss (FbxSurfaceMaterial::sShininess)
+    const FbxProperty lProperty3dsMaxRough = pFbxMat->FindPropertyHierarchical("3dsMax|main|roughness_map");
+    if (lProperty3dsMaxRough.IsValid())
+    {
+       int lNbTex = lProperty3dsMaxRough.GetSrcObjectCount<FbxFileTexture>();
+       for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+       {
+          FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxRough.GetSrcObject<FbxFileTexture>(lTextureIndex));
+          if (lTexture)
+          {
+             result.glossTexture = fbxTextureToOsgTexture(lTexture);
+             result.glossChannel = lTexture->UVSet.Get();
+             result.glossScaleU = lTexture->GetScaleU();
+             result.glossScaleV = lTexture->GetScaleV();
+             // this map to "Specular Power" in Vantage GUI
+             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::GLOSS_MAP_LAYER, lTexture->GetFileName());
+          }
+       }
+    }
+
+    // "3dsMax|main|ao_map" act as FbxSurfaceMaterial::sAmbient
+    const FbxProperty lProperty3dsMaxAo = pFbxMat->FindPropertyHierarchical("3dsMax|main|ao_map");
+    if (lProperty3dsMaxAo.IsValid())
+    {
+       int lNbTex = lProperty3dsMaxAo.GetSrcObjectCount<FbxFileTexture>();
+       for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+       {
+          FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxAo.GetSrcObject<FbxFileTexture>(lTextureIndex));
+          if (lTexture)
+          {
+             result.ambientTexture = fbxTextureToOsgTexture(lTexture);
+             result.ambientChannel = lTexture->UVSet.Get();
+             result.ambientScaleU = lTexture->GetScaleU();
+             result.ambientScaleV = lTexture->GetScaleV();
+             // Check if we need this (this was used in the FLT plugin)
+             //result.extendedmaterial->setAmbientFrontAndBack(ambient);
+             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::AMBIENT_LAYER, lTexture->GetFileName());
+          }
+       }
+    }
+
+    // "3dsMax|main|norm_map" as as normal map
+    const FbxProperty lProperty3dsMaxNormal = pFbxMat->FindPropertyHierarchical("3dsMax|main|norm_map");
+    if (lProperty3dsMaxNormal.IsValid())
+    {
+       int lNbTex = lProperty3dsMaxNormal.GetSrcObjectCount<FbxFileTexture>();
+       for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
+       {
+          FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxNormal.GetSrcObject<FbxFileTexture>(lTextureIndex));
+          if (lTexture)
+          {
+             result.normalTexture = fbxTextureToOsgTexture(lTexture);
+             result.normalChannel = lTexture->UVSet.Get();
+             result.normalScaleU = lTexture->GetScaleU();
+             result.normalScaleV = lTexture->GetScaleV();
+
+             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::NORMAL_MAP_LAYER, lTexture->GetFileName());
+          }
+       }
+    }
+
 
     if (pFbxLambert)
     {
