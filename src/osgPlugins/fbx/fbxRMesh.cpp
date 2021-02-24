@@ -516,6 +516,28 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
            addExtendedMaterial = true;
         }
+
+        // composite metal/gloss/ambient occlusion map
+        if (ssc.compTexture)
+        {
+           unsigned int textureUnit = textureMap.getOrCreate(kCOMP_TEXTURE_UNIT).index();
+           if (ssc.compScaleU != 1.0 || ssc.compScaleV != 1.0)
+           {
+              // set UV scaling...
+              osg::ref_ptr<osg::TexMat> texmat = new osg::TexMat();
+              osg::Matrix uvScaling;
+              uvScaling.makeScale(osg::Vec3(ssc.compScaleU, ssc.compScaleV, 1.0));
+              texmat->setMatrix(uvScaling);
+              stateSet->setTextureAttributeAndModes(textureUnit, texmat.get(), osg::StateAttribute::ON);
+           }
+           else
+           {
+              stateSet->setTextureAttributeAndModes(textureUnit, ssc.compTexture.get());
+           }
+           stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
+           addExtendedMaterial = true;
+        }
+
         // Add extended material
         if (ssc.extendedmaterial.get() && addExtendedMaterial)
         {

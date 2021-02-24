@@ -75,7 +75,7 @@ bool ExtendedMaterial::isEffectTexture(const std::string& name, EffectTextureLay
    {
       return false;
    }
-   for (int i = osg::ExtendedMaterial::AMBIENT_LAYER; i <= osg::ExtendedMaterial::METAL_MAP_LAYER; ++i)
+   for (int i = osg::ExtendedMaterial::AMBIENT_LAYER; i <= osg::ExtendedMaterial::METAL_GLOSS_AO_LAYER; ++i)
    {
       //Diffuse texture should never be treated as effect texture since it's actually the base texture
       if (i == osg::ExtendedMaterial::DIFFUSE_LAYER)

@@ -93,7 +93,8 @@ namespace osg
          PHYSICAL_MAP_LAYER,
          // VRV_PATCH BEGIN - Adding type to pass new extended texture to vantage
          GLOSS_MAP_LAYER,  // Shininess 
-         METAL_MAP_LAYER  // Metalness
+         METAL_MAP_LAYER,  // Metalness
+         METAL_GLOSS_AO_LAYER  // metalness shinnines ambientocclusion composite
          // VRV_PATCH END
       };
 

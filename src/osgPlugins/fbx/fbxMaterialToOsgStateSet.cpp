@@ -356,11 +356,22 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
     {
        int lNbTex = lProperty3dsMaxBase.GetSrcObjectCount<FbxFileTexture>();
        for (int lTextureIndex = 0; lTextureIndex < lNbTex; lTextureIndex++)
-       {
+       {        
           FbxFileTexture* lTexture = FbxCast<FbxFileTexture>(lProperty3dsMaxBase.GetSrcObject<FbxFileTexture>(lTextureIndex));
           if (lTexture)
           {
+             // Check if we have a normal texture in FileName or RelativeFilename of the FBTexture class
              result.diffuseTexture = fbxTextureToOsgTexture(lTexture);
+             if (result.diffuseTexture == NULL)
+             {
+                // We did not find the texture name check PBR material for texture
+                std::string textureFileName;
+                result.diffuseTexture = fbxPBRTextureToOsgTexture(lTexture, textureFileName);
+                if (result.diffuseTexture == NULL)
+                {
+                   OSG_WARN << "Texture file not found for material '3dsMax|main|base_color_map'" << std::endl;
+                }
+             }
              result.diffuseChannel = lTexture->UVSet.Get();
              result.diffuseScaleU = lTexture->GetScaleU();
              result.diffuseScaleV = lTexture->GetScaleV();
@@ -369,6 +380,7 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
     }
 
     // "3dsMax|main|metalness_map"
+    std::string metalTexureFileName;
     const FbxProperty lProperty3dsMaxMetal= pFbxMat->FindPropertyHierarchical("3dsMax|main|metalness_map");
     if (lProperty3dsMaxMetal.IsValid())
     {
@@ -379,16 +391,28 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
           if (lTexture)
           {
              result.metalTexture = fbxTextureToOsgTexture(lTexture);
+             metalTexureFileName = lTexture->GetFileName();
+             if (result.metalTexture == NULL)
+             {
+                // We did not find the texture name check PBR material for texture
+                result.metalTexture = fbxPBRTextureToOsgTexture(lTexture, metalTexureFileName);
+                if (result.metalTexture == NULL)
+                {
+                   OSG_WARN << "Texture file not found for material '3dsMax|main|metalness_map'" << std::endl;
+                }
+             }
              result.metalChannel = lTexture->UVSet.Get();
              result.metalScaleU = lTexture->GetScaleU();
              result.metalScaleV = lTexture->GetScaleV();
 
-             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::METAL_MAP_LAYER, lTexture->GetFileName());
+             // This is done in code below
+             //result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::METAL_MAP_LAYER, metalTexureFileName); 
           }
        }
     }
 
     // "3dsMax|main|roughness_map" act as gloss (FbxSurfaceMaterial::sShininess)
+    std::string roughnessTexureFileName;
     const FbxProperty lProperty3dsMaxRough = pFbxMat->FindPropertyHierarchical("3dsMax|main|roughness_map");
     if (lProperty3dsMaxRough.IsValid())
     {
@@ -399,16 +423,28 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
           if (lTexture)
           {
              result.glossTexture = fbxTextureToOsgTexture(lTexture);
+             roughnessTexureFileName = lTexture->GetFileName();
+             if (result.glossTexture == NULL)
+             {
+                // We did not find the texture name check PBR material for texture
+                result.glossTexture = fbxPBRTextureToOsgTexture(lTexture, roughnessTexureFileName);
+                if (result.glossTexture == NULL)
+                {
+                   OSG_WARN << "Texture file not found for material '3dsMax|main|roughness_map'" << std::endl;
+                }
+             }
              result.glossChannel = lTexture->UVSet.Get();
              result.glossScaleU = lTexture->GetScaleU();
              result.glossScaleV = lTexture->GetScaleV();
+             // This is done in code below
              // this map to "Specular Power" in Vantage GUI
-             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::GLOSS_MAP_LAYER, lTexture->GetFileName());
+             //result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::GLOSS_MAP_LAYER, roughnessTexureFileName); 
           }
        }
     }
 
     // "3dsMax|main|ao_map" act as FbxSurfaceMaterial::sAmbient
+    std::string aoTexureFileName;
     const FbxProperty lProperty3dsMaxAo = pFbxMat->FindPropertyHierarchical("3dsMax|main|ao_map");
     if (lProperty3dsMaxAo.IsValid())
     {
@@ -419,17 +455,70 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
           if (lTexture)
           {
              result.ambientTexture = fbxTextureToOsgTexture(lTexture);
+             aoTexureFileName = lTexture->GetFileName();
+             if (result.ambientTexture == NULL)
+             {
+                // We did not find the texture name check PBR material for texture
+                result.ambientTexture = fbxPBRTextureToOsgTexture(lTexture, aoTexureFileName);
+                if (result.ambientTexture == NULL)
+                {
+                   OSG_WARN << "Texture file not found for material '3dsMax|main|ao_map'" << std::endl;
+                }
+             }
              result.ambientChannel = lTexture->UVSet.Get();
              result.ambientScaleU = lTexture->GetScaleU();
              result.ambientScaleV = lTexture->GetScaleV();
-             // Check if we need this (this was used in the FLT plugin)
-             //result.extendedmaterial->setAmbientFrontAndBack(ambient);
-             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::AMBIENT_LAYER, lTexture->GetFileName());
+             // This is done below
+             //result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::AMBIENT_LAYER, aoTexureFileName); 
           }
        }
     }
 
-    // "3dsMax|main|norm_map" as as normal map
+    // Check PBR for composite material texture
+    if ((!metalTexureFileName.empty() && !roughnessTexureFileName.empty() && !aoTexureFileName.empty()) &&
+       (metalTexureFileName == roughnessTexureFileName && metalTexureFileName == aoTexureFileName))
+    {
+      // To have the composite material, we need the 3 filenames not to be empty and 
+      // to point to the same file (and texture)
+      result.compTexture = result.metalTexture;  
+      // we can use one of the 3 channel and UV, should be the same
+      result.compChannel = result.metalChannel;
+      result.compScaleU = result.metalScaleU;
+      result.compScaleV = result.metalScaleV;
+      result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::METAL_GLOSS_AO_LAYER, metalTexureFileName);
+
+       // Reset the other values 
+       result.metalTexture = NULL;
+       result.metalChannel = "";
+       result.metalScaleU = 1.0;
+       result.metalScaleV = 1.0;
+       result.glossTexture = NULL;
+       result.glossChannel = "";
+       result.glossScaleU = 1.0;
+       result.glossScaleV = 1.0;
+       result.ambientTexture = NULL;
+       result.ambientChannel = "";
+       result.ambientScaleU = 1.0;
+       result.ambientScaleV = 1.0;
+    }
+    else
+    {
+       // It's not a composite material assign the extended texture to each
+       if (!metalTexureFileName.empty())
+       {
+          result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::METAL_MAP_LAYER, metalTexureFileName); 
+       }
+       if (!roughnessTexureFileName.empty())
+       {
+         result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::GLOSS_MAP_LAYER, roughnessTexureFileName); 
+       }
+       if (!aoTexureFileName.empty())
+       {
+          result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::AMBIENT_LAYER, aoTexureFileName); 
+       }
+    }
+
+    // "3dsMax|main|norm_map" act as normal map
     const FbxProperty lProperty3dsMaxNormal = pFbxMat->FindPropertyHierarchical("3dsMax|main|norm_map");
     if (lProperty3dsMaxNormal.IsValid())
     {
@@ -440,15 +529,25 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
           if (lTexture)
           {
              result.normalTexture = fbxTextureToOsgTexture(lTexture);
+             std::string texureFileName = lTexture->GetFileName();
+             if (result.normalTexture == NULL)
+             {
+                // We did not find the texture name check PBR material for texture
+                result.normalTexture = fbxPBRTextureToOsgTexture(lTexture, texureFileName);
+                if (result.normalTexture == NULL)
+                {
+                   OSG_WARN << "Texture file not found for material '3dsMax|main|norm_map'" << std::endl;
+                }
+             }
+
              result.normalChannel = lTexture->UVSet.Get();
              result.normalScaleU = lTexture->GetScaleU();
              result.normalScaleV = lTexture->GetScaleV();
 
-             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::NORMAL_MAP_LAYER, lTexture->GetFileName());
+             result.extendedmaterial->setEffectTextureName(osg::ExtendedMaterial::NORMAL_MAP_LAYER, texureFileName);
           }
        }
     }
-
 
     if (pFbxLambert)
     {
@@ -520,17 +619,89 @@ FbxMaterialToOsgStateSet::convert(const FbxSurfaceMaterial* pFbxMat)
 }
 
 osg::ref_ptr<osg::Texture2D>
+FbxMaterialToOsgStateSet::fbxPBRTextureToOsgTexture(const FbxFileTexture* fbx, std::string& texureFileName)
+{
+   osg::ref_ptr<osg::Image> pImage = NULL;
+   const FbxProperty lSourceMapPtr = fbx->FindPropertyHierarchical("3dsMax|parameters|sourceMap");
+   if (lSourceMapPtr.IsValid())
+   {
+      FbxFileTexture* lMapTexture = FbxCast<FbxFileTexture>(lSourceMapPtr.GetSrcObject<FbxFileTexture>());
+      if (lMapTexture)
+      {
+         const FbxProperty lPropertyFilename = lMapTexture->FindPropertyHierarchical("3dsMax|OSLBitmap2|Filename");
+         if (lPropertyFilename.IsValid())
+         {
+            FbxString fname = lPropertyFilename.Get<FbxString>();
+            std::string fileName = fname.Buffer();
+            std::string simpleFileName = fileName;
+            texureFileName = simpleFileName;
+            ImageMap::iterator it = _imageMap.find(simpleFileName);
+            if (it != _imageMap.end())
+               return it->second;
+
+            bool found = osgDB::fileExists(fileName);
+            // check for existence
+            if (!found)
+            {               
+               std::string fileName3 = osgDB::concatPaths(_dir, osgDB::getSimpleFileName(fileName));
+               
+               if (osgDB::fileExists(fileName3))
+               {
+                  found = true;
+                  fileName = fileName3;
+               }
+               if (!found)
+               {
+                  if (!osgDB::isAbsolutePath(fileName))
+                  {
+                     fileName3 = osgDB::concatPaths(_dir, fileName);
+                     if (osgDB::fileExists(fileName3))
+                     {
+                        found = true;
+                        fileName = fileName3;
+                     }
+                  }
+                  // If not found search Vantage extra textures path
+                  if (found == false)
+                  {
+                     found = findFileInTexturePath(fileName);
+                  }
+               }
+            }
+
+            if ((pImage = osgDB::readImageFile(fileName)) && found == true)
+            {
+               osg::ref_ptr<osg::Texture2D> pOsgTex = new osg::Texture2D;
+               pOsgTex->setImage(pImage.get());
+               pOsgTex->setWrap(osg::Texture2D::WRAP_S, convertWrap(fbx->GetWrapModeU()));
+               pOsgTex->setWrap(osg::Texture2D::WRAP_T, convertWrap(fbx->GetWrapModeV()));
+               _imageMap.insert(std::make_pair(simpleFileName, pOsgTex.get()));
+               return pOsgTex;
+            }
+         }
+      }
+   }
+
+   return NULL;
+}
+
+osg::ref_ptr<osg::Texture2D>
 FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
 {
-    ImageMap::iterator it = _imageMap.find(fbx->GetFileName());
-    if (it != _imageMap.end())
-        return it->second;
-    osg::ref_ptr<osg::Image> pImage = NULL;
+   // check if the file exist and warn the user if not found
+   std::string fileName = fbx->GetFileName();
+   std::string fileName2 = fbx->GetRelativeFileName();
+   if (fileName.empty() && fileName2.empty())
+   {
+      return NULL;
+   }
 
-    // check if the file exist and warn the user if not found
-    std::string fileName = fbx->GetFileName();
-    std::string fileName2 = fbx->GetRelativeFileName();
-    bool found = false;
+   osg::ref_ptr<osg::Image> pImage = NULL;
+   bool found = false;
+   ImageMap::iterator it = _imageMap.find(fbx->GetFileName());
+   if (it != _imageMap.end())
+      return it->second;
+
     if (osgDB::fileExists(fileName))
     {
        found = true;
@@ -558,26 +729,8 @@ FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
        // If not found search Vantage extra textures path
        if (!found)
        {
-          for (TexturePathList::const_iterator iter = _texturePathList.begin(); iter != _texturePathList.end(); ++iter)
-          {
-             boost::filesystem::path filepath;
-             if (osgDB::isAbsolutePath(*iter))
-             {
-                filepath = *iter;
-             }
-             else
-             {
-                filepath = fbxUtil::resolve(boost::filesystem::path(*iter), boost::filesystem::path(_dir));
-             }
-             std::string fileName4 = osgDB::concatPaths(filepath.string(), osgDB::getSimpleFileName(fileName));
-             if (osgDB::fileExists(fileName4))
-             {
-                found = true;
-                fileName = fileName4;
-                break;
-             }
-          }
-       }       
+          found = findFileInTexturePath(fileName);
+       }
     }
     
     if ((pImage = osgDB::readImageFile(fileName)) && found == true)
@@ -589,18 +742,33 @@ FbxMaterialToOsgStateSet::fbxTextureToOsgTexture(const FbxFileTexture* fbx)
         _imageMap.insert(std::make_pair(fbx->GetFileName(), pOsgTex.get()));
         return pOsgTex;
     }
-    else
-    {
-       if (fileName != fileName2)
-       {
-          OSG_WARN << "File not found [" << fileName << "] or [" << fileName2 << "]" << std::endl;
-       }
-       else
-       {
-          OSG_WARN << "File not found [" << fileName << "]" << std::endl;
-       }
-       return NULL;
-    }
+    return NULL;
+}
+
+bool FbxMaterialToOsgStateSet::findFileInTexturePath(std::string& fileName)
+{
+   bool found = false;
+   // If not found search Vantage extra textures path
+   for (TexturePathList::const_iterator iter = _texturePathList.begin(); iter != _texturePathList.end(); ++iter)
+   {
+      boost::filesystem::path filepath;
+      if (osgDB::isAbsolutePath(*iter))
+      {
+         filepath = *iter;
+      }
+      else
+      {
+         filepath = fbxUtil::resolve(boost::filesystem::path(*iter), boost::filesystem::path(_dir));
+      }
+      std::string fileName4 = osgDB::concatPaths(filepath.string(), osgDB::getSimpleFileName(fileName));
+      if (osgDB::fileExists(fileName4))
+      {
+         found = true;
+         fileName = fileName4;
+         break;
+      }
+   }
+   return found;
 }
 
 void FbxMaterialToOsgStateSet::checkInvertTransparency()

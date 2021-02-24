@@ -33,6 +33,7 @@ const std::string kBUMP_TEXTURE_UNIT = "BUMP_TEXTURE_UNIT";
 const std::string kSPECULAR_TEXTURE_UNIT = "SPECULAR_TEXTURE_UNIT";
 const std::string kGLOSS_TEXTURE_UNIT = "GLOSS_TEXTURE_UNIT";
 const std::string kMETAL_TEXTURE_UNIT = "METAL_TEXTURE_UNIT";
+const std::string kCOMP_TEXTURE_UNIT = "METAL_GLOSS_AO_TEXTURE_UNIT";
 
 struct StateSetContent
 {
@@ -81,6 +82,7 @@ struct StateSetContent
     osg::ref_ptr<osg::Texture2D> specularTexture;
     osg::ref_ptr<osg::Texture2D> glossTexture; // shininess 
     osg::ref_ptr<osg::Texture2D> metalTexture; // metalness 
+    osg::ref_ptr<osg::Texture2D> compTexture; // metalness - gloss - ambient occlusion composite
 
     // textures maps channels names...
     std::vector<std::string> diffuseLayerChannel;
@@ -95,6 +97,7 @@ struct StateSetContent
     std::string specularChannel;
     std::string glossChannel;
     std::string metalChannel;
+    std::string compChannel;
 
     // combining factors...
     double diffuseFactor;
@@ -124,6 +127,8 @@ struct StateSetContent
     double glossScaleV;
     double metalScaleU;
     double metalScaleV;
+    double compScaleU;
+    double compScaleV;
 
     std::vector<osg::ref_ptr<osg::TexEnv>> diffuseLayerEnv;
 
@@ -160,8 +165,9 @@ protected:
 
 private:
     //Convert a texture fbx to an osg texture.
-    osg::ref_ptr<osg::Texture2D>
-    fbxTextureToOsgTexture(const FbxFileTexture* pOsgTex);
+    osg::ref_ptr<osg::Texture2D> fbxTextureToOsgTexture(const FbxFileTexture* pOsgTex);
+    osg::ref_ptr<osg::Texture2D> fbxPBRTextureToOsgTexture(const FbxFileTexture* pOsgTex, std::string& texureFileName);
+    bool findFileInTexturePath(std::string& fileName);
     FbxMaterialMap       _fbxMaterialMap;
     ImageMap              _imageMap;
     const osgDB::Options* _options;
