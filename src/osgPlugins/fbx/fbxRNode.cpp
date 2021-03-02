@@ -67,6 +67,7 @@ static const std::string disFlipbookAnimation = "@dis flipbook_animation";
 static const std::string dislastFrameTime = "lastframetime";
 static const std::string disloopCount = "loopcount";
 static const std::string disloopDuration = "loopduration";
+static const std::string disloopDurationMultiplier = "loopduration_multiplier";
 static const std::string disSwing = "swing";
 static const std::string disFlipbookAnimationType = "animationtype";
 static const std::string disFlipbookFrame = "@dis frame";
@@ -516,82 +517,88 @@ void getVecValueFromDegree(const std::string& pComment, size_t endPos, osg::Vec3
    vec3.set(z, x, y); // save (yaw, pitch, roll) 
 }
 
+static float readFloat(const std::string& strVal)
+{
+   std::stringstream ss;
+   ss << strVal;
+   float val = 0;
+   ss >> val;
+   return val;
+}
+static int readInt(const std::string& strVal)
+{
+   std::stringstream ss;
+   ss << strVal;
+   int val = 0;
+   ss >> val;
+   return val;
+}
+
 
 // format of the comment: "animation num_frames_per_second [ skip | noskip ] loopCount count lastFrameTime time
 //                         loopDuration time swing animationType [forward|backward]"
 // ex.  "animation 2 skip loopCount 3 lastFrameTime 11.5"
 void readFlipBookAnimationParameters(std::string pComment, int& nbFrame, bool& skip, int& loopCount, float& lastFrameTime,
-   float& loopDuration, bool& swing, bool& forwardAnim)
+   float& loopDuration, float& loopDurationMultiplier, bool& swing, bool& forwardAnim)
 {
    std::transform(pComment.begin(), pComment.end(), pComment.begin(), ::tolower);
-   std::string temp;
 
-   // loopDuration [time]
-   size_t loopDurationPos = pComment.find(disloopDuration);
+   std::vector<std::string> tokens;
+   std::stringstream inputStringStream(pComment);
+   std::string intermediate;
+
+   while (getline(inputStringStream, intermediate, ' '))
+   {
+      tokens.push_back(intermediate);
+   }
+
    loopDuration = 0.0f;
-   if (loopDurationPos != std::string::npos)
-   {
-      // search for a space after loopDuration
-      size_t endPos = loopDurationPos + disloopDuration.size() + 1; // pos after space
-      temp = getDisValue(pComment, endPos);
-      loopDuration = atof(temp.c_str());
-   }
-
-   // swing
-   size_t swingPos = pComment.find(disSwing);
+   loopDurationMultiplier = 1.0f;
    swing = false;
-   if (swingPos != std::string::npos)
-   {
-      swing = true;
-   }
-
-   // animationType
-   size_t disanimationTypePos = pComment.find(disFlipbookAnimationType);
    forwardAnim = true;
-   if (disanimationTypePos != std::string::npos)
+   lastFrameTime = 0.0f;
+   loopCount = -1;
+   skip = true;  // Use skip as default
+   for (int i = 0; i < tokens.size(); ++i)
    {
-      // search for a space after disanimationType
-      size_t endPos = disanimationTypePos + disFlipbookAnimationType.size() + 1; // pos after space
-      temp = getDisValue(pComment, endPos);
-      std::transform(temp.begin(), temp.end(), temp.begin(), ::tolower);
-      if (temp.find("backward") != std::string::npos)
+      const std::string& token = tokens[i];
+
+      // loop duration
+      if (token == disloopDuration && i+1 < tokens.size())
+      {
+         loopDuration = readFloat(tokens[i + 1]);
+      }
+      // loop duration multiplier
+      else if (token == disloopDurationMultiplier && i+1 < tokens.size())
+      {
+         loopDurationMultiplier = readFloat(tokens[i + 1]);
+      }
+      // swing
+      else if (token == disSwing && i + 1 < tokens.size())
+      {
+         swing = true;
+      }
+      // animationType
+      else if (token == disFlipbookAnimationType && i + 1 < tokens.size() && tokens[i + 1].find("backward") != std::string::npos)
       {
          forwardAnim = false;
       }
-   }
-
-   // lastFrameTime [time]
-   size_t lastFrameTimePos = pComment.find(dislastFrameTime);
-   lastFrameTime = 0.0f;
-   if (lastFrameTimePos != std::string::npos)
-   {
-      // search for a space after lastFrameTime
-      size_t endPos = lastFrameTimePos+ dislastFrameTime.size() + 1; // pos after space
-      temp = getDisValue(pComment, endPos);
-      lastFrameTime = atof(temp.c_str());
-   }
-
-   // loopCount
-   size_t loopCountPos = pComment.find(disloopCount);
-   loopCount = -1;
-   if (loopCountPos != std::string::npos)
-   {
-      size_t endPos = loopCountPos+ disloopCount.size() + 1; // pos after space
-      temp = getDisValue(pComment, endPos);
-      loopCount = atoi(temp.c_str());
-   }
-
-   // animation [num_frames_per_second]
-   size_t animationPos = pComment.find(disFlipbookAnimationType);
-   if (animationPos != std::string::npos)
-   {
-      // search for a space after num_frames_per_second
-      size_t endPos = disFlipbookAnimationType.size() + 1; // pos after space
-      temp = getDisValue(pComment, endPos);
-      nbFrame = atoi(temp.c_str());
-
-      skip = true;  // Use skip as default
-      if (pComment.find("noskip") != std::string::npos)
+      // lastFrameTime [time]
+      else if (token == dislastFrameTime && i + 1 < tokens.size())
+      {
+         lastFrameTime = readFloat(tokens[i + 1]);
+      }
+      // loopCount
+      else if (token == disloopCount && i + 1 < tokens.size())
+      {
+         loopCount = readInt(tokens[i + 1]);
+      }
+      // animation [num_frames_per_second]
+      else if (token == "num_frames_per_second" && i + 1 < tokens.size())
+      {
+         nbFrame = readInt(tokens[i + 1]);
+      }
+      else if (token.find("noskip") != std::string::npos)
       {
          skip = false;
       }
@@ -1528,10 +1535,11 @@ osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, o
    int loopCount = 0;  // Also used in  DtArticulatedModelParser::parseAnimationDeclaration()
    float lastFrameTime = 0.0f; // Used in DtArticulatedModelParser::parseAnimationDeclaration()
    float loopDuration = 0.0f;
+   float loopDurationMultiplier = 1.0f;
    bool swing = false;
    bool forwardAnim = true;
    std::string comment = pComment.Buffer();
-   readFlipBookAnimationParameters(comment, nbFrame, skip, loopCount, lastFrameTime, loopDuration, swing, forwardAnim);
+   readFlipBookAnimationParameters(comment, nbFrame, skip, loopCount, lastFrameTime, loopDuration, loopDurationMultiplier, swing, forwardAnim);
 
    // format of the comment: "animation num_frames_per_second [ skip | noskip ] loopCount count lastFrameTime time"
    // ex.  "animation 2 skip loopCount 3 lastFrameTime 11.5"
