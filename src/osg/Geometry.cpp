@@ -42,7 +42,10 @@ Geometry::Geometry(const Geometry& geometry,const CopyOp& copyop):
     _colorArray(copyop(geometry._colorArray.get())),
     _secondaryColorArray(copyop(geometry._secondaryColorArray.get())),
     _fogCoordArray(copyop(geometry._fogCoordArray.get())),
-    _containsDeprecatedData(geometry._containsDeprecatedData)
+    _containsDeprecatedData(geometry._containsDeprecatedData),
+//VRV_PATCH:start
+    _skipCompile(false)
+//VRV_PATCH:end
 {
     _supportsVertexBufferObjects = true;
 
@@ -801,6 +804,15 @@ VertexArrayState* Geometry::createVertexArrayStateImplementation(RenderInfo& ren
 
 void Geometry::compileGLObjects(RenderInfo& renderInfo) const
 {
+   //VRV_PATCH:start to skip compiling of this geometry
+   // TDG: Added yet another flag since the osg state is forcing the vbos to be created
+   // and it is easier to just skip this code instead of trying to catch all the cases 
+   // that might be impacted by changing the state's force vbo flag.
+   if (_skipCompile)
+   {
+      return;
+   }
+   //VRV_PATCH:end
     State& state = *renderInfo.getState();
     if (renderInfo.getState()->useVertexBufferObject(_supportsVertexBufferObjects && _useVertexBufferObjects))
     {
@@ -1958,3 +1970,10 @@ void Geometry::fixDeprecatedData()
 
     _containsDeprecatedData = false;
 }
+
+//VRV_PATCH:start to skip compiling of this geometry
+void Geometry::setSkipCompile(bool skipCompile)
+{
+   _skipCompile = skipCompile;
+}
+//VRV_PATCH:end to skip compiling of this geometry

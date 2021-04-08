@@ -211,7 +211,10 @@ class OSG_EXPORT Geometry : public Drawable
         /** Accept a PrimitiveFunctor and call its methods to tell it about the internal primitives that this Drawable has. */
         virtual void accept(PrimitiveIndexFunctor& pf) const;
 
-
+//VRV_PATCH: start
+        /** skip compiling of this geometry*/
+		void setSkipCompile(bool skipCompile);
+//VRV_PATCH: end
     protected:
 
         Geometry& operator = (const Geometry&) { return *this;}
@@ -232,6 +235,11 @@ class OSG_EXPORT Geometry : public Drawable
         ArrayList                       _vertexAttribList;
 
         bool                            _containsDeprecatedData;
+		
+//VRV_PATCH: start
+		// Whether to compile the geometry into gl buffers	
+		bool                            _skipCompile;
+//VRV_PATCH: end
 
         virtual VertexArrayState* createVertexArrayStateImplementation(RenderInfo& renderInfo) const;
 
