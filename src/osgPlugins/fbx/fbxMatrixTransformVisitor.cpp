@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2019 MAK Technologies, Inc.
+** Copyright (c) 2021 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -66,16 +66,18 @@
       {
          if (!_matrixStack.empty())
          {
-            osg::Matrix putmat = dof.getPutMatrix(); 
-            for (size_t i=0; i < _matrixStack.size(); ++i)
+            osg::Matrix putMatrix;
+            putMatrix.makeIdentity();
+            for (size_t i = 0; i < _matrixStack.size(); ++i)
             {
                // multiply the matrix from the stack
-               putmat = _matrixStack[i] * putmat;
+               putMatrix = _matrixStack[i] * putMatrix;
             }
-           
+            putMatrix = dof.getPutMatrix() * putMatrix;
+
             // add the result in the put matrix
-            dof.setInversePutMatrix(putmat);
-            dof.setPutMatrix(osg::Matrix::inverse(putmat));
+            dof.setInversePutMatrix(putMatrix);
+            dof.setPutMatrix(osg::Matrix::inverse(putMatrix));
          }
       }
       traverse(dof);
