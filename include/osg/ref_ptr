@@ -26,6 +26,10 @@ namespace osg {
 
 template<typename T> class observer_ptr;
 
+// VRV_PATCH: start
+class Referenced;
+// VRV_PATCH: end
+
 /** Smart pointer for handling referenced counted objects.*/
 template<class T>
 class ref_ptr
@@ -38,7 +42,10 @@ class ref_ptr
         ref_ptr(const ref_ptr& rp) : _ptr(rp._ptr) { if (_ptr) _ptr->ref(); }
         template<class Other> ref_ptr(const ref_ptr<Other>& rp) : _ptr(rp._ptr) { if (_ptr) _ptr->ref(); }
         ref_ptr(observer_ptr<T>& optr) : _ptr(0) { optr.lock(*this); }
-        ~ref_ptr() { if (_ptr) _ptr->unref();  _ptr = 0; }
+        // VRV_PATCH: start
+        // So that the include for class T is not needed in headers where  ref_ptr<T> is used
+        ~ref_ptr() { if (_ptr) ((osg::Referenced*)_ptr)->unref();  _ptr = 0; }
+        // VRV_PATCH: end
 
         ref_ptr& operator = (const ref_ptr& rp)
         {
