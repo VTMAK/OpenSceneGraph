@@ -672,7 +672,11 @@ void VertexArrayState::assignFogCoordArrayDispatcher()
 
 void VertexArrayState::assignTexCoordArrayDispatcher(unsigned int numUnits)
 {
-    _texCoordArrays.resize(numUnits);
+    // VRV_PATCH: start
+    // make sure we don't resize it by mistake to something
+    // lesser than its current size
+    _texCoordArrays.resize(std::max((unsigned int)_texCoordArrays.size(), numUnits));
+    // VRV_PATCH: end
 
     for(unsigned int i=0; i<_texCoordArrays.size(); ++i)
     {
@@ -690,12 +694,17 @@ void VertexArrayState::assignTexCoordArrayDispatcher(unsigned int numUnits)
             VAS_NOTICE << "VertexArrayState::assignTexCoordArrayDispatcher() _state->getTexCoordAliasList()[" << i << "]._location = " << slot << std::endl;
             _texCoordArrays[i] = getOrCreateVertexAttributeDispatch(_vertexAttribArrays, slot);
         }
+
     }
 }
 
 void VertexArrayState::assignVertexAttribArrayDispatcher(unsigned int numUnits)
 {
-    _vertexAttribArrays.resize(numUnits);
+    // VRV_PATCH: start
+    // make sure we don't resize it by mistake to something
+    // lesser than its current size
+    _vertexAttribArrays.resize(std::max((unsigned int)_vertexAttribArrays.size(), numUnits));
+    // VRV_PATCH: end
 
     for(unsigned int i=0; i<_vertexAttribArrays.size(); ++i)
     {
