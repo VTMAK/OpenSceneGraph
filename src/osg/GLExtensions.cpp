@@ -686,6 +686,17 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
     setGLExtensionFuncPtr(glGetProgramResourceiv, "glGetProgramResourceiv", validContext);
     // VRV_PATCH: end
 
+     // VRV_PATCH: start
+    // GL_ARB_program_interface_query
+    setGLExtensionFuncPtr(glGetTextureImage, "glGetTextureImage", validContext);
+    setGLExtensionFuncPtr(glGetTextureLevelParameterfv, "glGetTextureLevelParameterfv", validContext);
+    setGLExtensionFuncPtr(glGetTextureLevelParameteriv, "glGetTextureLevelParameteriv", validContext);
+    setGLExtensionFuncPtr(glGetTextureParameterIiv, "glGetTextureParameterIiv", validContext);
+    setGLExtensionFuncPtr(glGetTextureParameterIuiv, "glGetTextureParameterIuiv", validContext);
+    setGLExtensionFuncPtr(glGetTextureParameterfv, "glGetTextureParameterfv", validContext);
+    setGLExtensionFuncPtr(glGetTextureParameteriv, "glGetTextureParameteriv", validContext);
+    // VRV_PATCH: end
+
     // ARB_get_program_binary
     setGLExtensionFuncPtr(glGetProgramBinary, "glGetProgramBinary", validContext);
     setGLExtensionFuncPtr(glProgramBinary, "glProgramBinary", validContext);

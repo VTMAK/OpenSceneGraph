@@ -829,6 +829,16 @@ class OSG_EXPORT GLExtensions : public osg::Referenced
         void (GL_APIENTRY * glGetProgramResourceName) (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei* length, GLchar *name);
         void (GL_APIENTRY * glGetProgramResourceiv) (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum* props, GLsizei bufSize, GLsizei *length, GLint *params);
         // VRV_PATCH: end
+
+        // VRV_PATCH: start
+        void (GL_APIENTRY* glGetTextureImage) (GLuint texture, GLint level, GLenum format, GLenum type, GLsizei bufSize, void* pixels);
+        void (GL_APIENTRY* glGetTextureLevelParameterfv) (GLuint texture, GLint level, GLenum pname, GLfloat* params);
+        void (GL_APIENTRY* glGetTextureLevelParameteriv) (GLuint texture, GLint level, GLenum pname, GLint* params);
+        void (GL_APIENTRY* glGetTextureParameterIiv) (GLuint texture, GLenum pname, GLint* params);
+        void (GL_APIENTRY* glGetTextureParameterIuiv) (GLuint texture, GLenum pname, GLuint* params);
+        void (GL_APIENTRY* glGetTextureParameterfv) (GLuint texture, GLenum pname, GLfloat* params);
+        void (GL_APIENTRY* glGetTextureParameteriv) (GLuint texture, GLenum pname, GLint* params);
+        // VRV_PATCH: end
     protected:
         virtual ~GLExtensions();
 };

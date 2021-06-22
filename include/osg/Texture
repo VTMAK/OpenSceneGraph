@@ -27,6 +27,9 @@
 
 #include <list>
 #include <map>
+// VRV_PATCH: start
+#include <unordered_map>
+// VRV_PATCH: end
 
 // If not defined by gl.h use the definition found in:
 // http://oss.sgi.com/projects/ogl-sample/registry/EXT/texture_filter_anisotropic.txt
@@ -430,6 +433,69 @@
 
 //#define OSG_COLLECT_TEXTURE_APPLIED_STATS 1
 
+// VRV_PATCH: start
+// track texture memory if env variable:
+// OSG_TRACK_TEXTURE_MEMORY=1
+namespace osg
+{
+   //! properties of a particular class of buffers
+   struct GlTrackedTextureProperties
+   {
+   public:
+      // constructor
+      GlTrackedTextureProperties();
+   public:
+      //! number of textures
+      int myNumTextures;
+      //! size of textures (in bytes) currently
+      uint64_t myTexturesSize;
+
+      //! all time number of textures
+      int myMaxNumTextures;
+
+      //! all time max size of textures (in bytes)
+      uint64_t myMaxTexturesSize;
+   };
+
+   //! class to track memory for textures to which it is added as a listener
+   class OSG_EXPORT GlTextureMemoryTracker
+   {
+   public:
+      // Get the instance
+      static GlTextureMemoryTracker* instance();
+
+      //! destructor
+      virtual ~GlTextureMemoryTracker();
+
+   public:
+      //! call when texture size changed
+      virtual void textureSizeChanged(GLuint textureId);
+
+      //! call when texture is being deleted
+      virtual void textureDeleted(GLuint textureId);
+
+      //! accessor
+      const GlTrackedTextureProperties& trackedProperties(void) const;
+
+   protected:
+      //! constructor
+      GlTextureMemoryTracker();
+
+   private:
+      //! not allowed
+      GlTextureMemoryTracker(const GlTextureMemoryTracker&) = delete;
+      //! not allowed
+      GlTextureMemoryTracker& operator=(const GlTextureMemoryTracker&) = delete;
+
+   protected:
+      const bool myTracking;
+
+      std::unordered_map<GLuint, int> myTrackedTextures;
+
+      GlTrackedTextureProperties myProperties;
+   };
+}
+// VRV_PATCH: end
 namespace osg {
 
 
@@ -837,6 +903,11 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             GENERATE_MIPMAP_TEX_PARAMETER
         };
 
+        // VRV PATCH: start
+        static std::string getTextureName(GLuint id);
+        static bool textureCreationDeletionDebug();
+        // VRV PATCH: end
+
     protected :
 
         virtual ~Texture();
@@ -915,6 +986,12 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         ShadowCompareFunc   _shadow_compare_func;
         ShadowTextureMode   _shadow_texture_mode;
         float               _shadow_ambient;
+
+        // VRV_PATCH: start
+        // log to console creation/destruction if env variable 
+        // OSG_TEXTURE_CREATION_DELETION_DEBUG=1
+        static const bool _textureCreationDeletionDebug;
+        // VRV_PATCH: end
 
     public:
 
