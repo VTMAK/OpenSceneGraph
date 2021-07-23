@@ -1119,6 +1119,21 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
           //std::string name = childNode->getName();
           //std::cout << name << ":" << localMatrix(3, 0) << "," << localMatrix(3, 1) << "," << localMatrix(3, 2) << std::endl;
           pAddChildrenTo->addChild(childNode);
+          // Check if pAddChildrenTo is a switch and if the children is @state 0 and set the active switch
+          osgSim::MultiSwitch* pSwitch = dynamic_cast<osgSim::MultiSwitch*>(pAddChildrenTo);
+          if (pSwitch)
+          {
+             unsigned int index = pAddChildrenTo->getChildIndex(childNode);
+             // we want to set the active node to the one containing state 0
+             if (nodeComment.find("@dis state 0") != std::string::npos)
+             {
+                pSwitch->setValue(0, index, true);
+             }
+             else
+             {
+                pSwitch->setValue(0, index, false);
+             }
+          }
        }
     }
 
