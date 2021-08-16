@@ -761,6 +761,13 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             _textureObjectBuffer[contextID] = to;
         }
 
+        // VRV_PATCH: start
+        inline int textureObjectBufferSize(void) const 
+        { 
+           return _textureObjectBuffer.size();  
+        }
+        // VRV_PATCH: end
+
         /** Forces a recompile on next apply() of associated OpenGL texture
           * objects. */
         void dirtyTextureObject();
