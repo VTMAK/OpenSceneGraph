@@ -489,6 +489,9 @@ namespace osg
 
    protected:
       const bool myTracking;
+      // If tracking, indicate whether
+      // to print the stats to the console as well
+      const bool myTrackingLogging;
 
       std::unordered_map<GLuint, int> myTrackedTextures;
 

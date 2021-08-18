@@ -749,12 +749,13 @@ namespace osg {
 
    GlTextureMemoryTracker::GlTextureMemoryTracker()
       : myTracking(getenv("OSG_TRACK_TEXTURE_MEMORY") != 0)
+      , myTrackingLogging(getenv("OSG_TRACK_TEXTURE_MEMORY_LOGGING") != 0)
    {
    }
 
    GlTextureMemoryTracker::~GlTextureMemoryTracker()
    {
-      if (myTracking)
+      if (myTracking && myTrackingLogging)
       {
          std::cout << "osg texture stats: " << std::endl;
          std::cout << "\t" << "max textures' size: " << formatBytes(myProperties.myMaxTexturesSize) << std::endl;
@@ -811,21 +812,24 @@ namespace osg {
             myProperties.myMaxTexturesSize = myProperties.myTexturesSize;
          }
 
-         if (newAddition)
+         if (myTrackingLogging)
          {
-            std::cout << "texture tracked (new)   : " << Texture::getTextureName(textureId) << std::endl;
-         }
-         else
-         {
-            std::cout << "texture tracked (resize): " << Texture::getTextureName(textureId) << std::endl;
-         }
-         std::cout << " \t size: " << formatBytes(currentSize) << std::endl;
+            if (newAddition)
+            {
+               std::cout << "texture tracked (new)   : " << Texture::getTextureName(textureId) << std::endl;
+            }
+            else
+            {
+               std::cout << "texture tracked (resize): " << Texture::getTextureName(textureId) << std::endl;
+            }
+            std::cout << " \t size: " << formatBytes(currentSize) << std::endl;
 
-         std::cout << std::endl;
-         std::cout << "osg texture stats: " << std::endl;
-         std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
-         std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
-         std::cout << std::endl << std::endl;
+            std::cout << std::endl;
+            std::cout << "osg texture stats: " << std::endl;
+            std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
+            std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
+            std::cout << std::endl << std::endl;
+         }
       }
    }
    void GlTextureMemoryTracker::textureDeleted(GLuint textureId)
@@ -847,18 +851,23 @@ namespace osg {
          return;
       }
 
-      std::cout << "texture tracked (delete): " << Texture::getTextureName(textureId) << std::endl;
-      std::cout << " \t size: " << formatBytes(it->second) << std::endl;
-      std::cout << std::endl;
-
+      if (myTrackingLogging)
+      {
+         std::cout << "texture tracked (delete): " << Texture::getTextureName(textureId) << std::endl;
+         std::cout << " \t size: " << formatBytes(it->second) << std::endl;
+         std::cout << std::endl;
+      }
 
       --myProperties.myNumTextures;
       myProperties.myTexturesSize -= it->second;
       myTrackedTextures.erase(textureId);
 
-      std::cout << "osg texture stats: " << std::endl;
-      std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
-      std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
+      if (myTrackingLogging)
+      {
+         std::cout << "osg texture stats: " << std::endl;
+         std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
+         std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
+      }
    }
 
    static bool initCreationDeletionDebug()
