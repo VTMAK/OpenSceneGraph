@@ -20,6 +20,10 @@
 #include <osgDB/FileNameUtils>
 #include <osgDB/ObjectWrapper>
 #include <osgDB/fstream>
+//VRV PATCH - added a class mutex for sychronizing image data modifications
+#include <OpenThreads/Mutex>
+#include <OpenThreads/ScopedLock>
+//END VRV PATCH
 #include <sstream>
 #include <stdlib.h>
 
@@ -456,6 +460,10 @@ void OutputStream::writePrimitiveSet( const osg::PrimitiveSet* p )
 void OutputStream::writeImage( const osg::Image* img )
 {
     if ( !img ) return;
+
+    //VRV PATCH - added a class mutex for sychronizing image data modifications
+    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(img->getImageWriteMutex());
+    //END VRV PATCH
 
     std::string name = img->libraryName();
     name += std::string("::") + img->className();

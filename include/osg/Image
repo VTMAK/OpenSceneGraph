@@ -22,6 +22,10 @@
 #include <osg/FrameStamp>
 #include <osg/StateAttribute>
 
+//VRV PATCH - added a class mutex for sychronizing image data modifications
+#include <OpenThreads/Mutex>
+//END VRV PATCH
+
 #include <string>
 #include <vector>
 
@@ -546,6 +550,10 @@ class OSG_EXPORT Image : public BufferData
 	bool getBeingProcessed() {return _beingProcessed;}
         void setBeingProcessed(bool val) { _beingProcessed = val;}
 
+        //VRV PATCH - added a class mutex for sychronizing image data modifications
+        OpenThreads::Mutex& getImageWriteMutex() const { return _imageWriteMutex; }
+        //END VRV PATCH
+
     protected :
 
         virtual ~Image();
@@ -588,6 +596,10 @@ class OSG_EXPORT Image : public BufferData
         mutable unsigned int _translucentCheckModCount;
         mutable bool _isTranslucent;
         bool _beingProcessed;
+        //END VRV PATCH
+
+        //VRV PATCH - added a class mutex for sychronizing image data modifications
+        mutable OpenThreads::Mutex _imageWriteMutex;
         //END VRV PATCH
 };
 
