@@ -454,6 +454,15 @@ void Texture2DArray::apply(State& state) const
     {
         generateMipmap(state);
     }
+    // VRV_PATCH: start
+    if (textureObject && textureObject->id() != 0)
+    {
+       if (Texture::listener())
+       {
+          Texture::listener()->textureSizeChanged(textureObject->id());
+       }
+    }
+    // VRV_PATCH: end
 }
 
 

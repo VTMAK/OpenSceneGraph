@@ -587,6 +587,28 @@ namespace osg {
 
 
    // VRV PATCH: start
+   GlTextureListener* Texture::_textureListener = nullptr;
+
+   void Texture::setListener(GlTextureListener* listener)
+   {
+      if (_textureListener != nullptr)
+      {
+         OSG_WARN << "There is already a listener!" << std::endl;
+         return;
+      }
+      if (listener == nullptr)
+      {
+         OSG_WARN << "listener == nullptr!" << std::endl;
+         return;
+      }
+      _textureListener = listener;
+   }
+   
+   GlTextureListener* Texture::listener(void)
+   {
+      return _textureListener;
+   }
+
    std::string Texture::getTextureName(GLuint id)
    {
       if (id == 0)
@@ -616,7 +638,7 @@ namespace osg {
       }
    }
 
-   static int getTextureSize(GLuint textureId)
+   int Texture::getTextureSize(GLuint textureId)
    {
       if (textureId <= 0)
       {
@@ -733,143 +755,6 @@ namespace osg {
       return ss.str();
    }
 
-   GlTrackedTextureProperties::GlTrackedTextureProperties()
-      : myNumTextures(0)
-      , myTexturesSize(0)
-      , myMaxNumTextures(0)
-      , myMaxTexturesSize(0)
-   {
-   }
-
-   GlTextureMemoryTracker* GlTextureMemoryTracker::instance()
-   {
-      static GlTextureMemoryTracker tracker;
-      return &tracker;
-   }
-
-   GlTextureMemoryTracker::GlTextureMemoryTracker()
-      : myTracking(getenv("OSG_TRACK_TEXTURE_MEMORY") != 0)
-      , myTrackingLogging(getenv("OSG_TRACK_TEXTURE_MEMORY_LOGGING") != 0)
-   {
-   }
-
-   GlTextureMemoryTracker::~GlTextureMemoryTracker()
-   {
-      if (myTracking && myTrackingLogging)
-      {
-         std::cout << "osg texture stats: " << std::endl;
-         std::cout << "\t" << "max textures' size: " << formatBytes(myProperties.myMaxTexturesSize) << std::endl;
-         std::cout << "\t" << "max textures' num : " << myProperties.myMaxNumTextures << std::endl;
-
-         std::cout << std::endl;
-      }
-   }
-
-   const GlTrackedTextureProperties& GlTextureMemoryTracker::trackedProperties(void) const
-   {
-      return myProperties;
-   }
-
-   void GlTextureMemoryTracker::textureSizeChanged(GLuint textureId)
-   {
-      if (myTracking == false)
-      {
-         return;
-      }
-
-      if (textureId <= 0)
-      {
-         return;
-      }
-
-      auto it = myTrackedTextures.find(textureId);
-      bool newAddition = it == myTrackedTextures.end();
-      if (it == myTrackedTextures.end())
-      {
-         // make an entry
-         myTrackedTextures.insert(std::make_pair(textureId, 0));
-
-         // increase current number of buffers & max number of buffers of this type
-         ++myProperties.myNumTextures;
-         if (myProperties.myNumTextures > myProperties.myMaxNumTextures)
-         {
-            myProperties.myMaxNumTextures = myProperties.myNumTextures;
-         }
-      }
-
-      // adjust size
-      int& currentSize = myTrackedTextures[textureId];
-      int oldSize = currentSize;
-      currentSize = getTextureSize(textureId);
-
-      if (oldSize != currentSize)
-      {
-         myProperties.myTexturesSize -= oldSize;
-         myProperties.myTexturesSize += currentSize;
-
-         if (myProperties.myTexturesSize > myProperties.myMaxTexturesSize)
-         {
-            myProperties.myMaxTexturesSize = myProperties.myTexturesSize;
-         }
-
-         if (myTrackingLogging)
-         {
-            if (newAddition)
-            {
-               std::cout << "texture tracked (new)   : " << Texture::getTextureName(textureId) << std::endl;
-            }
-            else
-            {
-               std::cout << "texture tracked (resize): " << Texture::getTextureName(textureId) << std::endl;
-            }
-            std::cout << " \t size: " << formatBytes(currentSize) << std::endl;
-
-            std::cout << std::endl;
-            std::cout << "osg texture stats: " << std::endl;
-            std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
-            std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
-            std::cout << std::endl << std::endl;
-         }
-      }
-   }
-   void GlTextureMemoryTracker::textureDeleted(GLuint textureId)
-   {
-      if (myTracking == false)
-      {
-         return;
-      }
-
-      if (textureId <= 0)
-      {
-         return;
-      }
-
-      auto it = myTrackedTextures.find(textureId);
-      if (it == myTrackedTextures.end())
-      {
-         std::cout << "it == myTrackedTextures.end()" << std::endl;
-         return;
-      }
-
-      if (myTrackingLogging)
-      {
-         std::cout << "texture tracked (delete): " << Texture::getTextureName(textureId) << std::endl;
-         std::cout << " \t size: " << formatBytes(it->second) << std::endl;
-         std::cout << std::endl;
-      }
-
-      --myProperties.myNumTextures;
-      myProperties.myTexturesSize -= it->second;
-      myTrackedTextures.erase(textureId);
-
-      if (myTrackingLogging)
-      {
-         std::cout << "osg texture stats: " << std::endl;
-         std::cout << "\t" << "current textures' size: " << formatBytes(myProperties.myTexturesSize) << std::endl;
-         std::cout << "\t" << "current textures' num : " << myProperties.myNumTextures << std::endl;
-      }
-   }
-
    static bool initCreationDeletionDebug()
    {
       return getenv("OSG_TEXTURE_CREATION_DELETION_DEBUG") != 0;
@@ -917,9 +802,12 @@ namespace osg {
             //VRV_PATCH for texture deletion debugging
             if (Texture::textureCreationDeletionDebug())
             {
-               std::cout << " deleting: " << Texture::getTextureName(id) << std::endl;
+               std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
             }
-            GlTextureMemoryTracker::instance()->textureDeleted(id);
+            if (Texture::listener())
+            {
+               Texture::listener()->textureDeleted(id);
+            }
             // END VRV PATCH
             glDeleteTextures(1L, &id);
             // VRV PATCH
@@ -1047,9 +935,12 @@ namespace osg {
             //VRV_PATCH for texture deletion debugging
             if (Texture::textureCreationDeletionDebug())
             {
-               std::cout << " deleting: " << Texture::getTextureName(id) << std::endl;
+               std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
             }
-            GlTextureMemoryTracker::instance()->textureDeleted(id);
+            if (Texture::listener())
+            {
+               Texture::listener()->textureDeleted(id);
+            }
             // END VRV PATCH
             glDeleteTextures(1L, &id);
             ++numDeleted;
@@ -1163,9 +1054,12 @@ namespace osg {
                //VRV_PATCH for texture deletion debugging
                if (Texture::textureCreationDeletionDebug())
                {
-                  std::cout << " deleting: " << Texture::getTextureName(id) << std::endl;
+                  std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
                }
-               GlTextureMemoryTracker::instance()->textureDeleted(id);
+               if (Texture::listener())
+               {
+                  Texture::listener()->textureDeleted(id);
+               }
                glDeleteTextures(1L, &id);
                _orphanedTextureObjects.erase(itr);
             }
@@ -1325,7 +1219,7 @@ namespace osg {
 
       if (Texture::textureCreationDeletionDebug())
       {
-         std::cout << " created: " << Texture::getTextureName(id) << std::endl;
+         std::cout << "(osg) created: " << Texture::getTextureName(id) << std::endl;
       }
 
       return to;
@@ -3655,10 +3549,15 @@ namespace osg {
          textureObject->bind();
          ext->glGenerateMipmap(textureObject->target());
 
+         // VRV_PATCH: start
          if (textureObject && textureObject->id() > 0)
          {
-            GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+            if (Texture::listener())
+            {
+               Texture::listener()->textureSizeChanged(textureObject->id());
+            }
          }
+         // VRV_PATCH: end
 
          // inform state that this texture is the current one bound.
          state.haveAppliedTextureAttribute(state.getActiveTextureUnit(), this);

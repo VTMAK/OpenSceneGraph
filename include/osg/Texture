@@ -434,68 +434,36 @@
 //#define OSG_COLLECT_TEXTURE_APPLIED_STATS 1
 
 // VRV_PATCH: start
-// track texture memory if env variable:
-// OSG_TRACK_TEXTURE_MEMORY=1
 namespace osg
 {
-   //! properties of a particular class of buffers
-   struct GlTrackedTextureProperties
+   //! An abstract class interface that has methods that are to be
+   //! called when texture events happen
+   //! 
+   //! osg::Texture can have a single static event listener set on it
+   //! 
+   //! If the listener is set, Texture, Texture2D and Texture2DArray 
+   //! call these methods on the listener:
+   //!   -textureSizeChanged when the texture size changes
+   //!   -textureDeleted when the texture is being deleted
+   //! 
+   //! For performance reasons, there can be only one listener
+   //! (set via the static call Texture::setListenera).
+   //! 
+   //! Since a glGenTextures call only makes a name and there really
+   //! is no texture complete object at that time, there is no use
+   //! of listening in on this. Therefore there is no such callback
+   //! A prospective listener that tracks textures for example can
+   //! check whether texture size changed is called for the first time
+   //! for a given texture id and then make an entry for it, to indicate
+   //! a new texture.
+   class OSG_EXPORT GlTextureListener
    {
    public:
-      // constructor
-      GlTrackedTextureProperties();
-   public:
-      //! number of textures
-      int myNumTextures;
-      //! size of textures (in bytes) currently
-      uint64_t myTexturesSize;
-
-      //! all time number of textures
-      int myMaxNumTextures;
-
-      //! all time max size of textures (in bytes)
-      uint64_t myMaxTexturesSize;
-   };
-
-   //! class to track memory for textures to which it is added as a listener
-   class OSG_EXPORT GlTextureMemoryTracker
-   {
-   public:
-      // Get the instance
-      static GlTextureMemoryTracker* instance();
-
-      //! destructor
-      virtual ~GlTextureMemoryTracker();
-
-   public:
-      //! call when texture size changed
-      virtual void textureSizeChanged(GLuint textureId);
+      //! call when texture is created
+      virtual void textureSizeChanged(GLuint textureId) = 0;
 
       //! call when texture is being deleted
-      virtual void textureDeleted(GLuint textureId);
-
-      //! accessor
-      const GlTrackedTextureProperties& trackedProperties(void) const;
-
-   protected:
-      //! constructor
-      GlTextureMemoryTracker();
-
-   private:
-      //! not allowed
-      GlTextureMemoryTracker(const GlTextureMemoryTracker&) = delete;
-      //! not allowed
-      GlTextureMemoryTracker& operator=(const GlTextureMemoryTracker&) = delete;
-
-   protected:
-      const bool myTracking;
-      // If tracking, indicate whether
-      // to print the stats to the console as well
-      const bool myTrackingLogging;
-
-      std::unordered_map<GLuint, int> myTrackedTextures;
-
-      GlTrackedTextureProperties myProperties;
+      virtual void textureDeleted(GLuint textureId) = 0;
    };
 }
 // VRV_PATCH: end
@@ -914,10 +882,22 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         };
 
         // VRV PATCH: start
+
+         //! set a listener
+        static void setListener(GlTextureListener* listener);
+
+        //! get the listener
+        static GlTextureListener* listener(void);
+
+        //! get the name of a texture
         static std::string getTextureName(GLuint id);
+
+        //! get the size of the texture
+        static int getTextureSize(GLuint id);
+
+        //! for debugging
         static bool textureCreationDeletionDebug();
         // VRV PATCH: end
-
     protected :
 
         virtual ~Texture();
@@ -1001,8 +981,10 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         // log to console creation/destruction if env variable 
         // OSG_TEXTURE_CREATION_DELETION_DEBUG=1
         static const bool _textureCreationDeletionDebug;
+        
+        static GlTextureListener* _textureListener;
         // VRV_PATCH: end
-
+        
     public:
 
         struct OSG_EXPORT TextureProfile

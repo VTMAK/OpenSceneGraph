@@ -381,27 +381,35 @@ void Texture2D::apply(State& state) const
             applyTexImage2D_subload(state, GL_TEXTURE_2D, _image.get(),
                 _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
 
-
+            // VRV_PATCH: start
             if (textureObject && textureObject->id() > 0)
             {
-               GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+               if (_textureListener)
+               {
+                  _textureListener->textureSizeChanged(textureObject->id());
+               }
             }
+            // VRV_PATCH: end
         }
         else if (_readPBuffer.valid())
         {
             _readPBuffer->bindPBufferToTexture(GL_FRONT);
         }
 
-        //VRV_PATCH
+        // VRV_PATCH: start
         if (_image.valid()) {
            // this shouldn't happen but I guess it does
            sendMipmap(state, this, textureObject);
 
            if (textureObject && textureObject->id() > 0)
            {
-              GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+              if (Texture::listener())
+              {
+                 Texture::listener()->textureSizeChanged(textureObject->id());
+              }
            }
         }
+        // VRV_PATCH: end
 
         if (getTextureParameterDirty(state.getContextID()))
             applyTexParameters(GL_TEXTURE_2D, state);
@@ -422,13 +430,16 @@ void Texture2D::apply(State& state) const
 
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
 
-        // VRV_PATCH
+        // VRV_PATCH: start
         sendMipmap(state, this, textureObject);
         if (textureObject && textureObject->id() > 0)
         {
-           GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+           if (Texture::listener())
+           {
+              Texture::listener()->textureSizeChanged(textureObject->id());
+           }
         }
-        // END_VRV_PATCH
+        // VRV_PATCH: end
 
         // in theory the following line is redundent, but in practice
         // have found that the first frame drawn doesn't apply the textures
@@ -478,18 +489,20 @@ void Texture2D::apply(State& state) const
             textureObject->setAllocated(true);
         }
 
-        // VRV_PATCH
+        // VRV_PATCH: start
         sendMipmap(state, this, textureObject);
 
         if (textureObject && textureObject->id() > 0)
         {
-           GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+           if (Texture::listener())
+           {
+              Texture::listener()->textureSizeChanged(textureObject->id());
+           }
         }
 
         // update the modified tag to show that it is up to date.
         getModifiedCount(contextID) = image->getModifiedCount();
-
-        // END_VRV_PATCH
+        // VRV_PATCH: end
 
         // unref image data?
         if (isSafeToUnrefImageData(state) && image->getDataVariance()==STATIC)
@@ -533,10 +546,15 @@ void Texture2D::apply(State& state) const
         }
 
 
+         // VRV_PATCH: start
          if (textureObject && textureObject->id() > 0)
          {
-            GlTextureMemoryTracker::instance()->textureSizeChanged(textureObject->id());
+            if (Texture::listener())
+            {
+               Texture::listener()->textureSizeChanged(textureObject->id());
+            }
          }
+         // VRV_PATCH: end
 
         if (_readPBuffer.valid())
         {
