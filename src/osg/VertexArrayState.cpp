@@ -738,6 +738,13 @@ void VertexArrayState::release()
 
 void VertexArrayState::setArray(ArrayDispatch* vad, osg::State& state, const osg::Array* new_array)
 {
+    // VRV_PATCH: start
+    if (vad == nullptr)
+    {
+      return;
+    }
+    // VRV_PATCH: end
+
     if (new_array)
     {
         if (!vad->active)

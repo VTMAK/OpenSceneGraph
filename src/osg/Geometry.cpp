@@ -944,8 +944,15 @@ void Geometry::drawImplementation(RenderInfo& renderInfo) const
 void Geometry::drawVertexArraysImplementation(RenderInfo& renderInfo) const
 {
     State& state = *renderInfo.getState();
-    VertexArrayState* vas = state.getCurrentVertexArrayState();
 
+    // VRV_PATCH: start
+	VertexArrayState* vas = state.getCurrentVertexArrayState();
+	if (vas == nullptr)
+	{
+		return;
+	}
+    // VRV_PATCH: end
+    
     bool handleVertexAttributes = !_vertexAttribList.empty();
 
     AttributeDispatchers& attributeDispatchers = state.getAttributeDispatchers();
