@@ -540,12 +540,17 @@ osg::Image* ReadDDSFile(std::istream& _istream, bool flipDDSRead)
             dataType       = GL_UNSIGNED_SHORT;
             break;
         case 0x00000070: // G16R16F
-            OSG_INFO << "ReadDDSFile info : G16R16F format is not supported"
-                                   << std::endl;
-            return NULL;
-//             internalFormat = GL_RGB;
-//             pixelFormat    = must be GL_RED and GL_GREEN
-//             dataType       = GL_HALF_FLOAT;
+            // VRV_PATCH: start
+            OSG_INFO << "ReadDDSFile info : format = G16R16F" << std::endl;
+            // PPP: Not sure if this is the right internal format, but it seems
+            // to show the correct texture in nsight. 
+            // This format is used for the pbr brdf look up texture.
+            // Using this format fixes the quantization issues with PBR shaders (because of the higher resolution).
+            // This is currently the only place where this format is used.
+            internalFormat = GL_RG16;
+            pixelFormat = GL_RG;
+            dataType       = GL_HALF_FLOAT;
+            // VRV_PATCH: end
             break;
         case 0x00000073: // G32R32F
             OSG_INFO << "ReadDDSFile info : G32R32F format is not supported"
