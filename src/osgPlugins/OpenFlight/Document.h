@@ -222,11 +222,6 @@ class Document
         void setMipMapOffset(int offset) { _mipMapOffset = offset; }
         int getMipMapOffset() const { return _mipMapOffset; }
 
-        // VRV_PATCH BEGIN
-        void setUseReverseZBuffer(bool flag) { _useReverseZBuffer = flag; }
-        bool getUseReverseZBuffer() const { return _useReverseZBuffer; }
-        // VRV_PATCH END
-
         void setSigSizeTable(makVrv::oe::CDB::CDBSigSizeTable* sigSizeTable) { _sigSizeTable = sigSizeTable; };
         makVrv::oe::CDB::CDBSigSizeTable* getSigSizeTable() { return _sigSizeTable; };
 
@@ -264,9 +259,6 @@ class Document
         makVrv::oe::CDB::CDBSigSizeTable* _sigSizeTable;
         
         bool                        _keepExternalReferences;
-        // VRV_PATCH BEGIN
-        bool                        _useReverseZBuffer; // is Vantage in reverse zbuffer mode
-        // VRV_PATCH END
 
         friend class Header;
         bool _done;

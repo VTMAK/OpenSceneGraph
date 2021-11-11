@@ -240,20 +240,17 @@ protected:
         }
         else
             _group = new osg::Group;
-        if (layer !=0 )
+        if (layer != 0)
         {
-            // VRV_PATCH BEGIN
-            if (document.getUseReverseZBuffer())
-            {
-                // reverse depth buffer
-                _group->getOrCreateStateSet()->setAttributeAndModes(document.getSubSurfacePolygonOffset(-layer), osg::StateAttribute::ON);
-            }
-            else
-            {
-                // normal depth buffer
-                _group->getOrCreateStateSet()->setAttributeAndModes(document.getSubSurfacePolygonOffset(layer), osg::StateAttribute::ON);
-            }
-            // VRV_PATCH END
+           // higher numbers are rendered on top. In polygon offset this needs to be more negative as the layers have to be
+           // rendered lesser in depth (closer to you). That's why getSubSurfacePolygonOffset flips it:
+           // osg::PolygonOffset* Document::getSubSurfacePolygonOffset(int level)
+           // {
+           //     ...
+           //     po = new osg::PolygonOffset(-1.0f*float(level), -1.0f);
+           // }
+
+           _group->getOrCreateStateSet()->setAttributeAndModes(document.getSubSurfacePolygonOffset(layer), osg::StateAttribute::ON);
            _group->getOrCreateStateSet()->setRenderBinDetails(layer, "RenderBin");
         }
 
@@ -264,16 +261,9 @@ protected:
         // 
         if (document.getCdb() && relativePriority > 0)
         {
-            if (document.getUseReverseZBuffer())
-            {
-                // reverse depth buffer - this might need to be osg::StateAttribute::PROTECTED
-                _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(1, 1), osg::StateAttribute::ON);
-            }
-            else
-            {
-                // normal depth buffer
-                _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(-1, -1), osg::StateAttribute::ON);
-            }            
+           // higher numbers are rendered on top. In polygon offset this needs to be more negative as the layers have to be
+         // rendered lesser in depth (closer to you). That's why we flip it:
+           _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(-1, -1), osg::StateAttribute::ON);
         }
         // VRV_PATCH END
 

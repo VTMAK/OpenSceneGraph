@@ -53,7 +53,6 @@ Document::Document() :
     _cdb(false),
     _mipMapOffset(0),
     _sigSizeTable(0),
-    _useReverseZBuffer(false),
     myRegistry(0)
     
 {

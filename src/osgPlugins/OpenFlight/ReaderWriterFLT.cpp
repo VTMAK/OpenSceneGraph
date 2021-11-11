@@ -480,14 +480,6 @@ class FLTReaderWriter : public ReaderWriter
                    }
                 }
 
-                // VRV_PATCH BEGIN
-                if (options->getOptionString().find("vrvUseReverseZBuffer") != std::string::npos)
-                {
-                    // Tell the FTL plugin to use reverse Z buffer values for polygon offset 
-                    document.setUseReverseZBuffer(true);
-                }
-                // VRV_PATCH END
-
             }
 
             const int RECORD_HEADER_SIZE = 4;
