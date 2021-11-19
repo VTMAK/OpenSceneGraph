@@ -71,6 +71,7 @@ namespace osg
 #define ZoneScopedNCA( name, color, active ) ZoneNamedNC( ___tracy_scoped_zone, name, color, active )
 
 // win32 creates macros that work with our stats and tracy
+#define OsgProfileZone ZoneNamed(___tracy_scoped_zone, osg::ProfileManager::theProfileManager._CollectTracyStats);
 #define OsgProfile(name) ZoneScopedNA(name, osg::ProfileManager::theProfileManager._CollectTracyStats); 
 // extra per zone info
 #define OsgProfileText(text, len) if(osg::ProfileManager::theProfileManager._CollectTracyStats){ZoneText( text, len );}

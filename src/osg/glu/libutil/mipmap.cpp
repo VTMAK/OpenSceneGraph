@@ -32,6 +32,9 @@
 #include <osg/Image>
 #include <osg/Texture3D>
 
+// VRV_PATCH:
+#include <osg/Profile>
+
 // simply define GLAPIENTRY as nothing so that we can keep function signatures the same as declaration.
 #define GLAPIENTRY
 
@@ -3695,6 +3698,8 @@ gluBuild1DMipmapLevels(GLenum target, GLint internalFormat,
                              GLint userLevel, GLint baseLevel, GLint maxLevel,
                              const void *data)
 {
+   OsgProfileC("gluBuild1DMipmapLevels", tracy::Color::Purple);
+
    int levels;
 
    int rc= checkMipmapArgs(internalFormat,format,type);
@@ -3722,6 +3727,8 @@ gluBuild1DMipmaps(GLenum target, GLint internalFormat, GLsizei width,
                         GLenum format, GLenum type,
                         const void *data)
 {
+   OsgProfileC("gluBuild1DMipmaps", tracy::Color::Purple);
+
    GLint widthPowerOf2;
    int levels;
    GLint dummy;
@@ -4637,6 +4644,8 @@ gluBuild2DMipmapLevels(GLenum target, GLint internalFormat,
                              GLint userLevel, GLint baseLevel, GLint maxLevel,
                              const void *data)
 {
+   OsgProfileC("gluBuild2DMipmapLevels", tracy::Color::Purple);
+
    int level, levels;
 
    int rc= checkMipmapArgs(internalFormat,format,type);
@@ -4668,6 +4677,8 @@ gluBuild2DMipmaps(GLenum target, GLint internalFormat,
                         GLenum format, GLenum type,
                         const void *data)
 {
+   OsgProfileC("gluBuild2DMipmaps", tracy::Color::Purple);
+
    GLint widthPowerOf2, heightPowerOf2;
    int level, levels;
 
@@ -8511,6 +8522,8 @@ GLint GLAPIENTRY gluBuild3DMipmapLevels(GLTexImage3DProc gluTexImage3D,
                                         GLint userLevel, GLint baseLevel, GLint maxLevel,
                                         const void *data)
 {
+   OsgProfileC("gluBuild3DMipmapLevels", tracy::Color::Purple);
+
    int level, levels;
 
    int rc= checkMipmapArgs(internalFormat,format,type);
@@ -8547,6 +8560,8 @@ GLint GLAPIENTRY gluBuild3DMipmaps(GLTexImage3DProc gluTexImage3D,
                                    GLsizei width, GLsizei height, GLsizei depth,
                                    GLenum format, GLenum type, const void *data)
 {
+   OsgProfileC("gluBuild3DMipmaps", tracy::Color::Purple);
+
    GLint widthPowerOf2, heightPowerOf2, depthPowerOf2;
    int level, levels;
 
