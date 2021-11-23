@@ -204,6 +204,13 @@ void TextureBuffer::apply(State& state) const
 
             textureObject->bind();
             extensions->glTexBuffer(GL_TEXTURE_BUFFER, _internalFormat, glBufferObject->getGLObjectID());
+
+            // VRV_PATCH: start
+            if (Texture::listener())
+            {
+               Texture::listener()->textureSizeChanged(textureObject->id());
+            }
+            // VRV_PATCH: end
         }
 
     }
