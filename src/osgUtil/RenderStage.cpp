@@ -24,6 +24,7 @@
 #include <osg/ContextData>
 #include <osg/GLExtensions>
 #include <osg/GLU>
+#include <osg/GlDebugGroup>
 
 // VRV_PATCH
 #include <osg/Profile>
@@ -1485,6 +1486,10 @@ void RenderStage::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
     osg::GraphicsContext* useContext = callingContext;
     osg::OperationThread* useThread = 0;
     osg::RenderInfo useRenderInfo(renderInfo);
+
+    // VRV_PATCH
+    osg::GlScopedDebugGroup glDebugGroup(state.get<osg::GLExtensions>(), 1, 
+       _camera.valid() ? _camera.get()->getName().c_str() : "RenderStage::draw");
 
     RenderLeaf* saved_previous = previous;
 
