@@ -3534,6 +3534,8 @@ gluScaleImage(PixelStorageModes* psm, GLenum format, GLsizei widthin, GLsizei he
                     GLsizei widthout, GLsizei heightout, GLenum typeout,
                     void *dataout)
 {
+    OsgProfileC("gluScaleImage", tracy::Color::Purple);
+
     int components;
     GLushort *beforeImage;
     GLushort *afterImage;
@@ -7406,6 +7408,8 @@ int gluScaleImage3D(GLenum format,
                     GLint widthOut, GLint heightOut, GLint depthOut,
                     GLenum typeOut, void *dataOut)
 {
+   OsgProfileC("gluScaleImage3D", tracy::Color::Purple);
+
    int components;
    GLushort *beforeImage, *afterImage;
    PixelStorageModes psm;
