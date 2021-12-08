@@ -161,7 +161,7 @@ bool Texture2D::textureObjectValid(State& state) const
 }
 
 //VRV_PATCH
-static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::TextureObject *textureObject)
+static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Texture::TextureObject *textureObject, bool& uploaded)
 {
    // note this only happens for 2d textures currently
    if (textureObject->_currentMipMapToApply < 0)
@@ -262,6 +262,8 @@ static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Te
                   (GLenum)image->getPixelFormat(),
                   size,
                   ((unsigned char*)image->getDataPointer()) + image->getMipmapOffset(k) + ptrOffset);
+
+               uploaded |= true;
             }
             else
             {
@@ -273,6 +275,8 @@ static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Te
                   (GLenum)image->getPixelFormat(),
                   (GLenum)image->getDataType(),
                   ((unsigned char*)image->getDataPointer()) + image->getMipmapOffset(k) + ptrOffset);
+
+               uploaded |= true;
             }
                 
 #define GL_TEXTURE_BASE_LEVEL             0x813C
@@ -311,7 +315,7 @@ static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Te
 
    if (width <= MIN_STREAM_SIZED && height <= MIN_STREAM_SIZED && textureObject->_currentMipMapToApply >= 0)
    { // do it again till the smallest maps are sent
-      sendMipmap(state, texture, textureObject);
+      sendMipmap(state, texture, textureObject, uploaded);
    }
      
    // free memory if download is finished // one texture pointer seemed to disappear not sure why
@@ -399,9 +403,10 @@ void Texture2D::apply(State& state) const
         // VRV_PATCH: start
         if (_image.valid()) {
            // this shouldn't happen but I guess it does
-           sendMipmap(state, this, textureObject);
+           bool uploaded = false;
+           sendMipmap(state, this, textureObject, uploaded);
 
-           if (textureObject && textureObject->id() > 0)
+           if (uploaded && textureObject && textureObject->id() > 0)
            {
               if (Texture::listener())
               {
@@ -431,8 +436,9 @@ void Texture2D::apply(State& state) const
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
 
         // VRV_PATCH: start
-        sendMipmap(state, this, textureObject);
-        if (textureObject && textureObject->id() > 0)
+        bool uploaded = false;
+        sendMipmap(state, this, textureObject,uploaded);
+        if (uploaded && textureObject && textureObject->id() > 0)
         {
            if (Texture::listener())
            {
@@ -490,9 +496,10 @@ void Texture2D::apply(State& state) const
         }
 
         // VRV_PATCH: start
-        sendMipmap(state, this, textureObject);
+        bool uploaded = false;
+        sendMipmap(state, this, textureObject, uploaded);
 
-        if (textureObject && textureObject->id() > 0)
+        if (uploaded && textureObject && textureObject->id() > 0)
         {
            if (Texture::listener())
            {
