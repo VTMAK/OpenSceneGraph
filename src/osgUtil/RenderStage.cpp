@@ -1313,24 +1313,54 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
         }
         else
         {
-            // VRV_PATCH BEGIN
-            if (blitMask)
-            {
-                for(unsigned int i = 0; i < _resolveArrayLayerFbos.size(); i++)
-                {
-                    //_arrayLayerFbos[i]->dirtyAll();
-                    _arrayLayerFbos[i]->apply(state, FrameBufferObject::READ_FRAMEBUFFER);
-                    _resolveArrayLayerFbos[i]->apply(state, FrameBufferObject::DRAW_FRAMEBUFFER);
+           // VRV_PATCH BEGIN
 
-                    ext->glBlitFramebuffer(
-                        static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
-                        static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
-                        static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
-                        static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
-                        blitMask, GL_NEAREST);
-                }
-            }
-            // VRV_PATCH END
+           for (unsigned int i = 0; i < _resolveArrayLayerFbos.size(); i++)
+           {
+              //_arrayLayerFbos[i]->dirtyAll();
+              _arrayLayerFbos[i]->apply(state, FrameBufferObject::READ_FRAMEBUFFER);
+              _resolveArrayLayerFbos[i]->apply(state, FrameBufferObject::DRAW_FRAMEBUFFER);
+
+              if (blitMask)
+              {
+                 ext->glBlitFramebuffer(
+                    static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
+                    static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
+                    static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
+                    static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
+                    blitMask, GL_NEAREST);
+              }
+
+#if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE)
+              if (needToBlitColorBuffers)
+              {
+                 for (FrameBufferObject::AttachmentMap::const_iterator
+                    it = _resolveArrayLayerFbos[i]->getAttachmentMap().begin(),
+                    end = _resolveArrayLayerFbos[i]->getAttachmentMap().end(); it != end; ++it)
+                 {
+                    osg::Camera::BufferComponent attachment = it->first;
+                    if (attachment >= osg::Camera::COLOR_BUFFER0)
+                    {
+                       glReadBuffer(GL_COLOR_ATTACHMENT0_EXT + (attachment - osg::Camera::COLOR_BUFFER0));
+                       glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT + (attachment - osg::Camera::COLOR_BUFFER0));
+
+                       ext->glBlitFramebuffer(
+                          static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
+                          static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
+                          static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
+                          static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                    }
+                 }
+                 // reset the read and draw buffers?  will comment out for now with the assumption that
+                 // the buffers will be set explicitly when needed elsewhere.
+                 // glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+                 // glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+              }
+#endif
+           }
+
+           // VRV_PATCH END
         }
         
         apply_read_fbo = true;
