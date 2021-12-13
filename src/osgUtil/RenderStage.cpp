@@ -24,7 +24,7 @@
 #include <osg/ContextData>
 #include <osg/GLExtensions>
 #include <osg/GLU>
-#include <osg/GlDebugGroup>
+#include <osg/GLDebugGroup>
 
 // VRV_PATCH
 #include <osg/Profile>
