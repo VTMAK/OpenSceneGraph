@@ -1101,7 +1101,18 @@ namespace osg {
       return to;
    }
 
+   // VRV_PATCH: start
+   static void nameTexture(const Texture* texture, osg::Texture::TextureObject* to, const GLExtensions* extensions)
+   {
+      to->bind();
+      std::string nameToSet = (texture->getName().length()) ? texture->getName().c_str() :
+         (texture->getImage(0) && texture->getImage(0)->getName().length()) ? texture->getImage(0)->getName() : "unnamed";
 
+      extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, nameToSet.c_str());
+   }
+   // VRV_PATCH: end
+
+   // VRV_PATCH: start (changes to name texture)
    osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeOrGenerate(Texture* texture)
    {
       // see if we can recycle TextureObject from the orphan list
@@ -1176,14 +1187,7 @@ namespace osg {
          to->setTexture(texture);
 
          if (extensions->glObjectLabel) {
-            to->bind();
-            if (texture->getName().length())
-            {
-               extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getName().c_str());
-            }
-            else if (texture->getImage(0) && texture->getImage(0)->getName().length()) {
-               extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getImage(0)->getName().c_str());
-            }
+            nameTexture(texture, to, extensions);
          }
 
          return to;
@@ -1207,14 +1211,7 @@ namespace osg {
 
       OSG_INFO << "Created new " << this << " TextureObject, _numOfTextureObjects " << _numOfTextureObjects << std::endl;
       if (extensions->glObjectLabel) {
-         to->bind();
-         if (texture->getName().length())
-         {
-            extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getName().c_str());
-         }
-         else if (texture->getImage(0) && texture->getImage(0)->getName().length()) {
-            extensions->glObjectLabel(GL_TEXTURE, to->id(), -1, texture->getImage(0)->getName().c_str());
-         }
+         nameTexture(texture, to, extensions);
       }
 
       if (Texture::textureCreationDeletionDebug())
@@ -1224,6 +1221,7 @@ namespace osg {
 
       return to;
    }
+   // VRV_PATCH: end (changes to name texture)
 
    void TextureObjectSet::moveToBack(Texture::TextureObject* to)
    {
@@ -2752,7 +2750,8 @@ namespace osg {
       }
    }
 
-   void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLsizei numMipmapLevels) const
+   // VRV_PATCH: start (changes to signal when part or complete texture was uploaded)
+   void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLsizei numMipmapLevels, bool& uploaded) const
    {
       // if we don't have a valid image we can't create a texture!
       if (!image || !image->data())
@@ -2972,6 +2971,8 @@ namespace osg {
                (GLenum)image->getDataType(),
                dataPtr);
 
+            uploaded |= true;
+
          }
          else if (extensions->isCompressedTexImage2DSupported())
          {
@@ -2988,6 +2989,8 @@ namespace osg {
                inwidth, inheight, 0,
                size,
                dataPtr);
+
+            uploaded |= true;
          }
 
          mipmapAfterTexImage(state, mipmapResult);
@@ -3054,6 +3057,7 @@ namespace osg {
                         width >>= 1;
                         height >>= 1;
                      }
+                     uploaded |= true;
                   }
                   //VRV_PATCH
                   else {
@@ -3093,6 +3097,7 @@ namespace osg {
                         width >>= 1;
                         height >>= 1;
                      }
+                     uploaded |= true;
                   }
                   else {
                      // start streaming them
@@ -3121,6 +3126,7 @@ namespace osg {
                      width >>= 1;
                      height >>= 1;
                   }
+                  uploaded |= true;
                }
                else if (extensions->isCompressedTexImage2DSupported())
                {
@@ -3142,6 +3148,7 @@ namespace osg {
                      width >>= 1;
                      height >>= 1;
                   }
+                  uploaded |= true;
                }
             }
          }
@@ -3163,6 +3170,7 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
+               uploaded |= true;
             }
             else
             {
@@ -3213,7 +3221,7 @@ namespace osg {
       }
    }
 
-   void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLint inInternalFormat, GLint numMipmapLevels) const
+   void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLint inInternalFormat, GLint numMipmapLevels, bool& uploaded) const
    {
       // if we don't have a valid image we can't create a texture!
       if (!image || !image->data())
@@ -3222,7 +3230,7 @@ namespace osg {
       // image size has changed so we have to re-load the image from scratch.
       if (image->s() != inwidth || image->t() != inheight || image->getInternalTextureFormat() != inInternalFormat)
       {
-         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
+         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
          return;
       }
       // else image size the same as when loaded so we can go ahead and subload
@@ -3236,7 +3244,7 @@ namespace osg {
          (((inwidth >> 2) << 2) != inwidth ||
             ((inheight >> 2) << 2) != inheight))
       {
-         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
+         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
          return;
       }
 
@@ -3347,6 +3355,7 @@ namespace osg {
                size,
                dataPtr);
          }
+         uploaded |= true;
 
          mipmapAfterTexImage(state, mipmapResult);
       }
@@ -3379,6 +3388,7 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
+               uploaded |= true;
             }
             else if (extensions->isCompressedTexImage2DSupported())
             {
@@ -3406,13 +3416,13 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
-
+               uploaded |= true;
             }
          }
          else
          {
             //OSG_WARN<<"Warning:: cannot subload mip mapped texture from non mipmapped image."<<std::endl;
-            applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
+            applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
          }
       }
 
@@ -3430,6 +3440,7 @@ namespace osg {
          delete[] dataPtr;
       }
    }
+   // VRV_PATCH: end (changes to signal when part or complete texture was uploaded)
 
    bool Texture::isHardwareMipmapGenerationEnabled(const State& state) const
    {
@@ -3519,6 +3530,12 @@ namespace osg {
 
    void Texture::generateMipmap(State& state) const
    {
+      bool unused = false;
+      generateMipmap(state, unused);
+   }
+
+   void Texture::generateMipmap(State& state, bool& uploaded) const
+   {
       osg::CVMarkerSeries series("Render Tasks2");
       osg::CVSpan UpdateTick(series, 0, "generateMipmap");
       OsgProfileC("generateMipmap", tracy::Color::Purple);
@@ -3549,25 +3566,16 @@ namespace osg {
          textureObject->bind();
          ext->glGenerateMipmap(textureObject->target());
 
-         // VRV_PATCH: start
-         if (textureObject && textureObject->id() > 0)
-         {
-            if (Texture::listener())
-            {
-               Texture::listener()->textureSizeChanged(textureObject->id());
-            }
-         }
-         // VRV_PATCH: end
-
          // inform state that this texture is the current one bound.
          state.haveAppliedTextureAttribute(state.getActiveTextureUnit(), this);
 
          // if the function is not supported, then do manual allocation
-    }else
+      }
+      else
       {
          allocateMipmap(state);
       }
-
+      uploaded |= true;
    }
 
    void Texture::compileGLObjects(State& state) const

@@ -333,9 +333,9 @@ static void sendMipmap(osg::State & state, const osg::Texture * texture, osg::Te
 
 }
 
+// VRV_PATCH: start (changes to signal when part or complete texture was uploaded)
 void Texture2D::apply(State& state) const
 {
-
     //state.setReportGLErrors(true);
 
     // get the contextID (user defined ID of 0 upwards) for the
@@ -365,6 +365,7 @@ void Texture2D::apply(State& state) const
         }
     }
 
+    bool uploaded = false;
     if (textureObject)
     {
         textureObject->bind();
@@ -383,17 +384,7 @@ void Texture2D::apply(State& state) const
             applyTexParameters(GL_TEXTURE_2D, state);
 
             applyTexImage2D_subload(state, GL_TEXTURE_2D, _image.get(),
-                _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
-
-            // VRV_PATCH: start
-            if (textureObject && textureObject->id() > 0)
-            {
-               if (_textureListener)
-               {
-                  _textureListener->textureSizeChanged(textureObject->id());
-               }
-            }
-            // VRV_PATCH: end
+                _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
         }
         else if (_readPBuffer.valid())
         {
@@ -403,16 +394,7 @@ void Texture2D::apply(State& state) const
         // VRV_PATCH: start
         if (_image.valid()) {
            // this shouldn't happen but I guess it does
-           bool uploaded = false;
            sendMipmap(state, this, textureObject, uploaded);
-
-           if (uploaded && textureObject && textureObject->id() > 0)
-           {
-              if (Texture::listener())
-              {
-                 Texture::listener()->textureSizeChanged(textureObject->id());
-              }
-           }
         }
         // VRV_PATCH: end
 
@@ -435,19 +417,7 @@ void Texture2D::apply(State& state) const
 
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
 
-        // VRV_PATCH: start
-        bool uploaded = false;
-        sendMipmap(state, this, textureObject,uploaded);
-        if (uploaded && textureObject && textureObject->id() > 0)
-        {
-           if (Texture::listener())
-           {
-              Texture::listener()->textureSizeChanged(textureObject->id());
-           }
-        }
-        // VRV_PATCH: end
-
-        // in theory the following line is redundent, but in practice
+        // in theory the following line is redundant, but in practice
         // have found that the first frame drawn doesn't apply the textures
         // unless a second bind is called?!!
         // perhaps it is the first glBind which is not required...
@@ -484,28 +454,18 @@ void Texture2D::apply(State& state) const
         {
             //OSG_NOTICE<<"Reusing texture object"<<std::endl;
             applyTexImage2D_subload(state,GL_TEXTURE_2D,image.get(),
-                                 _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
+                                 _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
         }
         else
         {
             //OSG_NOTICE<<"Creating new texture object"<<std::endl;
             applyTexImage2D_load(state,GL_TEXTURE_2D,image.get(),
-                                 _textureWidth, _textureHeight, _numMipmapLevels);
+                                 _textureWidth, _textureHeight, _numMipmapLevels, uploaded);
 
             textureObject->setAllocated(true);
         }
 
-        // VRV_PATCH: start
-        bool uploaded = false;
         sendMipmap(state, this, textureObject, uploaded);
-
-        if (uploaded && textureObject && textureObject->id() > 0)
-        {
-           if (Texture::listener())
-           {
-              Texture::listener()->textureSizeChanged(textureObject->id());
-           }
-        }
 
         // update the modified tag to show that it is up to date.
         getModifiedCount(contextID) = image->getModifiedCount();
@@ -518,7 +478,7 @@ void Texture2D::apply(State& state) const
             non_const_this->_image = NULL;
         }
 
-        // in theory the following line is redundent, but in practice
+        // in theory the following line is redundant, but in practice
         // have found that the first frame drawn doesn't apply the textures
         // unless a second bind is called?!!
         // perhaps it is the first glBind which is not required...
@@ -538,6 +498,7 @@ void Texture2D::apply(State& state) const
              applyTexParameters(GL_TEXTURE_2D, state);
              extensions->glTexStorage2D( GL_TEXTURE_2D, osg::maximum(_numMipmapLevels,1), texStorageSizedInternalFormat,
                       _textureWidth, _textureHeight);
+             uploaded |= true;
          }
          else
          {
@@ -550,18 +511,8 @@ void Texture2D::apply(State& state) const
                       internalFormat,
                       _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
                       0);
+             uploaded |= true;
         }
-
-
-         // VRV_PATCH: start
-         if (textureObject && textureObject->id() > 0)
-         {
-            if (Texture::listener())
-            {
-               Texture::listener()->textureSizeChanged(textureObject->id());
-            }
-         }
-         // VRV_PATCH: end
 
         if (_readPBuffer.valid())
         {
@@ -577,9 +528,15 @@ void Texture2D::apply(State& state) const
     // if texture object is now valid and we have to allocate mipmap levels, then
     if (textureObject != 0 && _texMipmapGenerationDirtyList[contextID])
     {
-        generateMipmap(state);
+        generateMipmap(state, uploaded);
+    }
+
+    if (uploaded && textureObject && textureObject->id() > 0 && Texture::listener())
+    {
+       Texture::listener()->textureSizeChanged(textureObject->id());
     }
 }
+// VRV_PATCH: end (changes to signal when part or complete texture was uploaded)
 
 void Texture2D::computeInternalFormat() const
 {
