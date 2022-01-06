@@ -441,7 +441,7 @@ void Texture2DArray::apply(State& state) const
                      _sourceFormat ? _sourceFormat : _internalFormat,
                      _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
                      0);
-
+        uploaded = true;
     }
 
     // nothing before, so just unbind the texture target

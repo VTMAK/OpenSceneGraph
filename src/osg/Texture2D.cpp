@@ -417,6 +417,8 @@ void Texture2D::apply(State& state) const
 
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
 
+        uploaded = true;
+
         // in theory the following line is redundant, but in practice
         // have found that the first frame drawn doesn't apply the textures
         // unless a second bind is called?!!
