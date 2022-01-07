@@ -409,6 +409,13 @@ class OSG_EXPORT GraphicsContext : public Object
         /** Get the const graphics thread assigned the graphics context.*/
         const GraphicsThread* getGraphicsThread() const { return _graphicsThread.get(); }
 
+        // VRV_PATCH BEGIN Add support for moving context to different thread
+        /** Move the context to the worker thread. */
+        virtual void moveToThread(void* thread) {}
+
+         /** Move the context back from the worker thread. */
+         virtual void moveBack() {}
+         // VRV_PATCH END
 
         /** Realize the GraphicsContext implementation,
           * Pure virtual - must be implemented by concrete implementations of GraphicsContext. */
