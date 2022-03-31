@@ -34,7 +34,7 @@ bool fbxUtil::getCullingOffCommentProperty(FbxNode* pNode)
    FbxProperty lComment = pNode->FindProperty("UDP3DSMAX", false);
    if (lComment.IsValid())
    {
-      std::string pComment = lComment.Get<FbxString>();
+      std::string pComment = lComment.Get<FbxString>().Buffer();
       pComment = removeReturn(pComment);
       if (pComment == "CullingOff")
       {
