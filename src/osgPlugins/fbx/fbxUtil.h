@@ -29,6 +29,9 @@ public:
    //! \brief DTOR
    virtual ~fbxUtil();
 
+   //! \brief retrieve a culling comment from a node
+   static bool getCullingOffCommentProperty(FbxNode* pNode);
+
    //! \brief retrieve a comment from a FbxNode
    static bool getCommentProperty(FbxNode* pNode, FbxString& pComment);
 

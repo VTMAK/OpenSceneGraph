@@ -178,7 +178,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
     bool lightmapTextures,
     bool bColorProperty,
     FbxColor& colorProperty,
-    FbxNode::ECullingType cullingType,
+    bool cullingOff,
     textureUnitMap& textureMap)
 {
     GeometryMap::iterator it = geometryMap.find(mti);
@@ -544,23 +544,12 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
         }
 
-        if (cullingType == FbxNode::eCullingOff)
+        // by default all polygon are single side 
+        // unless a comment "cullingOff" is put on the node
+        if (cullingOff)
         {
            // For double face polygon disable cull face
            stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
-        }
-        else if (cullingType == FbxNode::eCullingOnCCW)
-        {
-           // TODO Check if we need to do something
-//           stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
-//           _shadowCastingStateSet->setAttribute(new osg::CullFace(osg::CullFace::FRONT),
-//              osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
-        }
-        else if (cullingType == FbxNode::eCullingOnCW)
-        {
-           // TODO Check if we need to do something
-           // Default ?
-           //stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
         }
 
         if (transparent)
@@ -1111,6 +1100,12 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
    // more here...
 
    int nPolys = fbxMesh->GetPolygonCount();
+   // Getting culling comment since it's pNode->mCullingType is not set correctly by the FBX SDK
+   // and the SDK cannot read also Culling: "CullingOff" from the mesh
+   // this was confirmed by Autodesk
+   // If the modeler want a double face polygon he now needs to put a comment "CullingOff"
+   // by default all the polygons will be single face now
+   bool cullingOff = fbxUtil::getCullingOffCommentProperty(pNode);
 
    int nDeformerCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
    int nDeformerBlendShapeCount = fbxMesh->GetDeformerCount(FbxDeformer::eBlendShape);
@@ -1188,7 +1183,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
             lightmapTextures,
             foundColorProperty,
             lColorProperty,
-            pNode->mCullingType,
+            cullingOff,
             textureMap);
 
         osg::Array* pVertices = pGeometry->getVertexArray();
