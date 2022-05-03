@@ -173,6 +173,7 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             bool lightmapTextures = false;
             bool tessellatePolygons = false;
             bool zUp = true;
+            bool discardColor = false;
             if (options)
             {
                 std::istringstream iss(options->getOptionString());
@@ -194,6 +195,10 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                     if (opt == "ZUp")
                     {
                         zUp = true;
+                    }
+                    if (opt == "vrvDiscardColor=\"true\"")
+                    {
+                       discardColor = true;
                     }
                 }
             }
@@ -259,6 +264,12 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                 tessellatePolygons,
                 currentFilePath);
             
+            if (discardColor)
+            {
+               // if the parameter is pass to the plugin ignore the vertex colors
+               reader.setDiscardColor(discardColor);
+            }
+
             // Empty texture unit map that will be pass down
             // and filled as needed
             textureUnitMap textureMap;

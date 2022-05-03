@@ -64,7 +64,8 @@ public:
         lightmapTextures(lightmapTextures1),
         tessellatePolygons(tessellatePolygons1),
         authoringTool(authoringTool1),
-        currentFilePath(currentFilePath1)
+        currentFilePath(currentFilePath1),
+       _dicardColor(false)
     {
        readNodeMapCSVfile();
     }
@@ -93,6 +94,9 @@ public:
         FbxNode* pNode,
         std::vector<StateSetContent>&,
         textureUnitMap& textureMap);
+
+    void setDiscardColor(bool value) { _dicardColor = value; }
+    bool discardColor() const { return _dicardColor; }
 
 protected:
 
@@ -164,6 +168,8 @@ protected:
     NodeNameToCommentMap _nodeNameMap;
     //! map of normal/damage state node name
     NodeNameToCommentMap _nodeNameStateMap;
+    //! Discard polygon color if the option is passed to the plugin
+    bool _dicardColor;
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,

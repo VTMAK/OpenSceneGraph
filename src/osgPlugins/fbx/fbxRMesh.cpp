@@ -700,19 +700,34 @@ void addVec3ArrayElement(osg::Array& a, const FbxVector4& v)
     }
 }
 
-void addColorArrayElement(osg::Array& a, const FbxColor& c)
+void addColorArrayElement(osg::Array& a, const FbxColor& c, bool discardColor)
 {
     if (a.getType() == osg::Array::Vec4dArrayType)
     {
-        static_cast<osg::Vec4dArray&>(a).push_back(osg::Vec4d(c.mRed, c.mGreen, c.mBlue, c.mAlpha));
+       if (discardColor)
+          static_cast<osg::Vec4dArray&>(a).push_back(osg::Vec4d(1.0, 1.0, 1.0, 1.0));
+       else
+          static_cast<osg::Vec4dArray&>(a).push_back(osg::Vec4d(c.mRed, c.mGreen, c.mBlue, c.mAlpha));
+       
     }
     else
     {
-        static_cast<osg::Vec4Array&>(a).push_back(osg::Vec4(
-            static_cast<float>(c.mRed),
-            static_cast<float>(c.mGreen),
-            static_cast<float>(c.mBlue),
-            static_cast<float>(c.mAlpha)));
+       if (discardColor)
+       {
+          static_cast<osg::Vec4Array&>(a).push_back(osg::Vec4(
+             static_cast<float>(1.0),
+             static_cast<float>(1.0),
+             static_cast<float>(1.0),
+             static_cast<float>(1.0)));
+       }
+       else
+       {
+          static_cast<osg::Vec4Array&>(a).push_back(osg::Vec4(
+             static_cast<float>(c.mRed),
+             static_cast<float>(c.mGreen),
+             static_cast<float>(c.mBlue),
+             static_cast<float>(c.mAlpha)));
+       }
     }
 }
 
@@ -846,7 +861,8 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
                       osg::Array* pTexCoords_ambient,
                       osg::Array* pColors,
                       bool bColorProperty,
-                      FbxColor& colorProperty)
+                      FbxColor& colorProperty,
+                      bool discardColor)
 {
     int v0 = fbxMesh->GetPolygonVertex(i, posInPoly0),
         v1 = fbxMesh->GetPolygonVertex(i, posInPoly1),
@@ -920,26 +936,26 @@ void readMeshTriangle(const FbxMesh * fbxMesh, int i /*polygonIndex*/,
         addVec2ArrayElement(*pTexCoords_ambient, getElement(pFbxUVs_ambient, fbxMesh, i, posInPoly2, meshVertex2));
     }
     // add more texture maps here...
-
+    
     if (pColors && pColors->getBinding() == osg::Geometry::BIND_OVERALL)  // if we set the color to be only one
     {
        // if we have a unique color
-       addColorArrayElement(*pColors, colorProperty);
-       addColorArrayElement(*pColors, colorProperty);
-       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
     }
     else if (pColors && bColorProperty == false)
     {
-        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly0, meshVertex0));
-        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly1, meshVertex1));
-        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly2, meshVertex2));
+        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly0, meshVertex0), discardColor);
+        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly1, meshVertex1), discardColor);
+        addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, posInPoly2, meshVertex2), discardColor);
     }
     else if (bColorProperty)
     {
        // if we have a unique color
-       addColorArrayElement(*pColors, colorProperty);
-       addColorArrayElement(*pColors, colorProperty);
-       addColorArrayElement(*pColors, colorProperty);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
+       addColorArrayElement(*pColors, colorProperty, discardColor);
     }
 }
 
@@ -1232,7 +1248,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 pFbxUVs_MultiDiffuse, 
                 pFbxColors, pGeometry,
                pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
-               pColors, foundColorProperty, lColorProperty);
+               pColors, foundColorProperty, lColorProperty, discardColor());
             nVertex += 3;
         }
         else if (lPolygonSize == 4)
@@ -1251,7 +1267,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 pFbxUVs_MultiDiffuse,
                 pFbxColors,pGeometry,
                 pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
-                pColors, foundColorProperty, lColorProperty);
+                pColors, foundColorProperty, lColorProperty, discardColor());
             readMeshTriangle(fbxMesh, i,
                 p10, 2, 3,
                 nVertex+p10, nVertex+2, nVertex+3,
@@ -1260,7 +1276,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                 pFbxUVs_MultiDiffuse, 
                 pFbxColors, pGeometry,
                 pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
-               pColors, foundColorProperty, lColorProperty);
+               pColors, foundColorProperty, lColorProperty, discardColor());
             nVertex += 4;
         }
         else if (tessellatePolygons)
@@ -1284,7 +1300,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
                     pFbxUVs_MultiDiffuse, 
                     pFbxColors, pGeometry,
                     pVertices, pNormals, pTexCoords_diffuse, pTexCoords_Multi_diffuse, pTexCoords_opacity, pTexCoords_emissive, pTexCoords_ambient,
-                    pColors, foundColorProperty, lColorProperty);
+                    pColors, foundColorProperty, lColorProperty, discardColor());
             }
         }
     }
@@ -1363,7 +1379,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readMesh(
 
             if (pColors)
             {
-                addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, j, nVertex));
+                addColorArrayElement(*pColors, getElement(pFbxColors, fbxMesh, i, j, nVertex), discardColor());
             }
         }
 
