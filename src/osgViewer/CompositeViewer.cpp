@@ -181,7 +181,7 @@ void CompositeViewer::addView(osgViewer::View* view)
         }
 
         // update the scene graph so that it has enough GL object buffer memory for the graphics contexts that will be using it.
-        view->getSceneData()->resizeGLObjectBuffers(osg::DisplaySettings::instance()->getMaxNumberOfGraphicsContexts());
+        //view->getSceneData()->resizeGLObjectBuffers(osg::DisplaySettings::instance()->getMaxNumberOfGraphicsContexts());
     }
 
     view->setFrameStamp(_frameStamp.get());

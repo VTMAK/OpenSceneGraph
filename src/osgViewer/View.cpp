@@ -327,7 +327,7 @@ void View::setSceneData(osg::Node* node)
         }
 
         // update the scene graph so that it has enough GL object buffer memory for the graphics contexts that will be using it.
-        getSceneData()->resizeGLObjectBuffers(osg::DisplaySettings::instance()->getMaxNumberOfGraphicsContexts());
+        //getSceneData()->resizeGLObjectBuffers(osg::DisplaySettings::instance()->getMaxNumberOfGraphicsContexts());
     }
 
     computeActiveCoordinateSystemNodePath();
