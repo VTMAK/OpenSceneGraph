@@ -346,6 +346,12 @@ void Texture3D::apply(State& state) const
     {
         generateMipmap(state);
     }
+// VRV_PATCH: start
+    if (textureObject && textureObject->id() > 0 && Texture::listener())
+    {
+       Texture::listener()->textureSizeChanged(textureObject->id());
+    }
+// VRV_PATCH: end
 }
 
 void Texture3D::computeInternalFormat() const
