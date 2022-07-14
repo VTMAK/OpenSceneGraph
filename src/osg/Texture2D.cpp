@@ -474,7 +474,7 @@ void Texture2D::apply(State& state) const
         // VRV_PATCH: end
 
         // unref image data?
-        if (isSafeToUnrefImageData(state) && image->getDataVariance()==STATIC)
+        if (textureObject->isDownloaded() && isSafeToUnrefImageData(state) && image->getDataVariance()==STATIC)
         {
             Texture2D* non_const_this = const_cast<Texture2D*>(this);
             non_const_this->_image = NULL;
