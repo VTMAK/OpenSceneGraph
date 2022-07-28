@@ -770,7 +770,11 @@ ELSE()
     FIND_PACKAGE(RSVG)
     FIND_PACKAGE(GtkGl)
     FIND_PACKAGE(DirectInput)
-    FIND_PACKAGE(NVTT)
+    #VRV_PATCH: start
+    # don't build nvtt because of security issue:
+    # https://jira.mak.com/browse/VRV-4346
+    #FIND_PACKAGE(NVTT)
+    #VRV_PATCH: end
     IF (NOT WIN32)
         FIND_PACKAGE(Asio)
     ENDIF()
