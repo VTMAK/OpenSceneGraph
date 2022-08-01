@@ -462,16 +462,16 @@ class FLTReaderWriter : public ReaderWriter
                 }
 
                 // check if the source is from a CDB database     
-                const osgDB::ReaderWriter::Options* options = document.getOptions();
-                if (options->getPluginStringData("SOURCE") == "\"cdb\"")
+                const osgDB::ReaderWriter::Options* options_cdb = document.getOptions();
+                if (options_cdb->getPluginStringData("SOURCE") == "\"cdb\"")
                 {
                    {
                       // Tell the FTL plugin it's a CDB model
                       document.setCdb(true);
                       // Set the specific SigSize Table
-                      document.setSigSizeTable((makVrv::oe::CDB::CDBSigSizeTable*)options->getPluginData("DtCdbSigSizeTable"));
+                      document.setSigSizeTable((makVrv::oe::CDB::CDBSigSizeTable*)options_cdb->getPluginData("DtCdbSigSizeTable"));
                       // Mip Map texture LOD offset
-                      std::string offset = options->getPluginStringData("CDBMIPMAP_OFFSET");
+                      std::string offset = options_cdb->getPluginStringData("CDBMIPMAP_OFFSET");
                       if (!offset.empty())
                       {
                          // take only a single digit from the string (with the following format for ex.) "2"

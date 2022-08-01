@@ -361,8 +361,8 @@ namespace flt {
          /*int detailTexture =*/ in.readInt16(-1);
          int textureIndex = in.readInt16(-1);
          int materialIndex = in.readInt16(-1);
-         int16 surface = in.readInt16();
-         int16 feature = in.readInt16();
+         int16 surface = in.readInt16(); // Surface material code(for DFAD)
+         int16 feature = in.readInt16(); // Feature ID (for DFAD)
          /*int32 IRMaterial =*/ in.readInt32(-1);
          _transparency = in.readUInt16(0);
          // version > 13
@@ -482,11 +482,21 @@ namespace flt {
          {
             _geometry->setUserValue("<UA:SMC>", surface);
          }
+         if (0 != surface)
+         {
+            std::string comment = "@dis material_smc " + std::to_string(surface);
+            _geode->addDescription(comment);
+         }
 
          // feature (FID)
          if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
          {
             _geometry->setUserValue("<UA:FID>", feature);
+         }
+         if (0 != feature)
+         {
+            std::string comment = " @dis material_fid " + std::to_string(feature);
+            _geode->addDescription(comment);
          }
 
          // Shaders
@@ -1160,11 +1170,21 @@ namespace flt {
          {
             _geode->setUserValue("<UA:SMC>", surface);
          }
+         if (0 != surface)
+         {
+            std::string comment = "@dis material_smc " + std::to_string(surface);
+            _geode->addDescription(comment);
+         }
 
          // feature (FID)
          if (document.getPreserveNonOsgAttrsAsUserData() && 0 != feature)
          {
             _geode->setUserValue("<UA:FID>", feature);
+         }
+         if (0 != feature)
+         {
+            std::string comment = " @dis material_fid " + std::to_string(feature);
+            _geode->addDescription(comment);
          }
 
          // Shaders
