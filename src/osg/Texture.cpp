@@ -1,14 +1,14 @@
 /* -*-c++-*- OpenSceneGraph - Copyright (C) 1998-2006 Robert Osfield
- *
- * This library is open source and may be redistributed and/or modified under
- * the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
- * (at your option) any later version.  The full license is in LICENSE file
- * included with this distribution, and on the openscenegraph.org website.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * OpenSceneGraph Public License for more details.
+*
+* This library is open source and may be redistributed and/or modified under
+* the terms of the OpenSceneGraph Public License (OSGPL) version 0.0 or
+* (at your option) any later version.  The full license is in LICENSE file
+* included with this distribution, and on the openscenegraph.org website.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* OpenSceneGraph Public License for more details.
 */
 #include <osg/GLExtensions>
 #include <osg/Image>
@@ -63,11 +63,10 @@
 // does not reliably flush. Just use iostream/std cout for logging
 #include <iostream>
 #include <sstream>
-// VRV_PATCH: end
 
 #include <osg/ConcurrencyViewerMacros>
 #include <osg/Profile>
-
+// VRV_PATCH: end
 
 namespace osg {
 
@@ -84,54 +83,54 @@ namespace osg {
 
    InternalPixelRelations sizedInternalFormats[] = {
 
-         { GL_R8UI                                , GL_RED_INTEGER_EXT  , GL_UNSIGNED_BYTE                             }
-       , { GL_R8I                                 , GL_RED_INTEGER_EXT  , GL_BYTE                                      }
-       , { GL_R16UI                               , GL_RED_INTEGER_EXT  , GL_UNSIGNED_SHORT                            }
-       , { GL_R16I                                , GL_RED_INTEGER_EXT  , GL_SHORT                                     }
-       , { GL_R32UI                               , GL_RED_INTEGER_EXT  , GL_UNSIGNED_INT                              }
-       , { GL_R32I                                , GL_RED_INTEGER_EXT  , GL_INT                                       }
+   { GL_R8UI                                , GL_RED_INTEGER_EXT  , GL_UNSIGNED_BYTE                             }
+   , { GL_R8I                                 , GL_RED_INTEGER_EXT  , GL_BYTE                                      }
+   , { GL_R16UI                               , GL_RED_INTEGER_EXT  , GL_UNSIGNED_SHORT                            }
+   , { GL_R16I                                , GL_RED_INTEGER_EXT  , GL_SHORT                                     }
+   , { GL_R32UI                               , GL_RED_INTEGER_EXT  , GL_UNSIGNED_INT                              }
+   , { GL_R32I                                , GL_RED_INTEGER_EXT  , GL_INT                                       }
 
-       , { GL_RG8UI                               , GL_RG_INTEGER       , GL_UNSIGNED_BYTE                             }
-       , { GL_RG8I                                , GL_RG_INTEGER       , GL_BYTE                                      }
-       , { GL_RG16UI                              , GL_RG_INTEGER       , GL_UNSIGNED_SHORT                            }
-       , { GL_RG16I                               , GL_RG_INTEGER       , GL_SHORT                                     }
-       , { GL_RG32UI                              , GL_RG_INTEGER       , GL_UNSIGNED_INT                              }
-       , { GL_RG32I                               , GL_RG_INTEGER       , GL_INT                                       }
+   , { GL_RG8UI                               , GL_RG_INTEGER       , GL_UNSIGNED_BYTE                             }
+   , { GL_RG8I                                , GL_RG_INTEGER       , GL_BYTE                                      }
+   , { GL_RG16UI                              , GL_RG_INTEGER       , GL_UNSIGNED_SHORT                            }
+   , { GL_RG16I                               , GL_RG_INTEGER       , GL_SHORT                                     }
+   , { GL_RG32UI                              , GL_RG_INTEGER       , GL_UNSIGNED_INT                              }
+   , { GL_RG32I                               , GL_RG_INTEGER       , GL_INT                                       }
 
-       , { GL_RGB8UI_EXT                          , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_BYTE                             }
-       , { GL_RGB8I_EXT                           , GL_RGB_INTEGER_EXT  , GL_BYTE                                      }
-       , { GL_RGB16UI_EXT                         , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_SHORT                            }
-       , { GL_RGB16I_EXT                          , GL_RGB_INTEGER_EXT  , GL_SHORT                                     }
-       , { GL_RGB32UI_EXT                         , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_INT                              }
-       , { GL_RGB32I_EXT                          , GL_RGB_INTEGER_EXT  , GL_INT                                       }
+   , { GL_RGB8UI_EXT                          , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_BYTE                             }
+   , { GL_RGB8I_EXT                           , GL_RGB_INTEGER_EXT  , GL_BYTE                                      }
+   , { GL_RGB16UI_EXT                         , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_SHORT                            }
+   , { GL_RGB16I_EXT                          , GL_RGB_INTEGER_EXT  , GL_SHORT                                     }
+   , { GL_RGB32UI_EXT                         , GL_RGB_INTEGER_EXT  , GL_UNSIGNED_INT                              }
+   , { GL_RGB32I_EXT                          , GL_RGB_INTEGER_EXT  , GL_INT                                       }
 
-       , { GL_RGBA8UI_EXT                         , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_BYTE                             }
-       , { GL_RGBA8I_EXT                          , GL_RGBA_INTEGER_EXT , GL_BYTE                                      }
+   , { GL_RGBA8UI_EXT                         , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_BYTE                             }
+   , { GL_RGBA8I_EXT                          , GL_RGBA_INTEGER_EXT , GL_BYTE                                      }
       // , { GL_RGB10_A2UI_EXT                      , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_INT_2_10_10_10_REV               }
-         , { GL_RGBA16UI_EXT                        , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_SHORT                            }
-         , { GL_RGBA16I_EXT                         , GL_RGBA_INTEGER_EXT , GL_SHORT                                     }
-         , { GL_RGBA32I_EXT                         , GL_RGBA_INTEGER_EXT , GL_INT                                       }
-         , { GL_RGBA32UI_EXT                        , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_INT                              }
+      , { GL_RGBA16UI_EXT                        , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_SHORT                            }
+      , { GL_RGBA16I_EXT                         , GL_RGBA_INTEGER_EXT , GL_SHORT                                     }
+      , { GL_RGBA32I_EXT                         , GL_RGBA_INTEGER_EXT , GL_INT                                       }
+      , { GL_RGBA32UI_EXT                        , GL_RGBA_INTEGER_EXT , GL_UNSIGNED_INT                              }
 
-         , { GL_R8                                  , GL_RED              , GL_UNSIGNED_BYTE                             }
-         , { GL_R16F                                , GL_RED              , GL_HALF_FLOAT                                }
-         , { GL_R32F                                , GL_RED              , GL_FLOAT                                     }
-         , { GL_R16F                                , GL_RED              , GL_FLOAT                                     }
-         , { GL_RG8                                 , GL_RG               , GL_UNSIGNED_BYTE                             }
-         , { GL_RG16F                               , GL_RG               , GL_HALF_FLOAT                                }
-         , { GL_RG16F                               , GL_RG               , GL_FLOAT                                     }
-         , { GL_RG32F                               , GL_RG               , GL_FLOAT                                     }
+      , { GL_R8                                  , GL_RED              , GL_UNSIGNED_BYTE                             }
+      , { GL_R16F                                , GL_RED              , GL_HALF_FLOAT                                }
+      , { GL_R32F                                , GL_RED              , GL_FLOAT                                     }
+      , { GL_R16F                                , GL_RED              , GL_FLOAT                                     }
+      , { GL_RG8                                 , GL_RG               , GL_UNSIGNED_BYTE                             }
+      , { GL_RG16F                               , GL_RG               , GL_HALF_FLOAT                                }
+      , { GL_RG16F                               , GL_RG               , GL_FLOAT                                     }
+      , { GL_RG32F                               , GL_RG               , GL_FLOAT                                     }
       // , ( GL_RGBA2                               , GL_RGB              , UNKNOWN                                      )
-         , { GL_R3_G3_B2                            , GL_RGB              , GL_UNSIGNED_BYTE_3_3_2                       }
-         , { GL_R3_G3_B2                            , GL_RGB              , GL_UNSIGNED_BYTE_2_3_3_REV                   }
-         , { GL_RGB4                                , GL_RGB              , GL_UNSIGNED_SHORT_4_4_4_4                    }
-         , { GL_RGB4                                , GL_RGB              , GL_UNSIGNED_SHORT_4_4_4_4_REV                }
-         , { GL_RGB5                                , GL_RGB              , GL_UNSIGNED_SHORT_5_5_5_1                    }
-         , { GL_RGB5                                , GL_RGB              , GL_UNSIGNED_SHORT_1_5_5_5_REV                }
-         , { GL_RGB8                                , GL_RGB              , GL_UNSIGNED_BYTE                             }
-         , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_BYTE                             }
-         , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_SHORT_5_6_5                      }
-         , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_SHORT_5_6_5_REV                  }
+      , { GL_R3_G3_B2                            , GL_RGB              , GL_UNSIGNED_BYTE_3_3_2                       }
+      , { GL_R3_G3_B2                            , GL_RGB              , GL_UNSIGNED_BYTE_2_3_3_REV                   }
+      , { GL_RGB4                                , GL_RGB              , GL_UNSIGNED_SHORT_4_4_4_4                    }
+      , { GL_RGB4                                , GL_RGB              , GL_UNSIGNED_SHORT_4_4_4_4_REV                }
+      , { GL_RGB5                                , GL_RGB              , GL_UNSIGNED_SHORT_5_5_5_1                    }
+      , { GL_RGB5                                , GL_RGB              , GL_UNSIGNED_SHORT_1_5_5_5_REV                }
+      , { GL_RGB8                                , GL_RGB              , GL_UNSIGNED_BYTE                             }
+      , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_BYTE                             }
+      , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_SHORT_5_6_5                      }
+      , { GL_RGB565                              , GL_RGB              , GL_UNSIGNED_SHORT_5_6_5_REV                  }
       // , { GL_RGB9_E5                             , GL_RGB              , GL_UNSIGNED_INT_9_9_9_5,                     }
       // , { GL_RGB9_E5                             , GL_RGB              , GL_UNSIGNED_INT_5_9_9_9_REV,                 }
       // , { GL_RGB9_E5                             , GL_RGB              , GL_HALF_FLOAT                                }
@@ -139,48 +138,48 @@ namespace osg {
       // , { GL_R11F_G11F_B10F                      , GL_RGB              , GL_UNSIGNED_INT_10F_11F_11F_REV              }
       // , { GL_R11F_G11F_B10F                      , GL_RGB              , GL_HALF_FLOAT                                }
       // , { GL_R11F_G11F_B10F                      , GL_RGB              , GL_FLOAT                                     }
-         , { GL_RGB10                               , GL_RGB              , GL_UNSIGNED_INT_2_10_10_10_REV               }
-         , { GL_RGB10                               , GL_RGB              , GL_UNSIGNED_INT_10_10_10_2                   }
-         , { GL_RGB12                               , GL_RGB              , GL_UNSIGNED_SHORT                            }
-         , { GL_RGB16F_ARB                          , GL_RGB              , GL_HALF_FLOAT                                }
-         , { GL_RGB32F_ARB                          , GL_RGB              , GL_FLOAT                                     }
-         , { GL_RGB16F_ARB                          , GL_RGB              , GL_FLOAT                                     }
+      , { GL_RGB10                               , GL_RGB              , GL_UNSIGNED_INT_2_10_10_10_REV               }
+      , { GL_RGB10                               , GL_RGB              , GL_UNSIGNED_INT_10_10_10_2                   }
+      , { GL_RGB12                               , GL_RGB              , GL_UNSIGNED_SHORT                            }
+      , { GL_RGB16F_ARB                          , GL_RGB              , GL_HALF_FLOAT                                }
+      , { GL_RGB32F_ARB                          , GL_RGB              , GL_FLOAT                                     }
+      , { GL_RGB16F_ARB                          , GL_RGB              , GL_FLOAT                                     }
 
 
-         , { GL_RGBA8                               , GL_RGBA             , GL_UNSIGNED_BYTE                             }
-         , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
-         , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
-         , { GL_RGBA12                              , GL_RGBA             , GL_UNSIGNED_SHORT                            }
-         , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_BYTE                             }
-         , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_SHORT_4_4_4_4                    }
-         , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_SHORT_4_4_4_4_REV                }
-         , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_BYTE                             }
-         , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_SHORT_5_5_5_1                    }
-         , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_SHORT_1_5_5_5_REV                }
-         , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
-         , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
+      , { GL_RGBA8                               , GL_RGBA             , GL_UNSIGNED_BYTE                             }
+      , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
+      , { GL_RGB10_A2                            , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
+      , { GL_RGBA12                              , GL_RGBA             , GL_UNSIGNED_SHORT                            }
+      , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_BYTE                             }
+      , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_SHORT_4_4_4_4                    }
+      , { GL_RGBA4                               , GL_RGBA             , GL_UNSIGNED_SHORT_4_4_4_4_REV                }
+      , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_BYTE                             }
+      , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_SHORT_5_5_5_1                    }
+      , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_SHORT_1_5_5_5_REV                }
+      , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_10_10_10_2                   }
+      , { GL_RGB5_A1                             , GL_RGBA             , GL_UNSIGNED_INT_2_10_10_10_REV               }
       // , { GL_RGBA16F                             , GL_RGBA             , GL_HALF_FLOAT                                }
       // , { GL_RGBA16F                             , GL_RGBA             , GL_FLOAT                                     }
       // , { GL_RGBA32F                             , GL_RGBA             , GL_FLOAT                                     }
 
-         , { GL_SRGB8                               , GL_RGB              , GL_UNSIGNED_BYTE                             }
-         , { GL_SRGB8_ALPHA8                        , GL_RGBA             , GL_UNSIGNED_BYTE                             }
+      , { GL_SRGB8                               , GL_RGB              , GL_UNSIGNED_BYTE                             }
+      , { GL_SRGB8_ALPHA8                        , GL_RGBA             , GL_UNSIGNED_BYTE                             }
 
-         , { GL_R8_SNORM                            , GL_RED              , GL_BYTE                                      }
-         , { GL_R16_SNORM                           , GL_RED              , GL_SHORT                                     }
-         , { GL_RG8_SNORM                           , GL_RG               , GL_BYTE                                      }
-         , { GL_RG16_SNORM                          , GL_RG               , GL_SHORT                                     }
-         , { GL_RGB8_SNORM                          , GL_RGB              , GL_BYTE                                      }
-         , { GL_RGB16_SNORM                         , GL_RGB              , GL_SHORT                                     }
-         , { GL_RGBA8_SNORM                         , GL_RGBA             , GL_BYTE                                      }
+      , { GL_R8_SNORM                            , GL_RED              , GL_BYTE                                      }
+      , { GL_R16_SNORM                           , GL_RED              , GL_SHORT                                     }
+      , { GL_RG8_SNORM                           , GL_RG               , GL_BYTE                                      }
+      , { GL_RG16_SNORM                          , GL_RG               , GL_SHORT                                     }
+      , { GL_RGB8_SNORM                          , GL_RGB              , GL_BYTE                                      }
+      , { GL_RGB16_SNORM                         , GL_RGB              , GL_SHORT                                     }
+      , { GL_RGBA8_SNORM                         , GL_RGBA             , GL_BYTE                                      }
    };
 
    InternalPixelRelations sizedDepthAndStencilInternalFormats[] = {
-         { GL_DEPTH_COMPONENT16                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_SHORT                            }
-       , { GL_DEPTH_COMPONENT16                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
-       , { GL_DEPTH_COMPONENT24                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
-       , { GL_DEPTH_COMPONENT32                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
-       , { GL_DEPTH_COMPONENT32F                  , GL_DEPTH_COMPONENT  , GL_FLOAT                                     }
+   { GL_DEPTH_COMPONENT16                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_SHORT                            }
+   , { GL_DEPTH_COMPONENT16                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
+   , { GL_DEPTH_COMPONENT24                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
+   , { GL_DEPTH_COMPONENT32                   , GL_DEPTH_COMPONENT  , GL_UNSIGNED_INT                              }
+   , { GL_DEPTH_COMPONENT32F                  , GL_DEPTH_COMPONENT  , GL_FLOAT                                     }
       // , { GL_DEPTH24_STENCIL8                    , GL_DEPTH_STENCIL    , GL_UNSIGNED_INT_24_8                         }
       // , { GL_DEPTH32F_STENCIL8                   , GL_DEPTH_STENCIL    , GL_FLOAT_32_UNSIGNED_INT_24_8_REV            }
    };
@@ -188,28 +187,28 @@ namespace osg {
    InternalPixelRelations compressedInternalFormats[] = {
       // , { GL_COMPRESSED_RED                      , GL_RED              , GL_COMPRESSED_RED                            }
       // , { GL_COMPRESSED_RG                       , GL_RG               , GL_COMPRESSED_RG                             }
-           { GL_COMPRESSED_RGB                      , GL_RGB              , GL_COMPRESSED_RGB                            }
-         , { GL_COMPRESSED_RGBA                     , GL_RGBA             , GL_COMPRESSED_RGBA                           }
-         , { GL_COMPRESSED_SRGB                     , GL_RGB              , GL_COMPRESSED_SRGB                           }
-         , { GL_COMPRESSED_SRGB_ALPHA               , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA                     }
-         , { GL_COMPRESSED_RED_RGTC1_EXT            , GL_RED              , GL_COMPRESSED_RED_RGTC1_EXT                  }
-         , { GL_COMPRESSED_SIGNED_RED_RGTC1_EXT     , GL_RED              , GL_COMPRESSED_SIGNED_RED_RGTC1_EXT           }
-         , { GL_COMPRESSED_RED_GREEN_RGTC2_EXT      , GL_RG               , GL_COMPRESSED_RED_GREEN_RGTC2_EXT            }
+      { GL_COMPRESSED_RGB                      , GL_RGB              , GL_COMPRESSED_RGB                            }
+      , { GL_COMPRESSED_RGBA                     , GL_RGBA             , GL_COMPRESSED_RGBA                           }
+      , { GL_COMPRESSED_SRGB                     , GL_RGB              , GL_COMPRESSED_SRGB                           }
+      , { GL_COMPRESSED_SRGB_ALPHA               , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA                     }
+      , { GL_COMPRESSED_RED_RGTC1_EXT            , GL_RED              , GL_COMPRESSED_RED_RGTC1_EXT                  }
+      , { GL_COMPRESSED_SIGNED_RED_RGTC1_EXT     , GL_RED              , GL_COMPRESSED_SIGNED_RED_RGTC1_EXT           }
+      , { GL_COMPRESSED_RED_GREEN_RGTC2_EXT      , GL_RG               , GL_COMPRESSED_RED_GREEN_RGTC2_EXT            }
       // , { GL_COMPRESSED_SIGNED_RG_RGTC2          , GL_RG               , GL_COMPRESSED_SIGNED_RG_RGTC2                }
       // , { GL_COMPRESSED_RGBA_BPTC_UNORM          , GL_RGBA             , GL_COMPRESSED_RGBA_BPTC_UNORM                }
       // , { GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM    , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM          }
       // , { GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT    , GL_RGB              , GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT          }
       // , { GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT  , GL_RGB              , GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT        }
 
-         , { GL_COMPRESSED_RGB_S3TC_DXT1_EXT        , GL_RGB              , GL_COMPRESSED_RGB_S3TC_DXT1_EXT              }
-         , { GL_COMPRESSED_RGBA_S3TC_DXT1_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT1_EXT             }
-         , { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT3_EXT             }
-         , { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT5_EXT             }
+      , { GL_COMPRESSED_RGB_S3TC_DXT1_EXT        , GL_RGB              , GL_COMPRESSED_RGB_S3TC_DXT1_EXT              }
+      , { GL_COMPRESSED_RGBA_S3TC_DXT1_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT1_EXT             }
+      , { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT3_EXT             }
+      , { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT       , GL_RGBA             , GL_COMPRESSED_RGBA_S3TC_DXT5_EXT             }
 
-         , { GL_COMPRESSED_SRGB_S3TC_DXT1_EXT       , GL_RGB              , GL_COMPRESSED_SRGB_S3TC_DXT1_EXT             }
-         , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT       }
-         , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT       }
-         , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT       }
+      , { GL_COMPRESSED_SRGB_S3TC_DXT1_EXT       , GL_RGB              , GL_COMPRESSED_SRGB_S3TC_DXT1_EXT             }
+      , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT       }
+      , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT       }
+      , { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT , GL_RGBA             , GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT       }
    };
 
    bool isSizedInternalFormat(GLint internalFormat)
@@ -478,12 +477,6 @@ namespace osg {
          Texture::TextureObject* to = itr->get();
 
          _orphanedTextureObjects.push_back(to);
-         // VRV PATCH
-         // Tell VRV that this texture object is not being
-         // used by OSG anymore and so VRV is free to 
-         // delete the texture object when it is done with it
-         to->setIsOrphaned(true);
-         // END VRV PATCH
 
          remove(to);
       }
@@ -524,12 +517,7 @@ namespace osg {
          to = to->_next;
 
          _orphanedTextureObjects.push_back(glto.get());
-         // VRV PATCH
-         // Tell VRV that this texture object is not being
-         // used by OSG anymore and so VRV is free to 
-         // delete the texture object when it is done with it
-         glto->setIsOrphaned(true);
-         // END VRV PATCH
+
          remove(glto.get());
 
          ++numOrphaned;
@@ -603,7 +591,7 @@ namespace osg {
       }
       _textureListener = listener;
    }
-   
+
    GlTextureListener* Texture::listener(void)
    {
       return _textureListener;
@@ -711,9 +699,9 @@ namespace osg {
             {
                int sizeOfComponentInBits = 0;
                extensions->glGetTextureLevelParameteriv(textureId, i, GL_TEXTURE_RED_SIZE, &sizeOfComponentInBits);
-               if (sizeOfComponentInBits%8==0)
+               if (sizeOfComponentInBits % 8 == 0)
                {
-                  sizeOfComponentInBytes = sizeOfComponentInBits/8;
+                  sizeOfComponentInBytes = sizeOfComponentInBits / 8;
                }
             }
             if (sizeOfComponentInBytes == 0)
@@ -735,40 +723,6 @@ namespace osg {
       return totalSize;
    }
 
-   static std::string formatBytes(uint64_t sizeInBytes)
-   {
-      std::stringstream ss;
-      if (sizeInBytes < 1000)
-      {
-         ss << sizeInBytes << " bytes";
-      }
-      else if (sizeInBytes > 1000 && sizeInBytes < 1000000)
-      {
-         float kb = (float)sizeInBytes / 1000.0f;
-         ss << kb << " kb";
-      }
-      else if (sizeInBytes > 1000000)
-      {
-         float mb = (float)sizeInBytes / 1000000.0f;
-         ss << mb << " Mb";
-      }
-      return ss.str();
-   }
-
-   static bool initCreationDeletionDebug()
-   {
-      return getenv("OSG_TEXTURE_CREATION_DELETION_DEBUG") != 0;
-   }
-
-   const bool Texture::_textureCreationDeletionDebug = initCreationDeletionDebug();
-
-   bool Texture::textureCreationDeletionDebug()
-   {
-      return _textureCreationDeletionDebug;
-   }
-
-   // VRV PATCH: end
-
    void TextureObjectSet::flushAllDeletedTextureObjects()
    {
       // OSG_NOTICE<<"TextureObjectSet::flushAllDeletedTextureObjects()"<<std::endl;
@@ -781,13 +735,6 @@ namespace osg {
          }
       }
 
-      // VRV PATCH
-      // OSG is going to start getting rid of orphaned textures
-      // we have to intervene in the case that VRV is not done
-      // with them yet
-      Texture::TextureObjectList almostOrphanedTextures;
-      // END VRV PATCH
-
       for (Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
          itr != _orphanedTextureObjects.end();
          ++itr)
@@ -795,32 +742,13 @@ namespace osg {
          const GLuint id = (*itr)->id();
 
          // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
-         // VRV PATCH
-         // VRV is done with the texture so OSG can do what it wants
-         if ((*itr)->getCanDelete())
+         // VRV_PATCH: start
+         if (Texture::listener())
          {
-            //VRV_PATCH for texture deletion debugging
-            if (Texture::textureCreationDeletionDebug())
-            {
-               std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
-            }
-            if (Texture::listener())
-            {
-               Texture::listener()->textureDeleted(id);
-            }
-            // END VRV PATCH
-            glDeleteTextures(1L, &id);
-            // VRV PATCH
+            Texture::listener()->textureDeleted(id);
          }
-         else
-         {
-            // Even though OSG wanted to delete the texture object, 
-            // don't delete it because VRV is still using it
-            // Instead of deleting, keep it circulating in the
-            // orphaned list of texture objects
-            almostOrphanedTextures.push_back(*itr);
-         }
-         // END VRV PATCH
+         // VRV_PATCH: end
+         glDeleteTextures(1L, &id);
       }
 
       unsigned int numDeleted = _orphanedTextureObjects.size();
@@ -832,14 +760,6 @@ namespace osg {
       _parent->getNumberDeleted() += numDeleted;
 
       _orphanedTextureObjects.clear();
-
-      // VRV PATCH
-      // Bring back our texture object that VRV is still using
-      // Eventually VRV will be done with them and delete them 
-      // or VRV will tell OSG that it is OK for OSG to delete 
-      // the texture object
-      _orphanedTextureObjects = almostOrphanedTextures;
-      // END VRV PATCH
    }
 
    void TextureObjectSet::discardAllDeletedTextureObjects()
@@ -911,50 +831,24 @@ namespace osg {
 
       ElapsedTime timer;
 
-      // VRV PATCH
-      // OSG is going to start getting rid of orphaned texture
-      // objects we have to intervene in the case that VRV is 
-      // not done with them yet
-      Texture::TextureObjectList almostOrphanedTextures;
-      // END VRV PATCH
-
       Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
       for (;
          itr != _orphanedTextureObjects.end() && timer.elapsedTime() < availableTime && numDeleted < maxNumObjectsToDelete;
          ++itr)
       {
-         const GLuint id = (*itr)->id();
+
+         GLuint id = (*itr)->id();
 
          // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
+         // VRV_PATCH: start
+         if (Texture::listener())
+         {
+            Texture::listener()->textureDeleted(id);
+         }
+         // VRV_PATCH: end
+         glDeleteTextures(1L, &id);
 
-         // VRV PATCH
-         // If VRV is done with the texture object then it is ok for 
-         // OSG to delete it
-         if ((*itr)->getCanDelete())
-         {
-            //VRV_PATCH for texture deletion debugging
-            if (Texture::textureCreationDeletionDebug())
-            {
-               std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
-            }
-            if (Texture::listener())
-            {
-               Texture::listener()->textureDeleted(id);
-            }
-            // END VRV PATCH
-            glDeleteTextures(1L, &id);
-            ++numDeleted;
-            // VRV PATCH
-         }
-         else
-         {
-            // The DtGlDeleteObjectManager should delete these texture objects instead 
-            // of OSG since we are using jobs to make the texture objects are non-
-            // resident and the jobs can occur *after* flushDeletedTextureObjects is
-            // called so OSG has to hold onto it
-            almostOrphanedTextures.push_back(*itr);
-         }
-         // END VRV PATCH
+         ++numDeleted;
       }
 
       // OSG_NOTICE<<"Size before = "<<_orphanedTextureObjects.size();
@@ -971,18 +865,6 @@ namespace osg {
       _parent->getNumberDeleted() += numDeleted;
 
       availableTime -= timer.elapsedTime();
-
-      // VRV PATCH
-      // Bring back our texture objects that VRV is still using
-      // Eventually VRV will be done with them and delete them 
-      // or VRV will tell OSG that it is OK for OSG to delete the
-      // texture objects
-      for (itr = almostOrphanedTextures.begin();
-         itr != almostOrphanedTextures.end(); ++itr)
-      {
-         _orphanedTextureObjects.push_back(*itr);
-      }
-      // END VRV PATCH
    }
 
    bool TextureObjectSet::makeSpace(unsigned int& size)
@@ -1008,81 +890,13 @@ namespace osg {
       return size == 0;
    }
 
-   // VRV PATCH
-   // If VRV deleted this texture object, take it off OSG's
-   // _orphanedTextureObjects so OSG doesn't try to delete it
-   // as well
-   void TextureObjectSet::removeOrphan(Texture::TextureObject* to)
-   {
-      for (Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
-         itr != _orphanedTextureObjects.end(); ++itr)
-      {
-         if (*itr == to)
-         {
-            _orphanedTextureObjects.erase(itr);
-            return;
-         }
-      }
-   }
-   // END VRV PATCH
-
    osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeFromOrphans(Texture* texture)
    {
-      // VRV PATCH
-      // The original function just took the first texture object off the 
-      // list and assigned it to the texture
-      // However, this was before VRV could own texture objects and delete
-      // them itself
-      // We only want to allow OSG to recycle a texture object that VRV is
-      // not using so we have to search _orphanedTextureObjects for one
-      // that is marked with _canDelete = true
-      ref_ptr<Texture::TextureObject> to = NULL;
-      Texture::TextureObjectList::iterator itr = _orphanedTextureObjects.begin();
-      for (Texture::TextureObjectList::iterator nextItr = itr;
-         itr != _orphanedTextureObjects.end(); itr = nextItr)
-      {
-         nextItr++;
+      // take front of orphaned list.
+      ref_ptr<Texture::TextureObject> to = _orphanedTextureObjects.front();
 
-         // VRV is done with the texture object
-         if ((*itr)->getCanDelete())
-         {
-            if ((*itr)->getImmutable())
-            {
-               //immutable textures cannot be reused so delete it
-               const GLuint id = (*itr)->id();
-
-               //VRV_PATCH for texture deletion debugging
-               if (Texture::textureCreationDeletionDebug())
-               {
-                  std::cout << "(osg) deleting: " << Texture::getTextureName(id) << std::endl;
-               }
-               if (Texture::listener())
-               {
-                  Texture::listener()->textureDeleted(id);
-               }
-               glDeleteTextures(1L, &id);
-               _orphanedTextureObjects.erase(itr);
-            }
-            else
-            {
-               to = *itr;
-               // OSG is going to re-use this texture object
-               // so tell VRV that it is no longer orphaned
-               to->setIsOrphaned(false);
-               _orphanedTextureObjects.erase(itr);
-               break;
-            }
-         }
-      }
-
-      // VRV is using all the orphaned texture object so
-      // too bad, OSG will have to generate a new texture
-      // object
-      if (!to)
-      {
-         return NULL;
-      }
-      // END VRV PATCH
+      // remove from orphan list.
+      _orphanedTextureObjects.pop_front();
 
       // assign to new texture
       to->setTexture(texture);
@@ -1112,7 +926,6 @@ namespace osg {
    }
    // VRV_PATCH: end
 
-   // VRV_PATCH: start (changes to name texture)
    osg::ref_ptr<Texture::TextureObject> TextureObjectSet::takeOrGenerate(Texture* texture)
    {
       // see if we can recycle TextureObject from the orphan list
@@ -1120,37 +933,19 @@ namespace osg {
          OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
          if (!_pendingOrphanedTextureObjects.empty())
          {
-            // VRV PATCH
-            // Move texture objects from the _pendingOrphanedTextureObjects
-            // to the _orphanedTextureObjects and mark them as _isOrphaned
-            // so that VRV knows that it can delete them (if it wants)
             handlePendingOrphandedTextureObjects();
-            // We no longer just return the first texture object
-            // since we don't know if VRV could be using all these 
-            // orphaned texture objects so OSG can't reuse the texture 
-            // object
-            //return takeFromOrphans(texture);
-            // END VRV PATCH
+            return takeFromOrphans(texture);
          }
       }
 
-      // VRV PATCH
-      // At this point, we have move all pending orphans to the 
-      // orphan list and marked them as being orphaned, so now
-      // we can see if we can find one for OSG to use (that
-      // VRV is not using)
       if (!_orphanedTextureObjects.empty())
       {
          osg::ref_ptr<Texture::TextureObject> to = takeFromOrphans(texture);
-
          if (to)
          {
             return to;
          }
-         // else - sorry, VRV is still using these orphaned texture
-         // objects so generate a new texture object OSG
       }
-      // END VRV PATCH
 
       const unsigned int contextID = 0; // state.getContextID();  // set to 0 right now, assume same parameters for each graphics context...
       const GLExtensions* extensions = GLExtensions::Get(contextID, true);
@@ -1214,14 +1009,8 @@ namespace osg {
          nameTexture(texture, to, extensions);
       }
 
-      if (Texture::textureCreationDeletionDebug())
-      {
-         std::cout << "(osg) created: " << Texture::getTextureName(id) << std::endl;
-      }
-
       return to;
    }
-   // VRV_PATCH: end (changes to name texture)
 
    void TextureObjectSet::moveToBack(Texture::TextureObject* to)
    {
@@ -1753,7 +1542,7 @@ namespace osg {
          COMPARE_StateAttribute_Parameter(_useHardwareMipMapGeneration)
          COMPARE_StateAttribute_Parameter(_internalFormatMode)
 
-         // only compare _internalFomat is it has alrady been set in both lhs, and rhs
+    // only compare _internalFomat is it has already been set in both lhs, and rhs
          if (_internalFormat != 0 && rhs._internalFormat != 0)
          {
             COMPARE_StateAttribute_Parameter(_internalFormat)
@@ -1882,37 +1671,8 @@ namespace osg {
       }
    }
 
-   // VRV_PATCH: start
-   bool Texture::anyTextureObjectImmutable(void) const
-   {
-      for (unsigned int i = 0; i < _textureObjectBuffer.size(); ++i)
-      {
-         TextureObject* textureObject = _textureObjectBuffer[i];
-         if (textureObject && textureObject->getImmutable())
-         {
-            return true;
-         }
-      }
-      return false;
-   }
-   // VRV_PATCH: end
-
    void Texture::dirtyTextureParameters()
    {
-      // VRV_PATCH: start
-      // early out if attempting to dirty for an immutable(resident) texture
-      if (anyTextureObjectImmutable())
-      {
-         if (getNotifyLevel() >= osg::INFO)
-         {
-            osg::notify(osg::INFO) << "osg::Texture::dirtyTextureParameters: " << std::endl
-               << "\t Dirtying parameters for immutable(resident) texture address!" << std::endl
-               << "\t This can cause OpenGL errors/render corruption on (possible)" << std::endl
-               << "\t re-application of texture parameters!" << std::endl;
-         }
-         return;
-      }
-      // VRV_PATCH: end
       _texParametersDirtyList.setAllElementsTo(1);
    }
 
@@ -2416,20 +2176,6 @@ namespace osg {
 
    void Texture::applyTexParameters(GLenum target, State& state) const
    {
-      // VRV_PATCH: start
-      // early out if attempting to dirty for an immutable(resident) texture
-      if (anyTextureObjectImmutable())
-      {
-         if (getNotifyLevel() >= osg::INFO)
-         {
-            osg::notify(osg::INFO) << "osg::Texture::applyTexParameters: " << std::endl
-               << "\t Re-applying texture parameters for immutable(resident) texture address!" << std::endl
-               << "\t This will cause OpenGL errors/render corruption!" << std::endl;
-         }
-         return;
-      }
-      // VRV_PATCH: end
-
       // get the contextID (user defined ID of 0 upwards) for the
       // current OpenGL context.
       const unsigned int contextID = state.getContextID();
@@ -2529,11 +2275,13 @@ namespace osg {
          {
             GLint color[4] = { (GLint)_borderColor.r(), (GLint)_borderColor.g(), (GLint)_borderColor.b(), (GLint)_borderColor.a() };
             extensions->glTexParameterIiv(target, GL_TEXTURE_BORDER_COLOR, color);
-        }else if (_internalFormatType == UNSIGNED_INTEGER)
+         }
+         else if (_internalFormatType == UNSIGNED_INTEGER)
          {
             GLuint color[4] = { (GLuint)_borderColor.r(), (GLuint)_borderColor.g(), (GLuint)_borderColor.b(), (GLuint)_borderColor.a() };
             extensions->glTexParameterIuiv(target, GL_TEXTURE_BORDER_COLOR, color);
-        }else{
+         }
+         else {
             GLfloat color[4] = { (GLfloat)_borderColor.r(), (GLfloat)_borderColor.g(), (GLfloat)_borderColor.b(), (GLfloat)_borderColor.a() };
             glTexParameterfv(target, GL_TEXTURE_BORDER_COLOR, color);
          }
@@ -2629,89 +2377,6 @@ namespace osg {
       return true;
    }
 
-   //VRV_Patch for debugging
-   static const char*
-      glFormatsToString(int compressed_format_type)
-   {
-      switch (compressed_format_type)
-      {
-      case GL_RGB: return"GL_RGB";
-      case GL_SRGB:return"GL_SRGB";
-      case GL_RGBA: return"GL_RGBA";
-      case GL_SRGB_ALPHA_EXT: return"GL_SRGB_ALPHA";
-      case GL_LUMINANCE: return "GL_LUMINANCE";
-      case GL_LUMINANCE_ALPHA:      return "GL_LUMINANCE_ALPHA";
-      case GL_SRGB8:      return "GL_SRGB8";
-      case GL_SRGB8_ALPHA8:      return "GL_SRGB8_ALPHA8";
-      case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:    return "GL_COMPRESSED_RGB_S3TC_DXT1";
-      case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT1";
-      case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT3";
-      case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:      return "GL_COMPRESSED_RGBA_S3TC_DXT5";
-      case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:      return "GL_COMPRESSED_SRGB_S3TC_DXT1";
-      case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1";
-      case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3";
-      case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:      return "GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5";
-      case GL_COMPRESSED_RED_RGTC1_EXT:                 return "GL_COMPRESSED_RED_RGTC1";
-      case GL_COMPRESSED_RED_GREEN_RGTC2_EXT:            return "GL_COMPRESSED_RED_GREEN_RGTC2_EXT";
-      case GL_RGB4:      return "GL_RGB4";
-      case GL_RGB5:      return "GL_RGB5";
-      case GL_RGB8:      return "GL_RGB8";
-      case GL_RGB10:     return "GL_RGB10";
-      case GL_RGB12:     return "GL_RGB12";
-      case GL_RGB16:     return "GL_RGB16";
-      case GL_RGBA2:     return "GL_RGBA2";
-      case GL_RGBA4:     return "GL_RGBA4";
-      case GL_RGB5_A1:   return "GL_RGB5_A1";
-      case GL_RGBA8:     return "GL_RGBA8";
-      case GL_RGB10_A2:  return "GL_RGB10_A2";
-      case GL_RGBA12:    return "GL_RGBA12";
-      case GL_RGBA16:    return "GL_RGBA16";
-      case GL_DEPTH_COMPONENT16: return "GL_DEPTH_COMPONENT16";
-      case GL_DEPTH_COMPONENT24: return "GL_DEPTH_COMPONENT24";
-      case GL_DEPTH_COMPONENT32: return "GL_DEPTH_COMPONENT32";
-      case GL_DEPTH_COMPONENT32F: return "GL_DEPTH_COMPONENT32F";
-
-
-      case GL_RG:  return "GL_RG";
-      case GL_RG_INTEGER:  return "GL_RG_INTEGER";
-      case GL_R8:  return "GL_R8";
-      case GL_R16:  return "GL_R16";
-      case GL_RG8:  return "GL_RG8";
-      case GL_RG16:  return "GL_RG16";
-      case GL_R16F:  return "GL_R16F";
-      case GL_R32F:  return "GL_R32F";
-      case GL_RG16F:  return "GL_RG16F";
-      case GL_RG32F:  return "GL_RG32F";
-      case GL_R8I:  return "GL_R8I";
-      case GL_R8UI:  return "GL_R8UI";
-      case GL_R16I:  return "GL_R16I";
-      case GL_R16UI:  return "GL_R16UI";
-      case GL_R32I:  return "GL_R32I";
-      case GL_R32UI:  return "GL_R32UI";
-      case GL_RG8I:  return "GL_RG8I";
-      case GL_RG8UI:  return "GL_RG8UI";
-      case GL_RG16I:  return "GL_RG16I";
-      case GL_RG16UI:  return "GL_RG16UI";
-      case GL_RG32I:  return "GL_RG32I";
-      case GL_RG32UI: return "GL_RG32UI";
-      case GL_RGBA32F_ARB: return "GL_RGBA32F";
-      case GL_RGB32F_ARB: return "GL_RGB32F_ARB";
-      case GL_ALPHA32F_ARB: return "GL_ALPHA32F_ARB";
-      case GL_INTENSITY32F_ARB: return "GL_INTENSITY32F";
-      case GL_LUMINANCE32F_ARB: return "GL_LUMINANCE32F";
-      case GL_LUMINANCE_ALPHA32F_ARB: return "GL_LUMINANCE_ALPHA32F";
-      case GL_RGBA16F_ARB: return "GL_RGBA16F";
-      case GL_RGB16F_ARB: return "GL_RGB16F";
-      case GL_ALPHA16F_ARB: return "GL_ALPHA16F";
-      case GL_INTENSITY16F_ARB: return "GL_INTENSITY16F";
-      case GL_LUMINANCE16F_ARB: return "GL_LUMINANCE16F";
-      case GL_LUMINANCE_ALPHA16F_ARB: return "GL_LUMINANCE_ALPHA16F";
-      case -1:      return "Unspecified GL_FORMAT";
-
-      }
-      return  "Unknown GL Format";
-   }
-
    GLenum Texture::selectSizedInternalFormat(const osg::Image* image) const
    {
       if (image)
@@ -2767,37 +2432,6 @@ namespace osg {
       }
 
       ElapsedTime elapsedTimer;
-      /*
-      char buff[300];
-
-          sprintf(buff, "Loading %s %ix%i %i mips\n   %s %s textureStorage: %s",
-             image->getFileName().c_str(), inwidth, inheight, numMipmapLevels,
-             glFormatsToString(_internalFormat),
-             isCompressedInternalFormat((GLenum)image->getPixelFormat()) ? "compressed" : "No Compression",
-             isCompressedInternalFormatSupportedByTexStorage(_internalFormat) ? "Yes" : "No");
-          std::cout << buff << std::endl;
-      */
-      osg::CVMarkerSeries series("Render Tasks");
-      osg::CVMarkerSeries series_rt2("Render TasksSub");
-      if (osg::CVMarkerSeries::sMarkersActive)
-      {
-         if (image->getName().length())
-         {
-            series.write_alert("image: %s %i mips %ix%i %s", image->getName().c_str(),
-               numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-         }
-         else if (getName().length()) {
-            series.write_alert("texture: %s %i mips %ix%i %s",
-               getName().c_str(), numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-         }
-         else {
-            series.write_alert("? %i mips %ix%i %s", numMipmapLevels, inwidth, inheight, glFormatsToString(_internalFormat));
-         }
-      }
-      OsgProfileC("applyTexImage2D_load", tracy::Color::Purple);
-
-      osg::CVSpan loadSpan(series, 4, "applyTexImage2D_load");
-
 #ifdef DO_TIMING
       osg::Timer_t start_tick = osg::Timer::instance()->tick();
       OSG_NOTICE << "glTexImage2D pixelFormat = " << std::hex << image->getPixelFormat() << std::dec << std::endl;
@@ -2953,17 +2587,10 @@ namespace osg {
       {
 
          GenerateMipmapMode mipmapResult = mipmapBeforeTexImage(state, useHardwareMipMapGeneration);
-         if (mipmapResult == GENERATE_MIPMAP_NONE) {
-            //std::cout << image->getFileName() << " is not using mipmaps " << std::endl;
-         }
 
          if (!compressed_image)
          {
             numMipmapLevels = 1;
-
-            OsgProfileC("glTexImage2D", tracy::Color::Purple);
-
-            osg::CVSpan allocSpan(series_rt2, 4, "glTexImage2D");
 
             glTexImage2D(target, 0, _internalFormat,
                inwidth, inheight, _borderWidth,
@@ -2976,10 +2603,6 @@ namespace osg {
          }
          else if (extensions->isCompressedTexImage2DSupported())
          {
-            OsgProfileC("glCompressedTexImage2D", tracy::Color::Purple);
-
-            osg::CVSpan allocSpan(series_rt2, 4, "glCompressedTexImage2D");
-
             numMipmapLevels = 1;
 
             GLint blockSize, size;
@@ -3012,23 +2635,17 @@ namespace osg {
 
             if (texStoragesizedInternalFormat != 0)
             {
+               if (getTextureTarget() == GL_TEXTURE_CUBE_MAP)
                {
-                  OsgProfileC("glTexStorage2D(alloc)", tracy::Color::Purple);
-
-                  if (getTextureTarget() == GL_TEXTURE_CUBE_MAP)
+                  if (target == GL_TEXTURE_CUBE_MAP_POSITIVE_X)
                   {
-                     osg::CVSpan allocSpan(series_rt2, 0, "glTexStorage2D(alloc)");
-
-                     if (target == GL_TEXTURE_CUBE_MAP_POSITIVE_X)
-                     {
-                        // only allocate on first face image
-                        extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, texStoragesizedInternalFormat, width, height);
-                     }
+                     // only allocate on first face image
+                     extensions->glTexStorage2D(GL_TEXTURE_CUBE_MAP, numMipmapLevels, texStoragesizedInternalFormat, width, height);
                   }
-                  else
-                  {
-                     extensions->glTexStorage2D(target, numMipmapLevels, texStoragesizedInternalFormat, width, height);
-                  }
+               }
+               else
+               {
+                  extensions->glTexStorage2D(target, numMipmapLevels, texStoragesizedInternalFormat, width, height);
                }
 
                if (!compressed_image)
@@ -3036,9 +2653,6 @@ namespace osg {
                   //VRV_PATCH
                   if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
                   {
-                     OsgProfileC("sendMipmaps", tracy::Color::Purple);
-                     osg::CVSpan UpdateTick(series_rt2, 4, "sendMipmaps");
-
                      for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                      {
 
@@ -3070,9 +2684,6 @@ namespace osg {
                   //VRV_PATCH
                   if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
                   {
-                     OsgProfileC("sendCompressedMipmaps", tracy::Color::Purple);
-                     osg::CVSpan UpdateTick(series_rt2, 4, "sendCompressedMipmaps");
-
                      GLint blockSize, size;
                      for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                      {
@@ -3505,12 +3116,6 @@ namespace osg {
       {
       case GENERATE_MIPMAP:
       {
-         osg::CVMarkerSeries series("Render TasksSub");
-         osg::CVSpan UpdateTick(series, 0, "mipmapAfterTexImage");
-         OsgProfileC("mipmapAfterTexImage", tracy::Color::Red);
-         OsgProfileText(getName().c_str(), getName().length());
-
-         //printf("Mipmapping '%s' \n", getName().c_str() ? getName().c_str() : "UNKNOWN");
          unsigned int contextID = state.getContextID();
          TextureObject* textureObject = getTextureObject(contextID);
          if (textureObject)
@@ -3536,10 +3141,6 @@ namespace osg {
 
    void Texture::generateMipmap(State& state, bool& uploaded) const
    {
-      osg::CVMarkerSeries series("Render Tasks2");
-      osg::CVSpan UpdateTick(series, 0, "generateMipmap");
-      OsgProfileC("generateMipmap", tracy::Color::Purple);
-
       const unsigned int contextID = state.getContextID();
 
       // get the texture object for the current contextID.
