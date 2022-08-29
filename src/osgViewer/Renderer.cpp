@@ -1128,15 +1128,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
       OsgProfileC("Draw", 0x75562e);
 
        osg::Timer_t beforeDrawTick;
-    
-       //VRV PATCH - Added a pre draw system
-       if (viewer){
-          const std::vector<osg::Operation *> & mtpdo = viewer->getMainThreadPreDrawOperations();
-          for (int i = 0; i < mtpdo.size(); i++){
-             (*mtpdo[i])(sceneView);
-          }
-       }
-       //END  VRV PATCH 
 
        if (_serializeDraw)
        {

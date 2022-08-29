@@ -228,18 +228,6 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
         void virtual removeMainThreadOperation(){ _mainThreadOperation=NULL; }
         osg::Operation* getMainThreadOperation(){ return _mainThreadOperation; }
 
-        //VRV patch main thread callback functionality
-
-        void virtual addMainThreadPreDrawOperation(osg::Operation * op){ _mainThreadPreDrawOperations.push_back(op); }
-        void virtual removeMainThreadPreDrawOperation(osg::Operation * op){
-           std::vector<osg::Operation *>::iterator it = std::find(_mainThreadPreDrawOperations.begin(), _mainThreadPreDrawOperations.end(), op);
-           if (it != _mainThreadPreDrawOperations.end()){
-              _mainThreadPreDrawOperations.erase(it);
-           }
-        }
-        const std::vector<osg::Operation *> & getMainThreadPreDrawOperations(){ return _mainThreadPreDrawOperations; }
-        // END VRV PATCH
-
         enum FrameScheme
         {
             ON_DEMAND,
@@ -398,7 +386,6 @@ protected:
 
         //VRV patch cull thread parallelization - only one main thread operation supported
         osg::Operation* _mainThreadOperation;
-        std::vector<osg::Operation *> _mainThreadPreDrawOperations;
 
     private:
 
