@@ -27,9 +27,6 @@
 
 #include <list>
 #include <map>
-// VRV_PATCH: start
-#include <unordered_map>
-// VRV_PATCH: end
 
 // If not defined by gl.h use the definition found in:
 // http://oss.sgi.com/projects/ogl-sample/registry/EXT/texture_filter_anisotropic.txt
@@ -67,6 +64,7 @@
     #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT        0x83F3
 #endif
 
+// VRV_PATCH: start
 #ifndef GL_EXT_texture_sRGB
 	#define GL_SRGB_EXT								0x8C40
 	#define GL_SRGB8_EXT							0x8C41
@@ -85,6 +83,7 @@
 	#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT	0x8C4E
 	#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT	0x8C4F
 #endif
+// VRV_PATCH: end
 
 #ifndef GL_EXT_texture_compression_rgtc
   #define GL_COMPRESSED_RED_RGTC1_EXT                0x8DBB
@@ -258,9 +257,11 @@
     #define GL_TEXTURE_2D_MULTISAMPLE         0x9100
 #endif
 
+// VRV_PATCH: start
 #ifndef GL_TEXTURE_2D_MULTISAMPLE_ARRAY
     #define GL_TEXTURE_2D_MULTISAMPLE_ARRAY   0x9102
 #endif
+// VRV_PATCH: end
 
 // Integer texture extension as in http://www.opengl.org/registry/specs/EXT/texture_integer.txt
 #ifndef GL_EXT_texture_integer
@@ -473,7 +474,8 @@ namespace osg {
 // forward declare
 class TextureObjectSet;
 class TextureObjectManager;
-  
+
+
 /** Texture pure virtual base class that encapsulates OpenGL texture
   * functionality common to the various types of OSG textures.
 */
@@ -713,9 +715,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
 
         /* select the size internal format to use based on Image when available or Texture format settings.*/
         GLenum selectSizedInternalFormat(const osg::Image* image=0) const;
-        
-        class TextureObject;
 
+        class TextureObject;
 
         /** return true if the texture image data has been modified and the associated GL texture object needs to be updated.*/
         virtual bool isDirty(unsigned int /*contextID*/) const { return false; }
@@ -758,12 +759,6 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         /** Force a reset on next apply() of associated OpenGL texture
           * parameters. */
         void dirtyTextureParameters();
-
-        // VRV_PATCH: start
-        /** Check if any texture object in the texture object buffer 
-        * is immutable(resident) */
-        bool anyTextureObjectImmutable(void) const;
-        // VRV_PATCH: end        
 
         /** Force a manual allocation of the mipmap levels on the next apply() call.
           * User is responsible for filling the mipmap levels with valid data.
@@ -883,8 +878,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         };
 
         // VRV PATCH: start
-
-         //! set a listener
+        //! set a listener
         static void setListener(GlTextureListener* listener);
 
         //! get the listener
@@ -895,9 +889,6 @@ class OSG_EXPORT Texture : public osg::StateAttribute
 
         //! get the size of the texture
         static int getTextureSize(GLuint id);
-
-        //! for debugging
-        static bool textureCreationDeletionDebug();
         // VRV PATCH: end
     protected :
 
@@ -983,13 +974,8 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         float               _shadow_ambient;
 
         // VRV_PATCH: start
-        // log to console creation/destruction if env variable 
-        // OSG_TEXTURE_CREATION_DELETION_DEBUG=1
-        static const bool _textureCreationDeletionDebug;
-        
         static GlTextureListener* _textureListener;
-        // VRV_PATCH: end
-        
+        // VRV_PATCH: end 
     public:
 
         struct OSG_EXPORT TextureProfile
@@ -1108,16 +1094,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _timeStamp(0),
                 //vrv_patch
                 _currentMipMapToApply(-1),
-                _subCurrentMipMapToApply(0),
-                // VRV PATCH
-                // OSG can delete this texture (it is not current being
-                // used by VRV indirect rendering)
-                _canDelete(true),
-                // It is not orphaned - an orphaned texture is one that
-                // OSG says is OK to delete
-                _isOrphaned(false),
-                _immutable(false)
-                // END VRV PATCH
+                _subCurrentMipMapToApply(0)
             {}
 
             inline TextureObject(Texture* texture, GLuint id, const TextureProfile& profile):
@@ -1132,16 +1109,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _timeStamp(0),
                 //vrv_patch
                 _currentMipMapToApply(-1),
-                _subCurrentMipMapToApply(0),
-                // VRV PATCH
-                // OSG can delete this texture (it is not current being
-                // used by VRV indirect rendering)
-                _canDelete(true),
-                // It is not orphaned - an orphaned texture is one that
-                // OSG says is OK to delete
-                _isOrphaned(false),
-                _immutable(false)
-                // END VRV PATCH
+                _subCurrentMipMapToApply(0)
             {}
 
             inline TextureObject(Texture* texture,
@@ -1164,16 +1132,7 @@ class OSG_EXPORT Texture : public osg::StateAttribute
                 _timeStamp(0),
                 //vrv_patch
                 _currentMipMapToApply(-1),
-                _subCurrentMipMapToApply(0),
-                // VRV PATCH
-                // OSG can delete this texture (it is not current being
-                // used by VRV indirect rendering)
-                _canDelete(true),
-                // It is not orphaned - an orphaned texture is one that
-                // OSG says is OK to delete
-                _isOrphaned(false),
-                _immutable(false)
-                // END VRV PATCH
+                _subCurrentMipMapToApply(0)
             {}                
 
             inline bool match(GLenum    target,
@@ -1221,37 +1180,6 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             // VRV PATCH
             bool isDownloaded() const; 
 
-            // These are used for indirect textures which are deleted in the
-            // DtGLDeleteObjectManager via the DtIndirectTextureProcessor
-            // _canDelete is for VRV to tell OSG that it is done with a texture object
-            // (i.e. made the texture object non-resident)
-            // NOTE: Orphaned textures object can be re-used in new textures
-            inline void setCanDelete(bool deleteTexObj ) { _canDelete = deleteTexObj; }
-            inline bool getCanDelete() { return _canDelete; }
-
-            //Used by VRV to set a texture that has been made resident to immutable. 
-            // Currently does nothing except tells OSG to delete this texture object instead of 
-            // attempting to reuse it. 
-            //In the future it could be used to avoid calling any opengl functions that might modify the textures state.
-            inline void setImmutable(bool immutable) 
-            { 
-               if (!_immutable)
-               {
-                  _immutable = immutable;
-               }
-            }
-            inline bool getImmutable()
-            {
-               return _immutable;
-            }
-
-            // When a texture is added to the _orphanedTextureObjects then _isOrphaned is true
-            // This means that OSG is done with this texture (but not necessarily VRV)
-            inline void setIsOrphaned(bool orphaned)  { _isOrphaned = orphaned; }
-            inline bool isOrphaned()  { return _isOrphaned; }
-
-            // END VRV PATCH
-
             GLuint              _id;
             TextureProfile      _profile;
             TextureObjectSet*   _set;
@@ -1264,18 +1192,15 @@ class OSG_EXPORT Texture : public osg::StateAttribute
             // VRV PATCH
             int                 _currentMipMapToApply;
             int                 _subCurrentMipMapToApply;
-            bool                _canDelete;
-            bool                _isOrphaned;
-            bool                _immutable;
             // ENV VRV PATCH
         protected:
             virtual ~TextureObject();
 
         };
 
-
         typedef std::list< ref_ptr<TextureObject> > TextureObjectList;
 
+        // VRV PATCH
         static osg::ref_ptr<TextureObjectManager>&  getTextureObjectManager(unsigned int contextID);
 
         static osg::ref_ptr<TextureObject> generateTextureObject(const Texture* texture, unsigned int contextID,GLenum target);
@@ -1326,14 +1251,6 @@ public:
 
     osg::ref_ptr<Texture::TextureObject> takeFromOrphans(Texture* texture);
     osg::ref_ptr<Texture::TextureObject> takeOrGenerate(Texture* texture);
-
-    // VRV PATH
-    // So remove(TextureObject* to) just removes the texture object from a 
-    // linked list of texture objects. We need to remove the texture from 
-    // the _orphanedTextureObjects so 
-    void removeOrphan(Texture::TextureObject* to);
-    // END VRV PATCH
-
     void moveToBack(Texture::TextureObject* to);
     void addToBack(Texture::TextureObject* to);
     void orphan(Texture::TextureObject* to);
@@ -1470,7 +1387,6 @@ protected:
     bool _textureStreamingActive; 
 
 };
- 
 }
 
 #endif
