@@ -351,7 +351,9 @@ namespace flt {
       {
          std::string id = in.readString(8);
          int32 IRColor = in.readInt32();
-         /*int16 relativePriority =*/ in.readInt16();
+         // BEGIN VRV_PATCH - https://jira.mak.com/browse/PS-3980 - ST Runway
+         int16 relativePriority = in.readInt16();
+         // END VRV_PATCH
          _drawFlag = in.readUInt8(SOLID_NO_BACKFACE);
          uint8 texturedWhite = in.readUInt8();
          int16 primaryNameIndex = in.readInt16(-1);
@@ -537,8 +539,22 @@ namespace flt {
             break;
          }
 
-         // Subface
-         if (document.subfaceLevel() > 0)
+         // Relative priority
+         // VRV_PATCH BEGIN - For correctly rendering ST CDB airport exported with Terra Vista
+         //  where the relative priority is stored on the faces and the groups are removed
+         //  See: https://jira.mak.com/browse/PS-3980, https://jira.mak.com/browse/VRV-4432
+         // 
+         // Only pay attention to the relative priority flag if you are in a CDB terrain
+         // the relative priority flag is for a 'fixed list' render order defined by Creator
+         // 
+         if (document.getCdb() && relativePriority > 0)
+         {
+            stateset->setAttributeAndModes(document.getSubSurfacePolygonOffset(relativePriority), osg::StateAttribute::ON);
+            stateset->setRenderBinDetails(relativePriority, "RenderBin");
+         }
+         else
+         // VRV_PATCH END
+         if (document.subfaceLevel() > 0)          // Subface
          {
             stateset->setAttributeAndModes(document.getSubSurfacePolygonOffset(document.subfaceLevel()), osg::StateAttribute::ON);
             stateset->setAttribute(document.getSubSurfaceDepth());
