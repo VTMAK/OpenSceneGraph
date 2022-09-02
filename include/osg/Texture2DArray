@@ -142,9 +142,7 @@ class OSG_EXPORT Texture2DArray : public Texture
         GLsizei computeTextureDepth() const;
         void allocateMipmap(State& state) const;
 
-        // VRV_PATCH: start
-        void applyTexImage2DArray_subload(State& state, Image* image, GLsizei layer, GLsizei inwidth, GLsizei inheight, GLsizei indepth, GLint inInternalFormat, GLsizei& numMipmapLevels, bool& uploaded) const;
-        // VRV_PATCH: end
+        void applyTexImage2DArray_subload(State& state, Image* image, GLsizei layer, GLsizei inwidth, GLsizei inheight, GLsizei indepth, GLint inInternalFormat, GLsizei& numMipmapLevels) const;
 
         typedef std::vector< ref_ptr<Image> > Images;
         Images _images;

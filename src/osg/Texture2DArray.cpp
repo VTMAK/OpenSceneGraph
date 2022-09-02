@@ -229,7 +229,6 @@ GLsizei Texture2DArray::computeTextureDepth() const
     return textureDepth;
 }
 
-// VRV_PATCH: start
 void Texture2DArray::apply(State& state) const
 {
     // get the contextID (user defined ID of 0 upwards) for the
@@ -250,7 +249,6 @@ void Texture2DArray::apply(State& state) const
 
     GLsizei textureDepth = computeTextureDepth();
 
-    bool uploaded = false;
     if (textureObject && textureDepth>0)
     {
         const osg::Image* image = (_images.size()>0) ? _images[0].get() : 0;
@@ -307,7 +305,7 @@ void Texture2DArray::apply(State& state) const
                             applyParameters = false;
                         }
 
-                        applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels, uploaded);
+                        applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels);
                     }
                     n += image->r();
                 }
@@ -391,7 +389,7 @@ void Texture2DArray::apply(State& state) const
             if (image)
             {
                 //Without a texture object we  need to send down the image every time regardless of the modified count
-                applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels, uploaded);
+                applyTexImage2DArray_subload(state, image, n, _textureWidth, _textureHeight, image->r(), _internalFormat, _numMipmapLevels);
                 getModifiedCount(n,contextID) = image->getModifiedCount();
                 n += image->r();
             }
@@ -441,7 +439,6 @@ void Texture2DArray::apply(State& state) const
                      _sourceFormat ? _sourceFormat : _internalFormat,
                      _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
                      0);
-        uploaded = true;
     }
 
     // nothing before, so just unbind the texture target
@@ -455,15 +452,16 @@ void Texture2DArray::apply(State& state) const
     {
         generateMipmap(state);
     }
-    if (uploaded && textureObject && textureObject->id() != 0 && Texture::listener())
+    // VRV_PATCH: start
+    if (textureObject && textureObject->id() != 0 && Texture::listener())
     {
        Texture::listener()->textureSizeChanged(textureObject->id());
     }
+    // VRV_PATCH: end
 }
-// VRV_PATCH: end
 
-// VRV_PATCH: start
-void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GLsizei layer, GLsizei inwidth, GLsizei inheight, GLsizei indepth, GLint inInternalFormat, GLsizei& numMipmapLevels, bool& uploaded) const
+
+void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GLsizei layer, GLsizei inwidth, GLsizei inheight, GLsizei indepth, GLint inInternalFormat, GLsizei& numMipmapLevels) const
 {
     // if we don't have a valid image we can't create a texture!
     if (!imagesValid())
@@ -557,7 +555,6 @@ void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GL
                                       (GLenum)image->getDataType(),
                                       dataPtr );
 #endif
-            uploaded |= true;
         }
 
         // if we support compression and image is compressed, then
@@ -574,7 +571,6 @@ void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GL
                 (GLenum)image->getPixelFormat(),
                 size,
                 dataPtr);
-            uploaded |= true;
         }
 
     // we want to use mipmapping, so enable it
@@ -615,7 +611,6 @@ void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GL
                     width >>= 1;
                     height >>= 1;
                 }
-                uploaded |= true;
             }
             else if (extensions->isCompressedTexImage3DSupported())
             {
@@ -642,7 +637,6 @@ void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GL
                     width >>= 1;
                     height >>= 1;
                 }
-                uploaded |= true;
             }
         }
 
@@ -656,7 +650,6 @@ void Texture2DArray::applyTexImage2DArray_subload(State& state, Image* image, GL
     OSG_NOTICE<<"    Texture2DArray::applyTexImage2DArray_subload() pbo="<<pbo<<", copy time = "<<osg::Timer::instance()->delta_m(start_tick,osg::Timer::instance()->tick())<<"ms"<<std::endl;
 #endif
 }
-// VRV_PATCH: end
 
 
 void Texture2DArray::copyTexSubImage2DArray(State& state, int xoffset, int yoffset, int zoffset, int x, int y, int width, int height )
