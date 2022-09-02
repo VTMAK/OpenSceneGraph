@@ -193,7 +193,6 @@ void TextureCubeMap::computeInternalFormat() const
     else computeInternalFormatType();
 }
 
-// VRV_PATCH: start
 void TextureCubeMap::apply(State& state) const
 {
     // get the contextID (user defined ID of 0 upwards) for the
@@ -230,7 +229,6 @@ void TextureCubeMap::apply(State& state) const
         }
     }
 
-    bool uploaded = false;
     if (textureObject)
     {
         textureObject->bind();
@@ -255,7 +253,7 @@ void TextureCubeMap::apply(State& state) const
                         applyTexParameters(GL_TEXTURE_CUBE_MAP,state);
                         applyParameters = false;
                     }
-                    applyTexImage2D_subload( state, faceTarget[n], _images[n].get(), _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
+                    applyTexImage2D_subload( state, faceTarget[n], _images[n].get(), _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
                 }
             }
         }
@@ -310,11 +308,11 @@ void TextureCubeMap::apply(State& state) const
                 getModifiedCount((Face)n,contextID) = image->getModifiedCount();
                 if (textureObject->isAllocated())
                 {
-                    applyTexImage2D_subload( state, faceTarget[n], image, _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
+                    applyTexImage2D_subload( state, faceTarget[n], image, _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
                 }
                 else
                 {
-                    applyTexImage2D_load( state, faceTarget[n], image, _textureWidth, _textureHeight, _numMipmapLevels, uploaded);
+                    applyTexImage2D_load( state, faceTarget[n], image, _textureWidth, _textureHeight, _numMipmapLevels);
                 }
             }
 
@@ -366,12 +364,13 @@ void TextureCubeMap::apply(State& state) const
         generateMipmap(state);
     }
 
-    if (uploaded && textureObject && textureObject->id() > 0 && Texture::listener())
+    // VRV_PATCH: start
+    if (textureObject && textureObject->id() > 0 && Texture::listener())
     {
        Texture::listener()->textureSizeChanged(textureObject->id());
     }
+    // VRV_PATCH: end
 }
-// VRV_PATCH: end
 
 void TextureCubeMap::copyTexSubImageCubeMap(State& state, int face, int xoffset, int yoffset, int x, int y, int width, int height )
 {

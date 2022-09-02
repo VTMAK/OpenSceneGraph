@@ -287,14 +287,6 @@ bool IncrementalCompileOperation::CompileTextureOp::compile(CompileInfo& compile
     else
     {
         _texture->apply(*compileInfo.getState());
-        //VRV_PATCH for streaming textures
-        const unsigned int contextID = compileInfo.getState()->getContextID();
-
-        // get the texture object for the current contextID.
-        osg::Texture::TextureObject* textureObject = _texture->getTextureObject(contextID);
-        if (textureObject && !textureObject->isDownloaded()) {
-           return false;
-        }
     }
     return true;
 }
@@ -735,10 +727,6 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
    osg::GlScopedDebugGroup debugGroup (ext, 1, "ICO");
    // VRV_PATCH: end
 
-   osg::TextureObjectManager* tom = osg::get<osg::TextureObjectManager>(context->getState()->getContextID());
-   bool timeManagementActive = tom->getTimeManagementActive();
-   tom->setTimeManagementActive(false);
-
    double targetFrameRate = _targetFrameRate;
     double minimumTimeAvailableForGLCompileAndDeletePerFrame = _minimumTimeAvailableForGLCompileAndDeletePerFrame;
 
@@ -792,8 +780,6 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
     
     if (_stopCompiling) 
     {
-       //VRV_PATCH
-       tom->setTimeManagementActive(timeManagementActive);
        return;
     }
     {
@@ -816,8 +802,6 @@ void IncrementalCompileOperation::run (osg::GraphicsContext* context)
             compileSets(toCompileCopy, compileInfo);
         }
     }
-    //VRV_PATCH
-    tom->setTimeManagementActive(timeManagementActive);
 
     //glFush();
     //glFinish();

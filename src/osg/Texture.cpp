@@ -63,9 +63,6 @@
 // does not reliably flush. Just use iostream/std cout for logging
 #include <iostream>
 #include <sstream>
-
-#include <osg/ConcurrencyViewerMacros>
-#include <osg/Profile>
 // VRV_PATCH: end
 
 namespace osg {
@@ -261,11 +258,6 @@ namespace osg {
       if (_set) _set->moveToBack(this);
    }
 
-   //VRV_PATCH
-   bool Texture::TextureObject::isDownloaded() const {
-      return _currentMipMapToApply == -1;
-   }
-
    void Texture::TextureObject::release()
    {
       if (_set) _set->orphan(this);
@@ -451,15 +443,6 @@ namespace osg {
       _parent->checkConsistency();
 
       return true;
-   }
-
-
-   osg::ref_ptr<TextureObjectManager>& Texture::getTextureObjectManager(unsigned int contextID)
-   {
-      typedef osg::buffered_object< ref_ptr<TextureObjectManager> > TextureObjectManagerBuffer;
-      static TextureObjectManagerBuffer s_TextureObjectManager;
-      if (!s_TextureObjectManager[contextID]) s_TextureObjectManager[contextID] = new TextureObjectManager(contextID);
-      return s_TextureObjectManager[contextID];
    }
 
    void TextureObjectSet::handlePendingOrphandedTextureObjects()
@@ -739,7 +722,8 @@ namespace osg {
          itr != _orphanedTextureObjects.end();
          ++itr)
       {
-         const GLuint id = (*itr)->id();
+
+         GLuint id = (*itr)->id();
 
          // OSG_NOTICE<<"    Deleting textureobject ptr="<<itr->get()<<" id="<<id<<std::endl;
          // VRV_PATCH: start
@@ -908,9 +892,9 @@ namespace osg {
       // place at back of active list
       addToBack(to.get());
 
-      // VRV PATCH - more debug info
+      // VRV_PATCH: start - more debug info
       OSG_INFO << "Reusing orphaned TextureObject, _numOfTextureObjects=" << _numOfTextureObjects << ", texture: " << texture << ", texobj: " << to.get() << std::endl;
-      // END VRV PATCH
+      // VRV_PATCH: end
 
       return to;
    }
@@ -1195,12 +1179,7 @@ namespace osg {
       _numDeleted(0),
       _deleteTime(0.0),
       _numGenerated(0),
-      _generateTime(0.0),
-      //vrv_patch
-      _timeManagementActive(false),
-      _currentTimeElapsed(0),
-      _elapsedTimeBudget(.002),
-      _textureStreamingActive(false)
+      _generateTime(0.0)
    {
    }
 
@@ -1259,11 +1238,11 @@ namespace osg {
    Texture::TextureObject* Texture::generateAndAssignTextureObject(unsigned int contextID, GLenum target) const
    {
       _textureObjectBuffer[contextID] = generateTextureObject(this, contextID, target);
-      // VRV PATCH - Debugging info
+      // VRV_PATCH: start
       Texture::TextureObject* newTo = _textureObjectBuffer[contextID].get();
       OSG_INFO << "Texture::generateAndAssignTextureObject: contextID: " << contextID << ", target: " << target << ", newTo: " << newTo << std::endl;
       return newTo;
-      // END VRV PATCH
+      // VRV_PATCH: end
    }
 
    Texture::TextureObject* Texture::generateAndAssignTextureObject(
@@ -1277,12 +1256,12 @@ namespace osg {
       GLint     border) const
    {
       _textureObjectBuffer[contextID] = generateTextureObject(this, contextID, target, numMipmapLevels, internalFormat, width, height, depth, border);
-      // VRV PATCH
+      // VRV_PATCH: start
       // Debugging info
       Texture::TextureObject* newTo = _textureObjectBuffer[contextID].get();
       OSG_INFO << "Texture::generateAndAssignTextureObject: contextID: " << contextID << ", target: " << target << ", width: " << width << ", height: " << height << ", newTo: " << newTo << std::endl;
       return newTo;
-      // END VRV PATCH
+      // VRV_PATCH: end
    }
 
    TextureObjectSet* TextureObjectManager::getTextureObjectSet(const Texture::TextureProfile& profile)
@@ -1542,7 +1521,7 @@ namespace osg {
          COMPARE_StateAttribute_Parameter(_useHardwareMipMapGeneration)
          COMPARE_StateAttribute_Parameter(_internalFormatMode)
 
-    // only compare _internalFomat is it has already been set in both lhs, and rhs
+         // only compare _internalFomat is it has already been set in both lhs, and rhs
          if (_internalFormat != 0 && rhs._internalFormat != 0)
          {
             COMPARE_StateAttribute_Parameter(_internalFormat)
@@ -2415,23 +2394,21 @@ namespace osg {
       }
    }
 
-   // VRV_PATCH: start (changes to signal when part or complete texture was uploaded)
-   void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLsizei numMipmapLevels, bool& uploaded) const
+   void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLsizei numMipmapLevels) const
    {
       // if we don't have a valid image we can't create a texture!
       if (!image || !image->data())
       {
-         // VRV PATCH
+         // VRV_PATCH: start
          // So VRV DtOsgFileCache can generate a 'dummy texture' which
          // will mess up the indirect rendering since it won't be able
          // to find the texture object address
          // In other cases, it is fine to generate a dummy texture
          // OSG_NOTICE<< "No image!" << std::endl;
-         // VRV END PATCH
+         // VRV_PATCH: end
          return;
       }
 
-      ElapsedTime elapsedTimer;
 #ifdef DO_TIMING
       osg::Timer_t start_tick = osg::Timer::instance()->tick();
       OSG_NOTICE << "glTexImage2D pixelFormat = " << std::hex << image->getPixelFormat() << std::dec << std::endl;
@@ -2579,9 +2556,6 @@ namespace osg {
 #if !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE)
       glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
 #endif
-      unsigned int contextID = state.getContextID();
-      TextureObject* textureObject = getTextureObject(contextID);
-      textureObject->_currentMipMapToApply = -1;
 
       if (!mipmappingRequired || useHardwareMipMapGeneration)
       {
@@ -2597,9 +2571,6 @@ namespace osg {
                (GLenum)image->getPixelFormat(),
                (GLenum)image->getDataType(),
                dataPtr);
-
-            uploaded |= true;
-
          }
          else if (extensions->isCompressedTexImage2DSupported())
          {
@@ -2612,8 +2583,6 @@ namespace osg {
                inwidth, inheight, 0,
                size,
                dataPtr);
-
-            uploaded |= true;
          }
 
          mipmapAfterTexImage(state, mipmapResult);
@@ -2650,69 +2619,50 @@ namespace osg {
 
                if (!compressed_image)
                {
-                  //VRV_PATCH
-                  if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
+                  for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                   {
-                     for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
-                     {
 
-                        if (width == 0)
-                           width = 1;
-                        if (height == 0)
-                           height = 1;
+                     if (width == 0)
+                        width = 1;
+                     if (height == 0)
+                        height = 1;
 
-                        glTexSubImage2D(target, k,
-                           0, 0,
-                           width, height,
-                           (GLenum)image->getPixelFormat(),
-                           (GLenum)image->getDataType(),
-                           dataPtr + image->getMipmapOffset(k));
+                     glTexSubImage2D(target, k,
+                        0, 0,
+                        width, height,
+                        (GLenum)image->getPixelFormat(),
+                        (GLenum)image->getDataType(),
+                        dataPtr + image->getMipmapOffset(k));
 
-                        width >>= 1;
-                        height >>= 1;
-                     }
-                     uploaded |= true;
-                  }
-                  //VRV_PATCH
-                  else {
-                     // start streaming them
-                     textureObject->_currentMipMapToApply = numMipmapLevels - 1;
+                     width >>= 1;
+                     height >>= 1;
                   }
                }
                else if (extensions->isCompressedTexImage2DSupported())
                {
-                  //VRV_PATCH
-                  if (target != GL_TEXTURE_2D || !osg::get<TextureObjectManager>(contextID)->getTextureStreamingActive())
+                  GLint blockSize, size;
+                  for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
                   {
-                     GLint blockSize, size;
-                     for (GLsizei k = 0; k < numMipmapLevels && (width || height); k++)
-                     {
-                        if (width == 0)
-                           width = 1;
-                        if (height == 0)
-                           height = 1;
+                     if (width == 0)
+                        width = 1;
+                     if (height == 0)
+                        height = 1;
 
-                        getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize, size);
+                     getCompressedSize(image->getInternalTextureFormat(), width, height, 1, blockSize, size);
 
-                        //state.checkGLErrors("before extensions->glCompressedTexSubImage2D(");
+                     //state.checkGLErrors("before extensions->glCompressedTexSubImage2D(");
 
-                        extensions->glCompressedTexSubImage2D(target, k,
-                           0, 0,
-                           width, height,
-                           (GLenum)image->getPixelFormat(),
-                           size,
-                           dataPtr + image->getMipmapOffset(k));
+                     extensions->glCompressedTexSubImage2D(target, k,
+                        0, 0,
+                        width, height,
+                        (GLenum)image->getPixelFormat(),
+                        size,
+                        dataPtr + image->getMipmapOffset(k));
 
-                        //state.checkGLErrors("after extensions->glCompressedTexSubImage2D(");
+                     //state.checkGLErrors("after extensions->glCompressedTexSubImage2D(");
 
-                        width >>= 1;
-                        height >>= 1;
-                     }
-                     uploaded |= true;
-                  }
-                  else {
-                     // start streaming them
-                     textureObject->_currentMipMapToApply = numMipmapLevels - 1;
+                     width >>= 1;
+                     height >>= 1;
                   }
                }
             }
@@ -2737,7 +2687,6 @@ namespace osg {
                      width >>= 1;
                      height >>= 1;
                   }
-                  uploaded |= true;
                }
                else if (extensions->isCompressedTexImage2DSupported())
                {
@@ -2759,7 +2708,6 @@ namespace osg {
                      width >>= 1;
                      height >>= 1;
                   }
-                  uploaded |= true;
                }
             }
          }
@@ -2781,7 +2729,6 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
-               uploaded |= true;
             }
             else
             {
@@ -2825,14 +2772,9 @@ namespace osg {
       {
          glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_FALSE);
       }
-
-      osg::TextureObjectManager* tom = osg::get<TextureObjectManager>(state.getContextID());
-      if (tom->getTimeManagementActive()) {
-         tom->incrementTimeElapsed(elapsedTimer.elapsedTime());
-      }
    }
 
-   void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLint inInternalFormat, GLint numMipmapLevels, bool& uploaded) const
+   void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei inwidth, GLsizei inheight, GLint inInternalFormat, GLint numMipmapLevels) const
    {
       // if we don't have a valid image we can't create a texture!
       if (!image || !image->data())
@@ -2841,7 +2783,7 @@ namespace osg {
       // image size has changed so we have to re-load the image from scratch.
       if (image->s() != inwidth || image->t() != inheight || image->getInternalTextureFormat() != inInternalFormat)
       {
-         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
+         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
          return;
       }
       // else image size the same as when loaded so we can go ahead and subload
@@ -2855,7 +2797,7 @@ namespace osg {
          (((inwidth >> 2) << 2) != inwidth ||
             ((inheight >> 2) << 2) != inheight))
       {
-         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
+         applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
          return;
       }
 
@@ -2966,7 +2908,6 @@ namespace osg {
                size,
                dataPtr);
          }
-         uploaded |= true;
 
          mipmapAfterTexImage(state, mipmapResult);
       }
@@ -2999,7 +2940,6 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
-               uploaded |= true;
             }
             else if (extensions->isCompressedTexImage2DSupported())
             {
@@ -3027,13 +2967,12 @@ namespace osg {
                   width >>= 1;
                   height >>= 1;
                }
-               uploaded |= true;
             }
          }
          else
          {
             //OSG_WARN<<"Warning:: cannot subload mip mapped texture from non mipmapped image."<<std::endl;
-            applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels, uploaded);
+            applyTexImage2D_load(state, target, image, inwidth, inheight, numMipmapLevels);
          }
       }
 
@@ -3051,7 +2990,6 @@ namespace osg {
          delete[] dataPtr;
       }
    }
-   // VRV_PATCH: end (changes to signal when part or complete texture was uploaded)
 
    bool Texture::isHardwareMipmapGenerationEnabled(const State& state) const
    {
@@ -3103,7 +3041,7 @@ namespace osg {
             }
          }
 
-         glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+         glTexParameteri(getTextureTarget(), GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
          return GENERATE_MIPMAP_TEX_PARAMETER;
 #endif
       }
@@ -3134,12 +3072,6 @@ namespace osg {
    }
 
    void Texture::generateMipmap(State& state) const
-   {
-      bool unused = false;
-      generateMipmap(state, unused);
-   }
-
-   void Texture::generateMipmap(State& state, bool& uploaded) const
    {
       const unsigned int contextID = state.getContextID();
 
@@ -3176,7 +3108,7 @@ namespace osg {
       {
          allocateMipmap(state);
       }
-      uploaded |= true;
+
    }
 
    void Texture::compileGLObjects(State& state) const
