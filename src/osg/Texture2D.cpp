@@ -279,8 +279,6 @@ void Texture2D::apply(State& state) const
             textureObject->setAllocated(true);
         }
 
-        // update the modified tag to show that it is up to date.
-        getModifiedCount(contextID) = image->getModifiedCount();
         // unref image data?
         if (isSafeToUnrefImageData(state) && image->getDataVariance()==STATIC)
         {
