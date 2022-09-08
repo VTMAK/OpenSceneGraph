@@ -156,6 +156,7 @@ bool Texture2D::textureObjectValid(State& state) const
     return textureObject->match(GL_TEXTURE_2D, new_numMipmapLevels, _internalFormat, new_width, new_height, 1, _borderWidth);
 }
 
+// VRV_PATCH: start (changes to signal when part or complete texture was uploaded)
 void Texture2D::apply(State& state) const
 {
     //state.setReportGLErrors(true);
@@ -187,6 +188,7 @@ void Texture2D::apply(State& state) const
         }
     }
 
+    bool uploaded = false;
     if (textureObject)
     {
         textureObject->bind();
@@ -205,7 +207,7 @@ void Texture2D::apply(State& state) const
             applyTexParameters(GL_TEXTURE_2D, state);
 
             applyTexImage2D_subload(state, GL_TEXTURE_2D, _image.get(),
-                _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
+                _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
         }
         else if (_readPBuffer.valid())
         {
@@ -230,6 +232,8 @@ void Texture2D::apply(State& state) const
         _subloadCallback->load(*this,state);
 
         textureObject->setAllocated(_numMipmapLevels,_internalFormat,_textureWidth,_textureHeight,1,_borderWidth);
+
+        uploaded = true;
 
         // in theory the following line is redundant, but in practice
         // have found that the first frame drawn doesn't apply the textures
@@ -268,13 +272,13 @@ void Texture2D::apply(State& state) const
         {
             //OSG_NOTICE<<"Reusing texture object"<<std::endl;
             applyTexImage2D_subload(state,GL_TEXTURE_2D,image.get(),
-                                 _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels);
+                                 _textureWidth, _textureHeight, _internalFormat, _numMipmapLevels, uploaded);
         }
         else
         {
             //OSG_NOTICE<<"Creating new texture object"<<std::endl;
             applyTexImage2D_load(state,GL_TEXTURE_2D,image.get(),
-                                 _textureWidth, _textureHeight, _numMipmapLevels);
+                                 _textureWidth, _textureHeight, _numMipmapLevels, uploaded);
 
             textureObject->setAllocated(true);
         }
@@ -306,6 +310,7 @@ void Texture2D::apply(State& state) const
              applyTexParameters(GL_TEXTURE_2D, state);
              extensions->glTexStorage2D( GL_TEXTURE_2D, osg::maximum(_numMipmapLevels,1), texStorageSizedInternalFormat,
                       _textureWidth, _textureHeight);
+             uploaded |= true;
          }
          else
          {
@@ -318,6 +323,7 @@ void Texture2D::apply(State& state) const
                       internalFormat,
                       _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
                       0);
+             uploaded |= true;
         }
 
         if (_readPBuffer.valid())
@@ -337,13 +343,12 @@ void Texture2D::apply(State& state) const
         generateMipmap(state);
     }
 
-    // VRV_PATCH: start
-    if (textureObject && textureObject->id() > 0 && Texture::listener())
+    if (uploaded && textureObject && textureObject->id() > 0 && Texture::listener())
     {
        Texture::listener()->textureSizeChanged(textureObject->id());
     }
-    // VRV_PATCH: end
 }
+// VRV_PATCH: end (changes to signal when part or complete texture was uploaded)
 
 void Texture2D::computeInternalFormat() const
 {

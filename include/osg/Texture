@@ -855,15 +855,18 @@ class OSG_EXPORT Texture : public osg::StateAttribute
           * and the size are output parameters. */
         static void getCompressedSize(GLenum internalFormat, GLint width, GLint height, GLint depth, GLint& blockSize, GLint& size);
 
+        // VRV_PATCH: start
         /** Helper method. Creates the texture, but doesn't set or use a
           * texture binding. Note: Don't call this method directly unless
           * you're implementing a subload callback. */
-        void applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei width, GLsizei height,GLsizei numMipmapLevels) const;
+        void applyTexImage2D_load(State& state, GLenum target, const Image* image, GLsizei width, GLsizei height,GLsizei numMipmapLevels, bool& uploaded) const;
 
         /** Helper method. Subloads images into the texture, but doesn't set
           * or use a texture binding. Note: Don't call this method directly
           * unless you're implementing a subload callback. */
-        void applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei width, GLsizei height, GLint inInternalFormat, GLsizei numMipmapLevels) const;
+        void applyTexImage2D_subload(State& state, GLenum target, const Image* image, GLsizei width, GLsizei height, GLint inInternalFormat, GLsizei numMipmapLevels, bool& uploaded) const;
+        // VRV_PATCH: end
+
 
         /** Returned by mipmapBeforeTexImage() to indicate what
           * mipmapAfterTexImage() should do */
@@ -919,9 +922,13 @@ class OSG_EXPORT Texture : public osg::StateAttribute
         GenerateMipmapMode mipmapBeforeTexImage(const State& state, bool hardwareMipmapOn) const;
         void mipmapAfterTexImage(State& state, GenerateMipmapMode beforeResult) const;
 
+        // VRV_PATCH: start
         /** Helper method to generate mipmap levels by calling of glGenerateMipmapEXT.
           * If it is not supported, then call the virtual allocateMipmap() method */
+        void generateMipmap(State& state, bool& uploaded) const;
+
         void generateMipmap(State& state) const;
+        // VRV_PATCH: end
 
         /** Allocate mipmap levels of the texture by subsequent calling of glTexImage* function. */
         virtual void allocateMipmap(State& state) const = 0;
