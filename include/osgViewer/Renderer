@@ -79,7 +79,6 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
         void setCameraRequiresSetUp(bool flag);
         bool getCameraRequiresSetUp() const;
 
-
     protected:
         void initialize(osg::State* state);
         virtual ~Renderer();
@@ -126,8 +125,6 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
         bool _initialized;
         osg::ref_ptr<OpenGLQuerySupport> _querySupport;
         osg::Timer_t _startTick;
-
-        static class CullThread *            _s_cullThread;
 };
 
 }

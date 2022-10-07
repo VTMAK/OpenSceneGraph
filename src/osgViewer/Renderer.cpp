@@ -38,90 +38,6 @@
 
 using namespace osgViewer;
 
-
-osgViewer::CullThread * osgViewer::Renderer::_s_cullThread = NULL;
-namespace osgViewer
-{
-   // VRV patch
-   class CullThread : public OpenThreads::Thread
-   {
-   public:
-      CullThread() : OpenThreads::Thread(), _sceneView(NULL), _ico(NULL), _running(1), _initialized(0), _refCount(0)
-      {
-
-      }
-      virtual void run()
-      {
-         osg::CVMarkerSeries series("Cull Thread");
-         while (1)
-         {
-            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
-            {
-               osg::CVSpan icoTick(series, 4, "Cull");
-               OsgProfileC("Cull", tracy::Color::Cyan3);
-
-               if (_sceneView) {
-                  _sceneView->cull();
-               }
-
-               if (_ico) {
-                  _ico->stopCompiling();
-               }
-
-               // stop any additional operations
-               // VRV_PATCH
-               osgViewer::View* view = dynamic_cast<osgViewer::View*>(_sceneView->getCamera()->getView());
-
-               if (view->getViewerBase()) {
-                  osg::Operation* mto = view->getViewerBase()->getMainThreadOperation();
-                  if (mto)
-                  {
-                      mto->release();
-                  }
-               }
-               _running = 0;
-            }
-
-            // Wait for startUp call from cull_draw
-            // Linux requires that the mutex be locked by the calling thread
-            // when a condition::wait is called using it
-            _runThreadWaitCond.wait(&_mutex);
-         }
-      }
-
-      void ref(){ _refCount++; }
-      void unref(){ _refCount--; }
-      int getRefs(){ return _refCount; };
-
-      void startUp()
-      {
-         // VRV_PATCH BEGIN
-         OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_mutex);
-         // VRV_PATCH END
-         _running = 1;
-         if (_ico){
-            _ico->setStartCompilingFlag();
-         }
-         if (!_initialized){
-            _initialized = 1;
-            startThread();
-            // make sure the thread starts up and starts to wait
-            OpenThreads::Thread::microSleep(1);
-         }
-
-         _runThreadWaitCond.signal();
-      }
-      osgUtil::SceneView* _sceneView;
-
-      OpenThreads::Mutex _mutex;
-      OpenThreads::Condition _runThreadWaitCond;
-      volatile int _running;
-      osgUtil::IncrementalCompileOperation* _ico;
-      int _initialized;
-      int _refCount;
-   };
-}
-
 //#define DEBUG_MESSAGE OSG_NOTICE
 #define DEBUG_MESSAGE OSG_DEBUG
 
@@ -560,28 +476,11 @@ Renderer::Renderer(osg::Camera* camera):
     _availableQueue.add(_sceneView[1].get());
 
     DEBUG_MESSAGE<<"_availableQueue.size()="<<_availableQueue._queue.size()<<std::endl;
-
-    if (!_s_cullThread){
-       _s_cullThread = new CullThread();
-    }
-    _s_cullThread->ref();
-
 }
 
 Renderer::~Renderer()
 {
     DEBUG_MESSAGE<<"Render::~Render() "<<this<<std::endl;
-
-    _s_cullThread->unref();
-    if (_s_cullThread->getRefs() == 0){
-       _s_cullThread->cancel();
-       if (_s_cullThread->isRunning())
-       {
-          _s_cullThread->join();
-       }
-       delete _s_cullThread;
-       _s_cullThread = NULL;
-    }
 }
 
 void Renderer::initialize(osg::State* state)
@@ -1031,69 +930,7 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
  
        sceneView->inheritCullSettings(*(sceneView->getCamera()));
 
-       //VRV PATCH - Added multithreaded update
-       int use_bg_thread = 0;
-       // only do this if we really are going to draw something
-       if (viewer && sceneView->getCamera()->getNodeMask() > 0)
        {
-          if (viewer->getIncrementalCompileOperation() || viewer->getMainThreadOperation()){
-             use_bg_thread = 1;
-          }
-       }
-
-       if (use_bg_thread)
-       {
-          {
-             osgUtil::IncrementalCompileOperation* ico = viewer ? viewer->getIncrementalCompileOperation() : 0;
-             _s_cullThread->_sceneView = sceneView;
-             _s_cullThread->_ico = ico;
-
-             // VRV PATCH
-             // Reset the cull visitor in this thread so that we don't destroy stuff in a background thread
-             // that has graphics resources allocated.
-             if (sceneView && sceneView->getCullVisitor())
-             {
-                sceneView->getCullVisitor()->reset();
-             }
-
-             // Main thread jobs must be called *before* the cullthread startUp
-             // so they can signal the DtMainThreadJobsManager to keep going
-             osg::Operation* mto = 0;
-             if (viewer)
-             {
-                 mto = viewer->getMainThreadOperation();
-                 if (mto)
-                 {
-                     mto->startUp();
-                 }
-             }
-
-             // VRV_PATCH
-             // update the current context
-             // This was running after the cull thread was started but it was 
-             // causing an issue if makeCurrent took longer than cull.
-             // We need to come up with a way to prevent the optional jobs queue
-             // from being starved in that case.
-             viewer->makeCurrent(context);
-
-             //signals the cull thread to start up 
-             _s_cullThread->startUp();
-             
-             // Run any additional operations
-             // There is only one main thread operation allowed
-             if (mto)
-             {
-                 (*mto)(sceneView);
-             }
-
-             //FIXME this is removable when the main thread jobs system code comes in
-             while (_s_cullThread->_running == 1){
-                OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_s_cullThread->_mutex);
-                ;
-             }
-          }
-       }
-       else{
           osg::CVSpan cullTick(series, 4, "Cull");
           sceneView->cull();
        }
@@ -1113,7 +950,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
           state->getDynamicObjectRenderingCompletedCallback()->completed(state);
        }
 #endif
-
 
        // do draw traversal
        if (acquireGPUStats)
@@ -1162,7 +998,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
           stats->setAttribute(frameNumber, "Draw traversal end time", osg::Timer::instance()->delta_s(_startTick, afterDrawTick));
           stats->setAttribute(frameNumber, "Draw traversal time taken", osg::Timer::instance()->delta_s(beforeDrawTick, afterDrawTick));
        }
-
     }
     DEBUG_MESSAGE << "end cull_draw() " << this << std::endl;
 
