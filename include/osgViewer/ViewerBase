@@ -222,11 +222,13 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
         /** Get the incremental compile operation. */
         osgUtil::IncrementalCompileOperation* getIncrementalCompileOperation() { return _incrementalCompileOperation.get(); }
 
-        // VRV patch cull thread parallelization - _mainThreadOperation needs to be created/delete 
+// VR_PATCH: start
+        // cull thread parallelization - _mainThreadOperation needs to be created/delete 
         // outside of this system
         void virtual addMainThreadOperation(osg::Operation * op){ _mainThreadOperation = op; }
         void virtual removeMainThreadOperation(){ _mainThreadOperation=NULL; }
         osg::Operation* getMainThreadOperation(){ return _mainThreadOperation; }
+// VR_PATCH: end
 
         enum FrameScheme
         {
@@ -306,31 +308,27 @@ class OSGVIEWER_EXPORT ViewerBase : public virtual osg::Object
 
         bool getRequestContinousUpdate() const { return _requestContinousUpdate; }
 
-        // VRV_PATCH make public, and optimize content management
-    		// make public, and optimize content management
+// VRV_PATCH: start
         inline void makeCurrent(osg::GraphicsContext* gc)
         {
             if (_currentContext == gc) return;
 
-           // VRV_PATCH only set the context to none if there's no new context to use
-            if (!gc || !gc->valid()) {
-              releaseContext();
+            // only set the context to none if there's no new context to use
+            if (!gc || !gc->valid())
+            {
+                releaseContext();
             }
 
-            if (gc && gc->valid() && gc->makeCurrent()) 
+            if (gc && gc->valid() && gc->makeCurrent())
             {
-              _currentContext = gc;
+                _currentContext = gc;
             }
         }
-        // VRV_PATCH: end
-        
-        // VRV_PATCH: start
-    		const osg::GraphicsContext* getCurrentContext(void) const
+        const osg::GraphicsContext* getCurrentContext(void) const
         {
-		        return _currentContext.get();
-		    }
-    		// VRV_PATCH: end
-
+            return _currentContext.get();
+        }
+// VRV_PATCH: end
 protected:
 
         void viewerBaseInit();
@@ -384,8 +382,10 @@ protected:
 
         osg::observer_ptr<osg::GraphicsContext>             _currentContext;
 
-        //VRV patch cull thread parallelization - only one main thread operation supported
+// VR_PATCH: start
+        //patch cull thread parallelization - only one main thread operation supported
         osg::Operation* _mainThreadOperation;
+// VR_PATCH: end
 
     private:
 

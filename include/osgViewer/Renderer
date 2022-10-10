@@ -56,8 +56,7 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
 
         virtual void cull();
         virtual void draw();
-        // VRV_PATCH add context
-        virtual void cull_draw(osg::GraphicsContext * context);
+        virtual void cull_draw();
 
         virtual void compile();
 

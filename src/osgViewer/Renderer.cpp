@@ -30,11 +30,12 @@
 #include <osg/io_utils>
 
 #include <sstream>
-#include <osg/Material>
 
-// VRV patch
+// VR_PATCH: start
+#include <osg/Material>
 #include <osg/ConcurrencyViewerMacros>
 #include <osg/Profile>
+// VR_PATCH: end
 
 using namespace osgViewer;
 
@@ -636,13 +637,14 @@ void Renderer::compile()
 
 static void collectSceneViewStats(unsigned int frameNumber, osgUtil::SceneView* sceneView, osg::Stats* stats)
 {
-
     osgUtil::Statistics sceneStats;
+// VR_PATCH: start
     //if the scene view was not rendered then there are no stats to get...
     if (sceneView->getCamera() && sceneView->getCamera()->getNodeMask() > 0)
     {
        sceneView->getStats(sceneStats);
     }
+// VR_PATCH: end
 
     stats->setAttribute(frameNumber, "Visible vertex count", static_cast<double>(sceneStats._vertexCount));
     stats->setAttribute(frameNumber, "Visible number of drawables", static_cast<double>(sceneStats.numDrawables));
@@ -688,8 +690,10 @@ void Renderer::cull()
 
     DEBUG_MESSAGE<<"cull() got SceneView "<<sceneView<<std::endl;
 
+// VR_PATCH: start
     osg::CVMarkerSeries series("Cull Thread");
     osg::CVSpan cullSpan(series, 4, "Cull");
+// VR_PATCH: end
     
     if (sceneView)
     {
@@ -748,10 +752,11 @@ void Renderer::draw()
 
     DEBUG_MESSAGE<<"draw() got SceneView "<<sceneView<<std::endl;
 
+// VR_PATCH: start
     osg::CVMarkerSeries series("Main High");
-
     osg::CVSpan drawTick(series, 4, "Draw");
     OsgProfileC("Draw", 0x75562e);
+// VR_PATCH: end
 
     if (sceneView && !_done)
     {
@@ -855,8 +860,8 @@ void Renderer::draw()
     DEBUG_MESSAGE<<"end draw() "<<this<<std::endl;
 }
 
-
-void Renderer::cull_draw(osg::GraphicsContext * context)
+// VRV_PATCH: start
+void Renderer::cull_draw()
 {
     DEBUG_MESSAGE<<"cull_draw() "<<this<<std::endl;
 
@@ -868,8 +873,6 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
         OSG_INFO<<"Render::release() causing cull_draw to exit"<<std::endl;
         return;
     }
-
-    // OSG_NOTICE<<"RenderingOperation"<<std::endl;
 
     osg::Stats* stats = sceneView->getCamera()->getStats();
     osg::State* state = sceneView->getState();
@@ -888,25 +891,22 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
     {
        updateSceneView(sceneView);
 
-       // VRV_PATCH: start
+
        // Don't collect the frame number until after the sceneView has been updated, which
        // propagates the view's frame stamp into the sceneView.
        const osg::FrameStamp* fs = sceneView->getFrameStamp();
        frameNumber = fs ? fs->getFrameNumber() : 0;
-       // VRV_PATCH: end
 
        if (_compileOnNextDraw && viewer)
        {
-           // VRV_PATCH
-           viewer->makeCurrent(context);
-
           compile();
        }
 
        // OSG_NOTICE<<"RenderingOperation"<<std::endl;
 
        // pass on the fusion distance settings from the View to the SceneView
-       if (view) {
+       if (view) 
+       {
           sceneView->setFusionDistance(view->getFusionDistanceMode(), view->getFusionDistanceValue());
        }
 
@@ -1002,6 +1002,7 @@ void Renderer::cull_draw(osg::GraphicsContext * context)
     DEBUG_MESSAGE << "end cull_draw() " << this << std::endl;
 
 }
+// VRV_PATCH: end
 
 void Renderer::operator () (osg::Object* object)
 {
@@ -1012,11 +1013,11 @@ void Renderer::operator () (osg::Object* object)
     if (camera) cull();
 }
 
-void Renderer::operator () (osg::GraphicsContext* context)
+void Renderer::operator () (osg::GraphicsContext* /*context*/)
 {
     if (_graphicsThreadDoesCull)
     {
-        cull_draw(context);
+        cull_draw();
     }
     else
     {
