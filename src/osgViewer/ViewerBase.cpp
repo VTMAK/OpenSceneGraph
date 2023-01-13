@@ -81,7 +81,9 @@ void ViewerBase::viewerBaseInit()
 
     _useConfigureAffinity = true;
 
-    _mainThreadOperation = nullptr;
+// VR_PATCH: start
+    _preDrawOperation = nullptr;
+// VR_PATCH: end
 }
 
 void ViewerBase::configureAffinity()
@@ -890,14 +892,12 @@ void ViewerBase::renderingTraversals()
         if (!((*itr)->getGraphicsThread()) && (*itr)->valid())
         {
             doneMakeCurrentInThisThread = true;
-            // GNP FIXME wait till cull to do this
-            // makeCurrent(*itr);
-            (*itr)->runOperations();
-            // VRV_PATCH this is much faster when single threaded
-            if (!_endRenderingDispatchBarrier.valid()) 
+            makeCurrent(*itr);
+            if (getPreDrawOperation())
             {
-               (*itr)->swapBuffers();
+               (*getPreDrawOperation())(this);
             }
+            (*itr)->runOperations();
         }
     }
 
@@ -909,19 +909,15 @@ void ViewerBase::renderingTraversals()
        _endRenderingDispatchBarrier->block();
     }
 
-    if (_endRenderingDispatchBarrier.valid() ) 
+    for(itr = contexts.begin();
+        itr != contexts.end() && !_done;
+        ++itr)
     {
-        // VRV_PATCH this whole thing shouldn't happen now
-        for(itr = contexts.begin();
-            itr != contexts.end() && !_done;
-            ++itr)
+        if (!((*itr)->getGraphicsThread()) && (*itr)->valid())
         {
-            if (!((*itr)->getGraphicsThread()) && (*itr)->valid())
-            {
-                doneMakeCurrentInThisThread = true;
-                makeCurrent(*itr);
-                (*itr)->swapBuffers();
-            }
+            doneMakeCurrentInThisThread = true;
+            makeCurrent(*itr);
+            (*itr)->swapBuffers();
         }
     }
 

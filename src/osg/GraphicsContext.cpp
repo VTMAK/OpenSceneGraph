@@ -37,9 +37,10 @@
 #include <iterator>
 #include <stdio.h>
 
-//VRV_PATCH#
+// VRV_PATCH: start
 #include <osg/ConcurrencyViewerMacros>
 #include <osg/Profile>
+// VRV_PATCH: end
 
 using namespace osg;
 
@@ -575,11 +576,11 @@ bool GraphicsContext::releaseContext()
 
 void GraphicsContext::swapBuffers()
 {
-   //VRV_PATCH
+//VRV_PATCH: start
    OsgProfileC("swapBuffers", tracy::Color::DarkOrange);
-
    osg::CVMarkerSeries series("Main High");
    osg::CVSpan swapSpan(series, 4, "swapBuffers");
+//VRV_PATCH: end
 
     if (isCurrent())
     {
@@ -916,7 +917,8 @@ void GraphicsContext::resizedImplementation(int x, int y, int width, int height)
     _traits->height = height;
 }
 
-// VRV_PATCH BEGIN - Support for adding/removing cameras from gfx context at the channel level
+// VRV_PATCH: start
+// Support for adding/removing cameras from gfx context at the channel level
 void osg::GraphicsContext::disableCamera(osg::Camera* camera)
 {
    Cameras::iterator itr = std::find(_cameras.begin(), _cameras.end(), camera);
@@ -935,7 +937,7 @@ void osg::GraphicsContext::enableCamera(osg::Camera* camera)
 
    _cameras.push_back(camera);
 }
-// VRV_PATCH END
+// VRV_PATCH: end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //

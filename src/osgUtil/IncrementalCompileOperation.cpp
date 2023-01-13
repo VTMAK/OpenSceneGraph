@@ -19,9 +19,6 @@
 #include <osg/Depth>
 #include <osg/ColorMask>
 #include <osg/ApplicationUsage>
-#include <osg/ContextData>
-#include <osg/GLDebugGroup>
-#include <osg/Profile>
 
 #include <OpenThreads/ScopedLock>
 
@@ -29,11 +26,6 @@
 #include <iterator>
 #include <stdlib.h>
 #include <string.h>
-
-// BEGIN VRV_PATCH - Gedalia ICO cost update
-#include <osg/ConcurrencyViewerMacros>
-#include <osg/Profile>
-
 
 namespace osgUtil
 {
@@ -56,7 +48,6 @@ namespace osgUtil
 static osg::ApplicationUsageProxy ICO_e1(osg::ApplicationUsage::ENVIRONMENTAL_VARIABLE,"OSG_MINIMUM_COMPILE_TIME_PER_FRAME <float>","minimum compile time alloted to compiling OpenGL objects per frame in database pager.");
 static osg::ApplicationUsageProxy UCO_e2(osg::ApplicationUsage::ENVIRONMENTAL_VARIABLE,"OSG_MAXIMUM_OBJECTS_TO_COMPILE_PER_FRAME <int>","maximum number of OpenGL objects to compile per frame in database pager.");
 static osg::ApplicationUsageProxy UCO_e3(osg::ApplicationUsage::ENVIRONMENTAL_VARIABLE,"OSG_FORCE_TEXTURE_DOWNLOAD <ON/OFF>","should the texture compiles be forced to download using a dummy Geometry.");
-
 
 /////////////////////////////////////////////////////////////////
 //
@@ -313,7 +304,6 @@ bool IncrementalCompileOperation::CompileProgramOp::compile(CompileInfo& compile
 IncrementalCompileOperation::CompileInfo::CompileInfo(osg::GraphicsContext* context, IncrementalCompileOperation* ico):
     compileAll(false),
     maxNumObjectsToCompile(0),
-    numObjectsCompiled(0),
     allocatedTime(0)
 {
     setState(context->getState());
@@ -352,54 +342,37 @@ double IncrementalCompileOperation::CompileList::estimatedTimeForCompile(Compile
 
 bool IncrementalCompileOperation::CompileList::compile(CompileInfo& compileInfo)
 {
-// BEGIN VRV_PATCH - Gedalia ICO cost update
-   if (_compileOps.size() == 0){
-      return empty();
+   //#define USE_TIME_ESTIMATES
+
+   for (CompileOps::iterator itr = _compileOps.begin();
+      itr != _compileOps.end() && compileInfo.okToCompile();
+      )
+   {
+#ifdef USE_TIME_ESTIMATES
+      double estimatedCompileCost = (*itr)->estimatedTimeForCompile(compileInfo);
+#endif
+
+      --compileInfo.maxNumObjectsToCompile;
+
+#ifdef USE_TIME_ESTIMATES
+      osg::ElapsedTime timer;
+#endif
+
+      CompileOps::iterator saved_itr(itr);
+      ++itr;
+      if ((*saved_itr)->compile(compileInfo))
+      {
+         _compileOps.erase(saved_itr);
    }
-//   marker_series series("Render Tasks");
-//   span UpdateTick(series, 0, _T("ICO Compile"));
-
-#define USE_TIME_ESTIMATES
-
-    for (CompileOps::iterator itr = _compileOps.begin(); itr != _compileOps.end(); )
-    {
-#ifdef USE_TIME_ESTIMATES
-        double estimatedCompileCost = (*itr)->estimatedTimeForCompile(compileInfo);
-
-        if (!compileInfo.okToCompile(estimatedCompileCost) && (compileInfo.numObjectsCompiled > 0)) {
-           break;
-        }
-#else
-       if (!compileInfo.okToCompile() && (compileInfo.numObjectsCompiled > 0)){
-          break;
-       }
-#endif
-
-        compileInfo.numObjectsCompiled++;
-// END VRV_PATCH
-        --compileInfo.maxNumObjectsToCompile;
 
 #ifdef USE_TIME_ESTIMATES
-        osg::ElapsedTime timer;
+      double actualCompileCost = timer.elapsedTime();
+      OSG_NOTICE << "IncrementalCompileOperation::CompileList::compile() estimatedTimForCompile = " << estimatedCompileCost * 1000.0 << "ms, actual = " << actualCompileCost * 1000.0 << "ms";
+      if (estimatedCompileCost > 0.0) OSG_NOTICE << ", ratio=" << (actualCompileCost / estimatedCompileCost);
+      OSG_NOTICE << std::endl;
 #endif
-
-        CompileOps::iterator saved_itr(itr);
-        ++itr;
-        if ((*saved_itr)->compile(compileInfo))
-        {
-            _compileOps.erase(saved_itr);
-        }
-
-        // BEGIN VRV_PATCH - Gedalia ICO cost update
-        //#ifdef USE_TIME_ESTIMATES
-        //double actualCompileCost = timer.elapsedTime();
-        //OSG_NOTICE<<"IncrementalCompileOperation::CompileList::compile() estimatedTimeForCompile = "<<estimatedCompileCost*1000.0<<"ms, actual = "<<actualCompileCost*1000.0<<"ms";
-        //if (estimatedCompileCost>0.0) OSG_NOTICE<<", ratio="<<(actualCompileCost/estimatedCompileCost);
-        //OSG_NOTICE<<std::endl;
-        //#endif
-        // END VRV_PATCH
-    }
-    return empty();
+}
+   return empty();
 }
 
 /////////////////////////////////////////////////////////////////
@@ -478,11 +451,7 @@ IncrementalCompileOperation::IncrementalCompileOperation():
     _flushTimeRatio(0.5),
     _conservativeTimeRatio(0.5),
     _currentFrameNumber(0),
-    _compileAllTillFrameNumber(0),
-    _stopCompiling(0),
-    _vrvMaxCompileTime(-1.0f),
-    // VRV_PATCH
-    _runThreadWaitCond(NULL)
+    _compileAllTillFrameNumber(0)
 {
     _markerObject = new osg::DummyObject;
     _markerObject->setName("HasBeenProcessedByStateToCompile");
@@ -627,14 +596,6 @@ void IncrementalCompileOperation::add(CompileSet* compileSet, bool callBuildComp
 
     OpenThreads::ScopedLock<OpenThreads::Mutex>  lock(_toCompileMutex);
     _toCompile.push_back(compileSet);
-
-
-    osg::CVMarkerSeries series("Job Queue", false);
-    series.write_alert("Add ICO work");
-
-    if (_runThreadWaitCond) {
-       _runThreadWaitCond->signal();
-    }
 }
 
 void IncrementalCompileOperation::remove(CompileSet* compileSet)
@@ -698,123 +659,83 @@ void IncrementalCompileOperation::mergeCompiledSubgraphs(const osg::FrameStamp* 
     _compiled.clear();
 }
 
+
 void IncrementalCompileOperation::operator () (osg::GraphicsContext* context)
 {
-// vrv patch disable with the modified multithreaded code
-// we now explicitly call run and don't include the ico in the generic opperations
-   _stopCompiling = 0;
-  // run(context);
-}
-void IncrementalCompileOperation::run (osg::GraphicsContext* context)
-{
-   osg::CVMarkerSeries series("Main Thread");
-   OsgProfileC("IncrementalCompileOperation", tracy::Color::ColorType::Purple);
-
-   // osg::CVMarkerSeries series2("Render SubTasks");
-   //osg::CVSpan span(series, 3, "ico::run");
-
-   _stopCompiling = 0;
    osg::NotifySeverity level = osg::INFO;
 
-    //glFinish();
-    //glFlush();
-
-   //VRV_PATCH
-   
-   osg::GLExtensions * ext = osg::GLExtensions::Get(context->getState()->getContextID(), true);
-
-   // VRV_PATCH: start
-   osg::GlScopedDebugGroup debugGroup (ext, 1, "ICO");
-   // VRV_PATCH: end
+   //glFinish();
+   //glFlush();
 
    double targetFrameRate = _targetFrameRate;
-    double minimumTimeAvailableForGLCompileAndDeletePerFrame = _minimumTimeAvailableForGLCompileAndDeletePerFrame;
+   double minimumTimeAvailableForGLCompileAndDeletePerFrame = _minimumTimeAvailableForGLCompileAndDeletePerFrame;
 
-    double targetFrameTime = 1.0/targetFrameRate;
+   double targetFrameTime = 1.0 / targetFrameRate;
 
-    const osg::FrameStamp* fs = context->getState()->getFrameStamp();
-    double currentTime = fs ? fs->getReferenceTime() : 0.0;
+   const osg::FrameStamp* fs = context->getState()->getFrameStamp();
+   double currentTime = fs ? fs->getReferenceTime() : 0.0;
 
-    double currentElapsedFrameTime = context->getTimeSinceLastClear();
+   double currentElapsedFrameTime = context->getTimeSinceLastClear();
 
-    OSG_NOTIFY(level)<<"IncrementalCompileOperation()"<<std::endl;
-    OSG_NOTIFY(level)<<"    currentTime = "<<currentTime<<std::endl;
-    OSG_NOTIFY(level)<<"    currentElapsedFrameTime = "<<currentElapsedFrameTime<<std::endl;
+   OSG_NOTIFY(level) << "IncrementalCompileOperation()" << std::endl;
+   OSG_NOTIFY(level) << "    currentTime = " << currentTime << std::endl;
+   OSG_NOTIFY(level) << "    currentElapsedFrameTime = " << currentElapsedFrameTime << std::endl;
 
-    double availableTime = std::max((targetFrameTime - currentElapsedFrameTime)*_conservativeTimeRatio,
-                                    minimumTimeAvailableForGLCompileAndDeletePerFrame);
+   double availableTime = std::max((targetFrameTime - currentElapsedFrameTime) * _conservativeTimeRatio,
+      minimumTimeAvailableForGLCompileAndDeletePerFrame);
 
-    // change for multithreading cull budgeting
-    if (_vrvMaxCompileTime > 0.0f && availableTime > _vrvMaxCompileTime){
-       availableTime = _vrvMaxCompileTime;
-    }
-
-    double flushTime = availableTime * _flushTimeRatio;
-    double compileTime = availableTime - flushTime;
+   double flushTime = availableTime * _flushTimeRatio;
+   double compileTime = availableTime - flushTime;
 
 #if 1
-    OSG_NOTIFY(level)<<"    availableTime = "<<availableTime*1000.0<<std::endl;
-    OSG_NOTIFY(level)<<"    flushTime     = "<<flushTime*1000.0<<std::endl;
-    OSG_NOTIFY(level)<<"    compileTime   = "<<compileTime*1000.0<<std::endl;
+   OSG_NOTIFY(level) << "    availableTime = " << availableTime * 1000.0 << std::endl;
+   OSG_NOTIFY(level) << "    flushTime     = " << flushTime * 1000.0 << std::endl;
+   OSG_NOTIFY(level) << "    compileTime   = " << compileTime * 1000.0 << std::endl;
 #endif
 
-    //level = osg::NOTICE;
+   //level = osg::NOTICE;
 
-    CompileInfo compileInfo(context, this);
-    compileInfo.maxNumObjectsToCompile = _maximumNumOfObjectsToCompilePerFrame;
-    compileInfo.allocatedTime = compileTime;
-    compileInfo.compileAll = (_compileAllTillFrameNumber > _currentFrameNumber);
+   CompileInfo compileInfo(context, this);
+   compileInfo.maxNumObjectsToCompile = _maximumNumOfObjectsToCompilePerFrame;
+   compileInfo.allocatedTime = compileTime;
+   compileInfo.compileAll = (_compileAllTillFrameNumber > _currentFrameNumber);
 
-    CompileSets toCompileCopy;
-    {
-        OpenThreads::ScopedLock<OpenThreads::Mutex>  toCompile_lock(_toCompileMutex);
-        std::copy(_toCompile.begin(),_toCompile.end(),std::back_inserter<CompileSets>(toCompileCopy));
-    }
+   CompileSets toCompileCopy;
+   {
+      OpenThreads::ScopedLock<OpenThreads::Mutex>  toCompile_lock(_toCompileMutex);
+      std::copy(_toCompile.begin(), _toCompile.end(), std::back_inserter<CompileSets>(toCompileCopy));
+   }
 
-    if (!toCompileCopy.empty())
-    {
-        OsgProfileC("compileSets", tracy::Color::ColorType::Purple);
-        osg::CVSpan span(series, 3, "ICO::compile");
-        compileSets(toCompileCopy, compileInfo);
-    }
-    
-    if (_stopCompiling) 
-    {
-       return;
-    }
-    {
-        OsgProfileC("flush", tracy::Color::ColorType::Purple);
-        osg::CVSpan span(series, 2, "ICO::Flush");
+   if (!toCompileCopy.empty())
+   {
+      compileSets(toCompileCopy, compileInfo);
+   }
 
-       osg::flushDeletedGLObjects(context->getState()->getContextID(), currentTime, flushTime);
-    }
+   osg::flushDeletedGLObjects(context->getState()->getContextID(), currentTime, flushTime);
 
-    if (!toCompileCopy.empty() && compileInfo.maxNumObjectsToCompile>0)
-    {
-        compileInfo.allocatedTime += flushTime;
+   if (!toCompileCopy.empty() && compileInfo.maxNumObjectsToCompile > 0)
+   {
+      compileInfo.allocatedTime += flushTime;
 
-        // if any time left over from flush add on this remaining time to a second pass of compiling.
-        if (compileInfo.okToCompile())
-        {
-            OsgProfileC("compile2", tracy::Color::ColorType::Purple);
-            osg::CVSpan span(series, 3, "ICO::compile2");
-            OSG_NOTIFY(level)<<"    Passing on "<<flushTime<<" to second round of compileSets(..)"<<std::endl;
-            compileSets(toCompileCopy, compileInfo);
-        }
-    }
+      // if any time left over from flush add on this remaining time to a second pass of compiling.
+      if (compileInfo.okToCompile())
+      {
+         OSG_NOTIFY(level) << "    Passing on " << flushTime << " to second round of compileSets(..)" << std::endl;
+         compileSets(toCompileCopy, compileInfo);
+      }
+   }
 
-    //glFush();
-    //glFinish();
+   //glFush();
+   //glFinish();
 }
 
 void IncrementalCompileOperation::compileSets(CompileSets& toCompile, CompileInfo& compileInfo)
 {
     osg::NotifySeverity level = osg::INFO;
 
-    // VRV_PATCH
     for(CompileSets::iterator itr = toCompile.begin();
-        itr != toCompile.end() && (compileInfo.okToCompile() || compileInfo.numObjectsCompiled == 0) ;
-        )
+        itr != toCompile.end() && compileInfo.okToCompile() ;
+       )
     {
         CompileSet* cs = itr->get();
         if (cs->compile(compileInfo))
@@ -830,7 +751,6 @@ void IncrementalCompileOperation::compileSets(CompileSets& toCompile, CompileInf
                     // remove from the _toCompile list, note cs won't be deleted here as the tempoary
                     // toCompile_Copy list will retain a reference.
                     _toCompile.erase(cs_itr);
-
                 }
             }
             if (cs->_compileCompletedCallback.valid() && cs->_compileCompletedCallback->compileCompleted(cs))

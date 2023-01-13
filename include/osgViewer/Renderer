@@ -56,8 +56,7 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
 
         virtual void cull();
         virtual void draw();
-        // VRV_PATCH add context
-        virtual void cull_draw(osg::GraphicsContext * context);
+        virtual void cull_draw();
 
         virtual void compile();
 
@@ -78,7 +77,6 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
         /** Force update of state associated with cameras. */
         void setCameraRequiresSetUp(bool flag);
         bool getCameraRequiresSetUp() const;
-
 
     protected:
         void initialize(osg::State* state);
@@ -126,8 +124,6 @@ class OSGVIEWER_EXPORT Renderer : public osg::GraphicsOperation
         bool _initialized;
         osg::ref_ptr<OpenGLQuerySupport> _querySupport;
         osg::Timer_t _startTick;
-
-        static class CullThread *            _s_cullThread;
 };
 
 }

@@ -24,16 +24,6 @@ GraphicsThread::GraphicsThread()
 {
 }
 
-void GraphicsThread::prepare()
-{
-    // move the graphics context to the new thread.
-    GraphicsContext * graphicsContext = dynamic_cast<GraphicsContext*>(_parent.get());
-    if (graphicsContext)
-    {
-        graphicsContext->moveToThread(getImplementation());
-    }
-}
-
 void GraphicsThread::run()
 {
     // make the graphics context current.
@@ -50,9 +40,12 @@ void GraphicsThread::run()
     // release operations before the thread stops working.
     _operationQueue->releaseAllOperations();
 
+    // VR_PATCH: start
+    // context may have been deleted
+    graphicsContext = dynamic_cast<GraphicsContext*>(_parent.get());
+    // VR_PATCH: end
     if (graphicsContext)
     {
-        graphicsContext->moveBack();
         graphicsContext->releaseContext();
     }
 

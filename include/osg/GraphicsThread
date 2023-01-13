@@ -28,9 +28,6 @@ class OSG_EXPORT GraphicsThread : public osg::OperationThread
 
         GraphicsThread();
 
-        /** Prepares the thread before running. */
-        virtual void prepare();
-
         /** Run does the graphics thread run loop.*/
         virtual void run();
 };
