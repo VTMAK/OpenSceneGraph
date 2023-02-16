@@ -136,6 +136,13 @@ void Texture2DMultisampleArray::apply(State& state) const
                                              _textureHeight,
                                              _textureDepth,
                                              _fixedsamplelocations );
+
+        // VRV_PATCH: start
+        if (textureObject && textureObject->id() > 0 && Texture::listener())
+        {
+           Texture::listener()->textureSizeChanged(textureObject->id());
+        }
+        // VRV_PATCH: end
     }
     else
     {
