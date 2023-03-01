@@ -166,7 +166,7 @@ osg::Array* createVec4Array(bool doublePrecision)
 osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
     std::vector<StateSetContent>& stateSetList,
     GeometryType gt,
-    unsigned int mti,
+    unsigned int materialIndex,
     bool bNormal,
     bool useDiffuseMap,
     bool useOpacityMap,
@@ -181,7 +181,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
     bool cullingOff,
     textureUnitMap& textureMap)
 {
-    GeometryMap::iterator it = geometryMap.find(mti);
+    GeometryMap::iterator it = geometryMap.find(materialIndex);
 
     if (it != geometryMap.end())
     {
@@ -228,12 +228,20 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
        pGeometry->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
     }
 
-    if (mti < stateSetList.size())
-    {
-        osg::StateSet* stateSet = pGeometry->getOrCreateStateSet();
+    osg::StateSet* stateSet = pGeometry->getOrCreateStateSet();
 
+    // by default all polygon are single side 
+    // unless a comment "cullingOff" is put on the node
+    if (cullingOff)
+    {
+        // For double face polygon disable cull face
+        stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+    }
+
+    if (materialIndex < stateSetList.size())
+    {
         bool transparent = false;
-        StateSetContent& ssc = stateSetList[mti];
+        StateSetContent& ssc = stateSetList[materialIndex];
         bool addExtendedMaterial = false;
 
         // set material...
@@ -544,14 +552,6 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
            stateSet->setAttributeAndModes(ssc.extendedmaterial.get());
         }
 
-        // by default all polygon are single side 
-        // unless a comment "cullingOff" is put on the node
-        if (cullingOff)
-        {
-           // For double face polygon disable cull face
-           stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
-        }
-
         if (transparent)
         {
             stateSet->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
@@ -559,7 +559,7 @@ osg::Geometry* getGeometry(osg::Geode* pGeode, GeometryMap& geometryMap,
         }
     }
 
-    geometryMap.insert(std::pair<unsigned, osg::ref_ptr<osg::Geometry> >(mti, pGeometry));
+    geometryMap.insert(std::pair<unsigned, osg::ref_ptr<osg::Geometry> >(materialIndex, pGeometry));
     pGeode->addDrawable(pGeometry.get());
     return pGeometry.get();
 }
