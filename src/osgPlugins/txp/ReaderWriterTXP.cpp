@@ -498,7 +498,9 @@ void ReaderWriterTXP::createChildrenLocationString(const std::vector<TXPArchive:
         }
     }
 
-    theLoc << "}" << std::ends;
+	// VRV_PATCH: Removed use of std::ends. The introduction of a null terminating character prevented additional
+	// information from being appended to the returned string. 
+    theLoc << "}"; //<< std::ends;
 
     locString = theLoc.str();
 }
