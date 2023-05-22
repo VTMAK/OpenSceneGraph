@@ -650,6 +650,28 @@ osg::ref_ptr< TXPArchive > ReaderWriterTXP::createArchive(int id, const std::str
         osgDB::Options* optionsCopy = reinterpret_cast<osgDB::Options*>(options->clone(osg::CopyOp()));
         optionsCopy->getDatabasePathList().push_back(path); 
         archive->setOptions(optionsCopy);
+
+        // VRV_PATCH: start (detect if the file is loaded using a Geocentric Coordinate System)
+        size_t currentLoc = options->getOptionString().find("vrvCoordinateSystemType=\"");
+        if (currentLoc != std::string::npos)
+        {
+           //25 is length of "vrvCoordinateSystemType="
+           size_t wordBegin = currentLoc + 25;
+           size_t wordEnd = options->getOptionString().find("\"", wordBegin);
+           if (wordEnd != std::string::npos)
+           {
+              size_t length = wordEnd - wordBegin;
+              if (length > 0)
+              {
+                 std::string myCoordinateSystemType = options->getOptionString().substr(wordBegin, length);
+                 if (myCoordinateSystemType == "Geocentric")
+                 {
+                    archive->SetIsGeocentric(true);
+                 }
+              }
+           }
+        }
+        // VRV_PATCH: end
     }
     if (archive->openFile(archiveName) == false)
     {

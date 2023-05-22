@@ -13,6 +13,7 @@
 #include <osg/Point>
 #include <osg/BlendFunc>
 #include <osg/MatrixTransform>
+#include <osg/CoordinateSystemNode>
 #include <osgDB/FileUtils>
 #include <osgDB/FileUtils>
 #include <osgDB/FileNameUtils>
@@ -71,7 +72,10 @@ TXPArchive::TXPArchive():
     _minorVersion(-1),
     _isMaster(false),
     _loadMaterialsToStateSet(false),
-    _options(0)
+    _options(0),
+    // VRV PATCH: start (Geocentric Support)
+    _IsGeocentric(false)
+    // VRV PATCH: end
 {
 }
 
@@ -702,28 +706,127 @@ bool TXPArchive::getTileInfo(const TileLocationInfo& loc, TileInfo& info)
     trpg2dPoint size;
     header.GetTileSize(loc.lod,size);
 
-    info.size.x() = size.x;
-    info.size.y() = size.y;
-    info.size.z() = 0.f;
+    // VRV PATCH: start (Geocentric Support)
+    if (IsGeocentric())
+    {
+        // The header is reporting y to be half the size of x, but the data appears to be uniform size. 
+       // Are tiles supposed to be square?
+       int lateral_size = std::max(size.x, size.y);
+       info.size.x() = lateral_size;
+       info.size.y() = lateral_size;
+       info.size.z() = loc.zmax - loc.zmin;
+       info.radius = osg::Vec3(info.size.x() / 2.f, info.size.y() / 2.f, info.size.z() / 2.f).length() * 1.3;
 
-    info.center.set(
-        sw.x+(loc.x*size.x)+(size.x/2.f),
-        sw.y+(loc.y*size.y)+(size.y/2.f),
-        (loc.zmin + loc.zmax)/2.f
-    );
-    info.bbox.set(
-        osg::Vec3(
-            info.center.x()-(size.x/2.f),
-            info.center.y()-(size.y/2.f),
-            loc.zmin
-        ),
-        osg::Vec3(
-            info.center.x()+(size.x/2.f),
-            info.center.y()+(size.y/2.f),
-            loc.zmax
-        )
-    );
-    info.radius = osg::Vec3(size.x/2.f, size.y/2.f,0.f).length() * 1.3;
+       double x = 0.0;
+       double y = 0.0;
+       double z = 0.0;
+       double lat = 0.0;
+       double lon = 0.0;
+       double height = 0.0;
+       double z_offset = 0.0;
+       osg::EllipsoidModel model;
+
+       trpg3dPoint origin;
+       header.GetOrigin(origin);
+
+       // Geocentric coordinates are expected to be very large and need to make use of the origin for proper
+       // positioning. Using the extents will not work because they only support 2d coordinates.
+       // To make matters more complicated, We have encountered one geocentric databases where the origin is 
+       // set to (0,0,0) and the extents are set using geodetic coordinates.
+       const bool originAtZero = origin.x == 0.0 && origin.y == 0.0 && origin.z == 0.0;
+       const bool swIsGeodetic = std::abs(sw.x) <= 180.0 && std::abs(sw.y) <= 90.0;
+       if (swIsGeodetic && originAtZero)
+       {
+           // Using the South West corner as the database origin to follow what was previously done with other
+           // 2d based coordinate systems. This position is converted to geocentric and tiles are offset along
+           // the appropriate x any y vectors in 3d space.
+           lon = osg::DegreesToRadians(sw.x);
+           lat = osg::DegreesToRadians(sw.y);
+           height = 0.0;
+           z_offset = (loc.zmin + loc.zmax) / 2.f;
+
+           model.convertLatLongHeightToXYZ(lat, lon, height, x, y, z);
+       }
+       else
+       {
+           // Using the configured origin as the database origin to make sure that we are properly rooted for 
+           // tile offsetting. Using the South West corner combined with min/max z values still needs to be 
+           // explored.
+           x = origin.x;
+           y = origin.y;
+           z = origin.z;
+           z_offset = 0.0;
+
+           model.convertXYZToLatLongHeight(x, y, z, lat, lon, height);
+       }
+
+       osg::Matrixd localToWorld;
+       localToWorld.makeIdentity();
+       model.computeCoordinateFrame(lat, lon, localToWorld);
+       
+       osg::Vec3d up;
+       osg::Vec3d east;
+       osg::Vec3d north;
+       east[0] = localToWorld(0, 0);
+       east[1] = localToWorld(0, 1);
+       east[2] = localToWorld(0, 2);
+       north[0] = localToWorld(1, 0);
+       north[1] = localToWorld(1, 1);
+       north[2] = localToWorld(1, 2);
+       up[0] = localToWorld(2, 0);
+       up[1] = localToWorld(2, 1);
+       up[2] = localToWorld(2, 2);
+
+       double x_offset = (loc.x * info.size.x()) + (info.size.x() / 2.f);
+       double y_offset = (loc.y * info.size.y()) + (info.size.y() / 2.f);
+
+       osg::Vec3d center_pos(x, y, z);
+       center_pos += east * x_offset;
+       center_pos += north * y_offset;
+       center_pos += up * z_offset;
+       
+       osg::Vec3d min_pos = center_pos;
+       min_pos -= east * (info.size.x() / 2.f);
+       min_pos -= north * (info.size.y() / 2.f);
+       min_pos -= up * (info.size.z() / 2.f);
+
+       osg::Vec3d max_pos = center_pos;
+       max_pos += east * (info.size.x() / 2.f);
+       max_pos += north * (info.size.y() / 2.f);
+       max_pos += up * (info.size.z() / 2.f);
+
+       info.center.set(center_pos.x(), center_pos.y(), center_pos.z());
+
+       info.bbox.set(center_pos, center_pos);
+       info.bbox.expandBy(min_pos.x(), min_pos.y(), min_pos.z());
+       info.bbox.expandBy(max_pos.x(), max_pos.y(), max_pos.z());
+    }
+    else
+    // VRV PATCH: End
+    {
+       info.size.x() = size.x;
+       info.size.y() = size.y;
+       info.size.z() = 0.f;
+
+       info.center.set(
+           sw.x+(loc.x*size.x)+(size.x/2.f),
+           sw.y+(loc.y*size.y)+(size.y/2.f),
+           (loc.zmin + loc.zmax)/2.f
+       );
+       info.bbox.set(
+           osg::Vec3(
+               info.center.x()-(size.x/2.f),
+               info.center.y()-(size.y/2.f),
+               loc.zmin
+           ),
+           osg::Vec3(
+               info.center.x()+(size.x/2.f),
+               info.center.y()+(size.y/2.f),
+               loc.zmax
+           )
+       );
+       info.radius = osg::Vec3(size.x / 2.f, size.y / 2.f, 0.f).length() * 1.3;
+    }
 
     return true;
    

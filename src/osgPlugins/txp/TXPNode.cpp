@@ -231,6 +231,16 @@ bool TXPNode::loadArchive(TXPArchive* archive)
     _archive->getOrigin(_originX,_originY);
     _archive->getExtents(_extents);
 
+    // VRV_PATCH: start (Geocentric Support)
+    // Ensure origin is based on the lower corner of the extents. This covers the case where there is a geocentric 
+    // database that is using geodetic coordinates for the archive's 2D extents.
+    if (_archive->IsGeocentric())
+    {
+       _originX = _extents.xMin();
+       _originY = _extents.yMin();
+    }
+    // VRV_PATCH: end
+
     int32 numLod;
     _archive->GetHeader()->GetNumLods(numLod);
 

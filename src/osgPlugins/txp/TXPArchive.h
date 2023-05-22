@@ -174,6 +174,18 @@ namespace txp
             y=_swExtents.y;
         }
 
+        // VRV PATCH: start (Geocentric Support)
+        // Returns the actual origin of the archive as defined by the header
+        inline void getOrigin(double& x, double& y, double& z)
+        {
+           trpg3dPoint origin;
+           header.GetOrigin(origin);
+           x = origin.x;
+           y = origin.y;
+           z = origin.z;
+        }
+        // VRV PATCH: end
+
         // Returns global texture
         inline osg::Texture2D* getGlobalTexture(int id)
         {
@@ -236,6 +248,11 @@ namespace txp
 
         void SetMaterialAttributesToStateSetVar(bool value) {_loadMaterialsToStateSet = value;}
 
+        // VRV PATCH: start (Geocentric Support)
+        void SetIsGeocentric(bool value) { _IsGeocentric = value; }
+        bool IsGeocentric() const { return _IsGeocentric; }
+       // VRV PATCH: end
+
     protected:
 
         // Destructor
@@ -293,6 +310,10 @@ namespace txp
         bool _loadMaterialsToStateSet;
 
         osg::ref_ptr<osgDB::Options> _options;
+
+        // VRV PATCH: start (Geocentric Support)
+        bool _IsGeocentric;
+        // VRV PATCH: end
     };
 
 } // namespace
