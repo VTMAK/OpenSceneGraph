@@ -401,6 +401,30 @@ protected:
     TXPParser *_parse;
 };
 
+// VRV PATCH: start (parsing additional token types)
+//----------------------------------------------------------------------------
+class transformRead : public trpgr_Callback
+{
+public:
+    transformRead(TXPParser *in_parse) : _parse(in_parse)
+    {}
+    void *Parse(trpgToken tok,trpgReadBuffer &buf);
+protected:
+    TXPParser *_parse;
+};
+
+//----------------------------------------------------------------------------
+class seamLodRead : public trpgr_Callback
+{
+public:
+   seamLodRead(TXPParser* in_parse) : _parse(in_parse)
+   {}
+   void* Parse(trpgToken tok, trpgReadBuffer& buf);
+protected:
+   TXPParser* _parse;
+};
+// VRV PATCH: end
+
 //----------------------------------------------------------------------------
 class attachRead : public trpgr_Callback
 {

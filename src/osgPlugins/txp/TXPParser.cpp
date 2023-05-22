@@ -101,6 +101,11 @@ TXPParser::TXPParser():
     AddCallback(TRPG_LABEL,     new labelRead(this));
     AddCallback(TRPGTILEHEADER, new tileHeaderRead(this));
 
+    // VRV PATCH: start (parsing additional token types)
+    AddCallback(TRPG_TRANSFORM, new transformRead(this));
+    AddCallback(TRPG_SEAM_LOD, new seamLodRead(this));
+    // VRV PATCH: end
+
     _childRefCB = dynamic_cast<childRefRead *>(GetCallback(TRPG_CHILDREF));
 
     if (getenv("OSG_TXP_DEFAULT_MAX_ANISOTROPY"))
@@ -1627,6 +1632,55 @@ void* geomRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
     return (void *) 1;
 }
 
+// VRV PATCH: start (parsing additional token types)
+//----------------------------------------------------------------------------
+//
+// Transform Reader Class
+//
+//----------------------------------------------------------------------------
+void* transformRead::Parse(trpgToken /*tok*/,trpgReadBuffer &buf)
+{
+    trpgTransform transform;
+    if (!transform.Read(buf)) return NULL;
+
+    float64 mat[16];
+    transform.GetMatrix(mat);
+    osg::Matrix osg_Mat(
+       mat[0], mat[1], mat[2], mat[3],
+       mat[4], mat[5], mat[6], mat[7],
+       mat[8], mat[9], mat[10], mat[11],
+       mat[12], mat[13], mat[14], mat[15]
+    );
+
+    osg::ref_ptr<osg::MatrixTransform> osgTransform = new osg::MatrixTransform();
+    osgTransform->setName(transform.GetName());
+    osgTransform->setReferenceFrame(osg::Transform::RELATIVE_RF);
+    osgTransform->setMatrix(osg_Mat);
+
+    _parse->setCurrentNode(osgTransform.get());
+    _parse->getCurrTop()->addChild(osgTransform.get());
+
+    return (void*)1;
+}
+
+//----------------------------------------------------------------------------
+//
+// SeamLod Reader Class
+//
+//----------------------------------------------------------------------------
+void* seamLodRead::Parse(trpgToken /*tok*/, trpgReadBuffer& buf)
+{
+   trpgSeamLod group;
+   if (!group.Read(buf)) return NULL;
+
+   osg::ref_ptr<GeodeGroup> osgGroup = new GeodeGroup();
+   osgGroup->setName(group.GetName());
+
+   _parse->setCurrentNode(osgGroup.get());
+   _parse->getCurrTop()->addChild(osgGroup.get());
+   return (void*)1;
+}
+// VRV PATCH: end (parsing additional token types)
 
 namespace
 {

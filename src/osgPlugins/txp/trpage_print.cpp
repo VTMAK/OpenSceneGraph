@@ -664,6 +664,27 @@ bool trpgTransform::Print(trpgPrintBuffer &buf) const
     return true;
 }
 
+// VRV PATCH: start (parsing additional token types)
+/* Print SeamLod
+ */
+bool trpgSeamLod::Print(trpgPrintBuffer& buf) const
+{
+   char ls[1024];
+
+   buf.prnLine("----SeamLod Node----");
+   buf.IncreaseIndent();
+   sprintf(ls, "id = %d", id);  buf.prnLine(ls);
+   buf.IncreaseIndent();
+   sprintf(ls, "orientation = %i", (int32)ori);    buf.prnLine(ls);
+   sprintf(ls, "lod = %d, x = %d, y = %d", seamId.lod, seamId.x, seamId.y);    buf.prnLine(ls);
+   sprintf(ls,"name = %s", name ? name : "noname" );    buf.prnLine(ls);
+   buf.DecreaseIndent(2);
+   buf.prnLine();
+
+   return true;
+}
+// VRV PATCH: end
+
 /* Print Model Reference
  */
 bool trpgModelRef::Print(trpgPrintBuffer &buf) const

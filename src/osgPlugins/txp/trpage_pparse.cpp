@@ -95,7 +95,7 @@ trpgPrintGraphParser::trpgPrintGraphParser(trpgr_Archive *inArch,trpgrImageHelpe
     AddCallback(TRPG_GEOMETRY,new ReadHelper(this,printBuf));
     AddCallback(TRPG_GROUP,new ReadHelper(this,printBuf));
     AddCallback(TRPG_ATTACH,new ReadHelper(this,printBuf));
-   AddCallback(TRPG_CHILDREF,new ReadHelper(this,printBuf));
+    AddCallback(TRPG_CHILDREF,new ReadHelper(this,printBuf));
     AddCallback(TRPG_BILLBOARD,new ReadHelper(this,printBuf));
     AddCallback(TRPG_LOD,new ReadHelper(this,printBuf));
     AddCallback(TRPG_TRANSFORM,new ReadHelper(this,printBuf));
@@ -104,6 +104,10 @@ trpgPrintGraphParser::trpgPrintGraphParser(trpgr_Archive *inArch,trpgrImageHelpe
     AddCallback(TRPG_LIGHT,new ReadHelper(this,printBuf));
     AddCallback(TRPG_LABEL,new ReadHelper(this,printBuf));
     AddCallback(TRPGTILEHEADER,new ReadHelper(this,printBuf));
+
+    // VRV PATCH: start (parsing additional token types)
+    AddCallback(TRPG_SEAM_LOD,new ReadHelper(this,printBuf));
+    // VRV PATCH: end
 
    childRefCB = dynamic_cast<ReadHelper *>(GetCallback(TRPG_CHILDREF));
 }
@@ -223,6 +227,12 @@ void *trpgPrintGraphParser::ReadHelper::Parse(trpgToken tok,trpgReadBuffer &buf)
     case TRPGTILEHEADER:
         obj = tileHead = new trpgTileHeader();
         break;
+
+    // VRV PATCH: start (parsing additional token types)
+    case TRPG_SEAM_LOD:
+        obj = new trpgSeamLod();
+        break;
+    // VRV PATCH: end
     };
 
     if (obj) {

@@ -605,6 +605,93 @@ bool trpgTransform::Read(trpgReadBuffer &buf)
     return isValid();
 }
 
+// VRV PATCH: start (parsing additional token types)
+/*
+   Write SeamLod
+*/
+
+// Constructor
+trpgSeamLod::trpgSeamLod()
+{
+   name = 0;
+   Reset();
+}
+trpgSeamLod::~trpgSeamLod()
+{
+   Reset();
+}
+
+// Reset function
+void trpgSeamLod::Reset()
+{
+    id = -1;
+    ori = Orientation::Invalid;
+    seamId = SeamId();
+
+   if (name)
+   {
+      delete[] name;
+      name = 0;
+   }
+}
+
+// Write SeamLod
+bool trpgSeamLod::Write(trpgWriteBuffer& buf)
+{
+   if (!isValid())
+      return false;
+
+   buf.Begin(TRPG_SEAM_LOD);
+   buf.Add(numChild);
+   buf.Add(id);
+
+   buf.Add((int32)ori);
+   buf.Add(seamId.x);
+   buf.Add(seamId.y);
+   buf.Add(seamId.lod);
+
+   if (name && strlen(name))
+   {
+      buf.Add(name);
+   }
+   buf.End();
+
+   return true;
+}
+
+// Read SeamLod
+bool trpgSeamLod::Read(trpgReadBuffer& buf)
+{
+   try
+   {
+      buf.Get(numChild);
+      buf.Get(id);
+      if (numChild < 0) throw 1;
+
+      int32 o;
+      buf.Get(o);
+      ori = (Orientation)o;
+
+      buf.Get(seamId.x);
+      buf.Get(seamId.y);
+      buf.Get(seamId.lod);
+
+      if (!buf.isEmpty())
+      {
+         char nm[1024] = { 0 };
+         buf.Get(nm, 1024);
+         SetName(nm);
+      }
+   }
+   catch (...)
+   {
+      return false;
+   }
+
+   return isValid();
+}
+// VRV PATCH: end
+
 /* Model Reference
    This is just a matrix transform and a model ID.
 */

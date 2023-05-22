@@ -62,7 +62,13 @@ osgDB::ReaderWriter::ReadResult ReaderWriterTXP::local_readNode(const std::strin
                archive->SetMaterialAttributesToStateSetVar(true);
             }
 
-            txpNode->loadArchive(archive.get());
+            // VRV_PATCH: start (bailing early if there was a read failure)
+            bool loadOk = txpNode->loadArchive(archive.get());
+            if (!loadOk)
+            {
+               return ReadResult::ERROR_IN_READING_FILE;
+            }
+            // VRV_PATCH: end
 
             return txpNode.get();
         }
@@ -106,6 +112,13 @@ osgDB::ReaderWriter::ReadResult ReaderWriterTXP::local_readNode(const std::strin
 
         std::vector<TXPArchive::TileLocationInfo> childrenLoc;
         osg::ref_ptr<osg::Node> tileContent = getTileContent(info,x,y,lod,archive.get(), childrenLoc);
+
+        // VRV_PATCH: start (bailing early if there was a read failure)
+        if (tileContent == nullptr)
+        {
+           return ReadResult::ERROR_IN_READING_FILE;
+        }
+        // VRV_PATCH: end
 
         tileContent->setName("TileContent");
 

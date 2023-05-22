@@ -195,6 +195,19 @@ protected:
     trpgTransform data;
 };
 
+// VRV PATCH: start (parsing additional token types)
+// Read SeamLod
+//     {group:Demonstration Scene Graph}
+TX_EXDECL class TX_CLDECL trpgReadSeamLod : public trpgReadGroupBase {
+public:
+   trpgReadSeamLod(void) { type = TRPG_SEAM_LOD; }
+    ~trpgReadSeamLod(void) { };
+    trpgSeamLod *GetData(void) { return &data; }
+protected:
+   trpgSeamLod data;
+};
+// VRV PATCH: end
+
 // Read Model Reference
 //     {group:Demonstration Scene Graph}
 TX_EXDECL class TX_CLDECL trpgReadModelRef : public trpgReadGroupBase {

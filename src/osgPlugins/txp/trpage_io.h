@@ -222,6 +222,11 @@ typedef short trpgToken;
 // {secret}
 #define TRPG_LAYER            2006
 
+// VRV PATCH: start (parsing additional token types)
+// {secret}
+#define TRPG_SEAM_LOD         2007
+// VRV PATCH: end
+
 // {secret}
 #define TRPG_GEOMETRY        3000
 // {secret}

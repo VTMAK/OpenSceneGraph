@@ -439,6 +439,68 @@ protected:
     trpgSceneGraphParser *parse;
 };
 
+// VRV PATCH: start (parsing additional token types)
+class trpgReadTransformHelper : public trpgr_Callback {
+public:
+   trpgReadTransformHelper(trpgSceneGraphParser* in_parse) { parse = in_parse; }
+   void* Parse(trpgToken /*tok*/, trpgReadBuffer& buf) {
+      trpgReadTransform* group = new trpgReadTransform();
+      trpgTransform* data = group->GetData();
+      if (!data->Read(buf)) {
+         delete group;
+         return NULL;
+      }
+      trpgReadGroupBase* top = parse->GetCurrTop();
+      if (!top)
+      {
+         delete group;
+         return NULL;
+      }
+
+      top->AddChild(group);
+
+      // Add to the group map
+      int id;
+      data->GetID(id);
+      trpgSceneGraphParser::GroupMap* gmap = parse->GetGroupMap();
+      (*gmap)[id] = group;
+      return group;
+   }
+protected:
+   trpgSceneGraphParser* parse;
+};
+
+class trpgReadSeamLodHelper : public trpgr_Callback {
+public:
+   trpgReadSeamLodHelper(trpgSceneGraphParser* in_parse) { parse = in_parse; }
+   void* Parse(trpgToken /*tok*/, trpgReadBuffer& buf) {
+      trpgReadSeamLod* group = new trpgReadSeamLod();
+      trpgSeamLod* data = group->GetData();
+      if (!data->Read(buf)) {
+         delete group;
+         return NULL;
+      }
+      trpgReadGroupBase* top = parse->GetCurrTop();
+      if (!top)
+      {
+         delete group;
+         return NULL;
+      }
+
+      top->AddChild(group);
+
+      // Add to the group map
+      int id;
+      data->GetID(id);
+      trpgSceneGraphParser::GroupMap* gmap = parse->GetGroupMap();
+      (*gmap)[id] = group;
+      return group;
+   }
+protected:
+   trpgSceneGraphParser* parse;
+};
+// VRV PATCH: end
+
 /* The Scene Graph Parser constructor does two things.  First, it sets
     up any internal variables like a normal constructor.  Then it registers
     an interest in all the node types it knows how to parse.  It does this
@@ -463,13 +525,18 @@ trpgSceneGraphParser::trpgSceneGraphParser()
     AddCallback(TRPG_GEOMETRY,new trpgReadGeometryHelper(this));
     AddCallback(TRPG_GROUP,new trpgReadGroupHelper(this));
     AddCallback(TRPG_ATTACH,new trpgReadAttachHelper(this));
-   AddCallback(TRPG_CHILDREF,new trpgReadChildRefHelper(this));
+    AddCallback(TRPG_CHILDREF,new trpgReadChildRefHelper(this));
     AddCallback(TRPG_BILLBOARD,new trpgReadBillboardHelper(this));
     AddCallback(TRPG_LOD,new trpgReadLodHelper(this));
-//    AddCallback(TRPG_TRANSFORM,new trpgReadTransformHelper(this));
+//  AddCallback(TRPG_TRANSFORM,new trpgReadTransformHelper(this));
     AddCallback(TRPG_MODELREF,new trpgReadModelRefHelper(this));
-//    AddCallback(TRPG_LAYER,new trpgReadLayerHelper(this));
+//  AddCallback(TRPG_LAYER,new trpgReadLayerHelper(this));
     AddCallback(TRPGTILEHEADER,new trpgReadTileHeaderHelper(this));
+    
+    // VRV PATCH: start (parsing additional token types)
+    AddCallback(TRPG_TRANSFORM,new trpgReadTransformHelper(this));
+    AddCallback(TRPG_SEAM_LOD,new trpgReadSeamLodHelper(this));
+    // VRV PATCH: end
 }
 
 // Get Current Top node

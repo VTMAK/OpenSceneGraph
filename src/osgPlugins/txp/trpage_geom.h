@@ -2744,6 +2744,50 @@ protected:
     float64 m[4][4];
 };
 
+// VRV PATCH: start (parsing additional token types)
+/* It has to do with the smartmesh. It allows you to identify which side of a tile a smartmesh comes from.
+    Unless you need to know which side a smartmesh is on, this information can be safely ignored.
+   {group:Read/Write Classes}
+*/
+TX_EXDECL class TX_CLDECL trpgSeamLod : public trpgGroup
+{
+public:
+   trpgSeamLod(void);
+   ~trpgSeamLod(void);
+
+   // Writes this class to a write buffer
+   bool    Write(trpgWriteBuffer&);
+   // Reads this class from a read buffer
+   bool    Read(trpgReadBuffer&);
+   // Prints this class to a print buffer
+   bool    Print(trpgPrintBuffer&) const;
+
+   // Resets the contents back to empty
+   void    Reset(void);
+
+protected:
+   enum Orientation
+   {
+      Invalid,
+      North,
+      West,
+      South,
+      East
+   };
+
+   struct SeamId
+   {
+      int           x;
+      int           y;
+      int           lod;
+      SeamId() : x(-1), y(-1), lod(-1) {}
+   };
+
+   SeamId               seamId;
+   Orientation          ori;
+};
+// VRV PATCH: end
+
 /* TerraPage treats model references pretty much like instances.  Models
    are organized centrally in a trpgModelTable.  This class simply points
    into there with a model ID.  There is also a 4x4 matrix (ala trpgTransform)
