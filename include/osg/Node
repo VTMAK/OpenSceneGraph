@@ -192,21 +192,20 @@ class OSG_EXPORT Node : public Object
         * @param i index of the parent to get.
         * @return the parent i.
         */
-        inline Group* getParent(unsigned int i);
+        Group* getParent(unsigned int i);
 
         /**
          * Get a single const parent of node.
          * @param i index of the parent to get.
          * @return the parent i.
          */
-        inline const Group* getParent(unsigned int i) const;
+        const Group* getParent(unsigned int i) const;
 
         /**
          * Get the number of parents of node.
          * @return the number of parents of this node.
          */
-        inline unsigned int getNumParents() const;
-
+        unsigned int getNumParents() const;
 
 
         /** Get the list of node paths parent paths.
