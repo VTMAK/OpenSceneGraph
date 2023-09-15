@@ -23,7 +23,7 @@
 
 #include <string>
 #include <vector>
-#include <deque>
+#include <unordered_set>
 
 // forward declare osgTerrrain::Terrain to enable declaration of asTerrain() method.
 namespace osgTerrain {
@@ -171,10 +171,12 @@ class OSG_EXPORT Node : public Object
         /** Traverse downwards : calls children's accept method with NodeVisitor.*/
         virtual void traverse(NodeVisitor& /*nv*/) {}
 
-        /** A deque of osg::Group pointers which is used to store the parent(s) of node.
-          * Changed to a deque to be friendlier with memory allocations. Particularly
-          * when there is heavy use of external references. */
-        typedef std::deque<Group*> ParentList;
+        /** A container of osg::Group pointers which is used to store the parent(s) of node.
+          * Changed to an unordered_set to avoid expensive find operations particularly when
+          * there is heavy use of external references and the container has many entries.
+          * insert() and erase() take a constant amount of time (0)1 on average.
+          */
+        typedef std::unordered_set<Group*> ParentList;
 
         /** Get the parent list of node. Note: 
           * Not threadsafe, needs to be protected using getParentListMutex() */

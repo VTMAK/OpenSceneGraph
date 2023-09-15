@@ -99,13 +99,29 @@ Node::~Node()
 Group* Node::getParent(unsigned int i)
 {
     NodeScopedLock lock(getParentListMutex());
-    return _parents[i];
+    if (i < _parents.size())
+    {
+       auto iter = _parents.begin();
+       std::advance(iter, i);
+       if (iter != _parents.end())
+          return *iter;
+    }
+
+    return nullptr;
 }
 
 const Group* Node::getParent(unsigned int i) const 
 {
     NodeScopedLock lock(getParentListMutex());
-    return _parents[i];
+    if (i < _parents.size())
+    {
+       auto iter = _parents.cbegin();
+       std::advance(iter, i);
+       if (iter != _parents.end())
+          return *iter;
+    }
+
+    return nullptr;
 }
 
 unsigned int Node::getNumParents() const
@@ -118,16 +134,14 @@ void Node::addParent(osg::Group* parent)
 {
     OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
     NodeScopedLock lock(getParentListMutex());
-    _parents.push_back(parent);
+    _parents.insert(parent);
 }
 
 void Node::removeParent(osg::Group* parent)
 {
     OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
     NodeScopedLock lock(getParentListMutex());
-
-    ParentList::iterator pitr = std::find(_parents.begin(), _parents.end(), parent);
-    if (pitr!=_parents.end()) _parents.erase(pitr);
+    _parents.erase(parent);
 }
 
 void Node::accept(NodeVisitor& nv)

@@ -323,9 +323,9 @@ void TXPParser::removeEmptyGroups()
                node_parents = node->getParents();
             }
 
-            for (unsigned int j = 0; j < node_parents.size(); j++)
+            for (osg::Group* group : node_parents)
             {
-                node_parents[j]->removeChild(node);
+               group->removeChild(node);
             }
         }
     }
