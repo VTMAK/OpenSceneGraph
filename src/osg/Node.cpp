@@ -96,16 +96,35 @@ Node::~Node()
     setStateSet(0);
 }
 
+Group* Node::getParent(unsigned int i)
+{
+    NodeScopedLock lock(getParentListMutex());
+    return _parents[i];
+}
+
+const Group* Node::getParent(unsigned int i) const 
+{
+    NodeScopedLock lock(getParentListMutex());
+    return _parents[i];
+}
+
+unsigned int Node::getNumParents() const
+{
+    NodeScopedLock lock(getParentListMutex());
+    return static_cast<unsigned int>(_parents.size());
+}
+
 void Node::addParent(osg::Group* parent)
 {
-    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> lock(getRefMutex());
-
+    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
+    NodeScopedLock lock(getParentListMutex());
     _parents.push_back(parent);
 }
 
 void Node::removeParent(osg::Group* parent)
 {
-    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> lock(getRefMutex());
+    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
+    NodeScopedLock lock(getParentListMutex());
 
     ParentList::iterator pitr = std::find(_parents.begin(), _parents.end(), parent);
     if (pitr!=_parents.end()) _parents.erase(pitr);

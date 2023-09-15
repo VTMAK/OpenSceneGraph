@@ -96,7 +96,12 @@ void InsertImpostorsVisitor::insertImpostors()
                     // take a copy of the original parent list
                     // before we change it around by adding the group
                     // to an impostor.
-                    Node::ParentList parentList = group->getParents();
+                    osg::Node::ParentList parentList;
+                    {
+                       //VRV_PATCH#
+                       osg::NodeScopedLock lock(group->getParentListMutex());
+                       parentList = group->getParents();
+                    }
 
                     Impostor* impostor = new Impostor;
 
@@ -143,7 +148,12 @@ void InsertImpostorsVisitor::insertImpostors()
                     // take a copy of the original parent list
                     // before we change it around by adding the lod
                     // to an impostor.
-                    osg::Node::ParentList parentList = lod->getParents();
+                    osg::Node::ParentList parentList;
+                    {
+                       //VRV_PATCH#
+                       osg::NodeScopedLock lock(lod->getParentListMutex());
+                       parentList = lod->getParents();
+                    }
 
                     Impostor* impostor = new Impostor;
 

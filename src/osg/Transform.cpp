@@ -68,7 +68,7 @@ class TransformVisitor : public NodeVisitor
                 {
                     const osg::Camera* camera = (*ritr)->asCamera();
                     if (camera &&
-                        (camera->getReferenceFrame()!=osg::Transform::RELATIVE_RF || camera->getParents().empty()))
+                        (camera->getReferenceFrame()!=osg::Transform::RELATIVE_RF || camera->getNumParents() == 0))
                     {
                         break;
                     }

@@ -39,10 +39,13 @@ void Bone::setDefaultUpdateCallback(const std::string& name)
 
 Bone* Bone::getBoneParent()
 {
-    if (getParents().empty())
+    if (getNumParents() == 0)
         return 0;
-    osg::Node::ParentList parents = getParents();
-    for (osg::Node::ParentList::iterator it = parents.begin(); it != parents.end(); ++it)
+
+    //VRV_PATCH#
+    osg::NodeScopedLock lock(getParentListMutex());
+    const osg::Node::ParentList& parents = getParents();
+    for (osg::Node::ParentList::const_iterator it = parents.begin(); it != parents.end(); ++it)
     {
         Bone* pb = dynamic_cast<Bone*>(*it);
         if (pb)
@@ -52,8 +55,11 @@ Bone* Bone::getBoneParent()
 }
 const Bone* Bone::getBoneParent() const
 {
-    if (getParents().empty())
+    if (getNumParents() == 0)
         return 0;
+
+    //VRV_PATCH#
+    osg::NodeScopedLock lock(getParentListMutex());
     const osg::Node::ParentList& parents = getParents();
     for (osg::Node::ParentList::const_iterator it = parents.begin(); it != parents.end(); ++it)
     {
