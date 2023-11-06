@@ -756,6 +756,8 @@ class CollectLowestTransformsVisitor : public BaseOptimizerVisitor
         {
             _currentObjectList.push_back(drawable);
 
+            //VRV_PATCH#
+            osg::NodeScopedLock lock(drawable->getParentListMutex());
             const osg::Drawable::ParentList& parents = drawable->getParents();
             for(osg::Drawable::ParentList::const_iterator itr=parents.begin();
                 itr!=parents.end();
@@ -1280,7 +1282,14 @@ bool Optimizer::CombineStaticTransformsVisitor::removeTransforms(osg::Node* node
 
             transformRemoved = true;
 
-            osg::Node::ParentList parents = transform->getParents();
+            // take a copy of parents list since subsequent removes will modify the original one.
+            osg::Node::ParentList parents;
+            {
+               //VRV_PATCH#
+               osg::NodeScopedLock lock(transform->getParentListMutex());
+               parents = transform->getParents();
+            }
+
             for(osg::Node::ParentList::iterator pitr=parents.begin();
                 pitr!=parents.end();
                 ++pitr)
@@ -1329,7 +1338,12 @@ void Optimizer::RemoveEmptyNodesVisitor::removeEmptyNodes()
             osg::ref_ptr<osg::Node> nodeToRemove = (*itr);
 
             // take a copy of parents list since subsequent removes will modify the original one.
-            osg::Node::ParentList parents = nodeToRemove->getParents();
+            osg::Node::ParentList parents;
+            {
+               //VRV_PATCH#
+               osg::NodeScopedLock lock(nodeToRemove->getParentListMutex());
+               parents = nodeToRemove->getParents();
+            }
 
             for(osg::Node::ParentList::iterator pitr=parents.begin();
                 pitr!=parents.end();
@@ -1409,7 +1423,12 @@ void Optimizer::RemoveRedundantNodesVisitor::removeRedundantNodes()
         if (group.valid())
         {
             // take a copy of parents list since subsequent removes will modify the original one.
-            osg::Node::ParentList parents = group->getParents();
+            osg::Node::ParentList parents;
+            {
+               //VRV_PATCH#
+               osg::NodeScopedLock lock(group->getParentListMutex());
+               parents = group->getParents();
+            }
 
             if (group->getNumChildren()==1)
             {
@@ -1476,7 +1495,12 @@ void Optimizer::RemoveLoadedProxyNodesVisitor::removeRedundantNodes()
 
 
                 // take a copy of parents list since subsequent removes will modify the original one.
-                osg::Node::ParentList parents = group->getParents();
+                osg::Node::ParentList parents;
+                {
+                   //VRV_PATCH#
+                   osg::NodeScopedLock lock(group->getParentListMutex());
+                   parents = group->getParents();
+                }
 
                 for(osg::Node::ParentList::iterator pitr=parents.begin();
                     pitr!=parents.end();
@@ -1489,7 +1513,12 @@ void Optimizer::RemoveLoadedProxyNodesVisitor::removeRedundantNodes()
             else
             {
                 // take a copy of parents list since subsequent removes will modify the original one.
-                osg::Node::ParentList parents = group->getParents();
+                osg::Node::ParentList parents;
+                {
+                   //VRV_PATCH#
+                   osg::NodeScopedLock lock(group->getParentListMutex());
+                   parents = group->getParents();
+                }
 
                 for(osg::Node::ParentList::iterator pitr=parents.begin();
                     pitr!=parents.end();
@@ -2734,8 +2763,7 @@ bool Optimizer::SpatializeGroupsVisitor::divide(osg::Geode* geode, unsigned int 
         return false;
     }
 
-    osg::Node::ParentList parents = geode->getParents();
-    if (parents.empty())
+    if (geode->getNumParents() == 0)
     {
         OSG_INFO<<"  Cannot perform spatialize on root Geode, add a Group above it to allow subdivision."<<std::endl;
         return false;
@@ -2755,6 +2783,14 @@ bool Optimizer::SpatializeGroupsVisitor::divide(osg::Geode* geode, unsigned int 
 
     // keep reference around to prevent it being deleted.
     osg::ref_ptr<osg::Geode> keepRefGeode = geode;
+
+    // take a copy of parents list since subsequent removes will modify the original one.
+    osg::Node::ParentList parents;
+    {
+       //VRV_PATCH#
+       osg::NodeScopedLock lock(geode->getParentListMutex());
+       parents = geode->getParents();
+    }
 
     for(osg::Node::ParentList::iterator itr = parents.begin();
         itr != parents.end();

@@ -321,10 +321,16 @@ void TXPParser::removeEmptyGroups()
             osg::Node* node = nl[i].get();
             if (node == NULL) continue;
 
-            osg::Node::ParentList node_parents = node->getParents();
-            for (unsigned int j = 0; j < node_parents.size(); j++)
+            osg::Node::ParentList node_parents;
             {
-                node_parents[j]->removeChild(node);
+               //VRV_PATCH#
+               osg::NodeScopedLock lock(node->getParentListMutex());
+               node_parents = node->getParents();
+            }
+
+            for (osg::Group* group : node_parents)
+            {
+               group->removeChild(node);
             }
         }
     }

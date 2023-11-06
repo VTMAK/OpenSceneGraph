@@ -96,19 +96,52 @@ Node::~Node()
     setStateSet(0);
 }
 
+Group* Node::getParent(unsigned int i)
+{
+    NodeScopedLock lock(getParentListMutex());
+    if (i < _parents.size())
+    {
+       auto iter = _parents.begin();
+       std::advance(iter, i);
+       if (iter != _parents.end())
+          return *iter;
+    }
+
+    return nullptr;
+}
+
+const Group* Node::getParent(unsigned int i) const 
+{
+    NodeScopedLock lock(getParentListMutex());
+    if (i < _parents.size())
+    {
+       auto iter = _parents.cbegin();
+       std::advance(iter, i);
+       if (iter != _parents.end())
+          return *iter;
+    }
+
+    return nullptr;
+}
+
+unsigned int Node::getNumParents() const
+{
+    NodeScopedLock lock(getParentListMutex());
+    return static_cast<unsigned int>(_parents.size());
+}
+
 void Node::addParent(osg::Group* parent)
 {
-    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> lock(getRefMutex());
-
-    _parents.push_back(parent);
+    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
+    NodeScopedLock lock(getParentListMutex());
+    _parents.insert(parent);
 }
 
 void Node::removeParent(osg::Group* parent)
 {
-    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> lock(getRefMutex());
-
-    ParentList::iterator pitr = std::find(_parents.begin(), _parents.end(), parent);
-    if (pitr!=_parents.end()) _parents.erase(pitr);
+    OpenThreads::ScopedPointerLock<OpenThreads::Mutex> refLock(getRefMutex());
+    NodeScopedLock lock(getParentListMutex());
+    _parents.erase(parent);
 }
 
 void Node::accept(NodeVisitor& nv)

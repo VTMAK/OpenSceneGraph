@@ -132,12 +132,15 @@ namespace osgAnimation
             RigGeometry* geom = dynamic_cast<RigGeometry*>(drw);
             if(!geom)
                 return;
-            if(!geom->getSkeleton() && !geom->getParents().empty())
+
+            unsigned int numParents = geom->getNumParents();
+            if(!geom->getSkeleton() && numParents > 0)
             {
                 RigGeometry::FindNearestParentSkeleton finder;
-                if(geom->getParents().size() > 1)
+                if(numParents > 1)
                     osg::notify(osg::WARN) << "A RigGeometry should not have multi parent ( " << geom->getName() << " )" << std::endl;
-                geom->getParents()[0]->accept(finder);
+
+                geom->getParent(0)->accept(finder);
 
                 if(!finder._root.valid())
                 {

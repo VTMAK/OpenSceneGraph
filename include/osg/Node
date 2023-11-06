@@ -23,7 +23,7 @@
 
 #include <string>
 #include <vector>
-
+#include <unordered_set>
 
 // forward declare osgTerrrain::Terrain to enable declaration of asTerrain() method.
 namespace osgTerrain {
@@ -52,6 +52,11 @@ typedef std::vector< NodePath > NodePathList;
 /** A vector of NodePath, typically used to describe all the paths from a node to the potential root nodes it has.*/
 typedef std::vector< Matrix > MatrixList;
 
+/** The node's Mutex type, used to allow the Mutex type being used to be swapped.*/
+typedef OpenThreads::Mutex NodeMutexType;
+
+/** The node's ScopedLock type, used to the ScopedLock type being used to be swapped.*/
+typedef OpenThreads::ScopedLock<NodeMutexType> NodeScopedLock;
 
 /** META_Node macro define the standard clone, isSameKindAs, className
   * and accept methods.  Use when subclassing from Node to make it
@@ -166,31 +171,41 @@ class OSG_EXPORT Node : public Object
         /** Traverse downwards : calls children's accept method with NodeVisitor.*/
         virtual void traverse(NodeVisitor& /*nv*/) {}
 
-        /** A vector of osg::Group pointers which is used to store the parent(s) of node.*/
-        typedef std::vector<Group*> ParentList;
+        /** A container of osg::Group pointers which is used to store the parent(s) of node.
+          * Changed to an unordered_set to avoid expensive find operations particularly when
+          * there is heavy use of external references and the container has many entries.
+          * insert() and erase() take a constant amount of time (0)1 on average.
+          */
+        typedef std::unordered_set<Group*> ParentList;
 
-        /** Get the parent list of node. */
+        /** Get the parent list of node. Note: 
+          * Not threadsafe, needs to be protected using getParentListMutex() */
         inline const ParentList& getParents() const { return _parents; }
 
         /** Get the a copy of parent list of node. A copy is returned to
-          * prevent modification of the parent list.*/
+          * prevent modification of the parent list
+          * Note: Not threadsafe, needs to be protected using getParentListMutex().*/
         inline ParentList getParents() { return _parents; }
 
-        inline Group* getParent(unsigned int i)  { return _parents[i]; }
+        /**
+        * Get a single non-const parent of node.
+        * @param i index of the parent to get.
+        * @return the parent i.
+        */
+        Group* getParent(unsigned int i);
 
         /**
          * Get a single const parent of node.
          * @param i index of the parent to get.
          * @return the parent i.
          */
-        inline const Group* getParent(unsigned int i) const  { return _parents[i]; }
+        const Group* getParent(unsigned int i) const;
 
         /**
          * Get the number of parents of node.
          * @return the number of parents of this node.
          */
-        inline unsigned int getNumParents() const { return static_cast<unsigned int>(_parents.size()); }
-
+        unsigned int getNumParents() const;
 
 
         /** Get the list of node paths parent paths.
@@ -524,6 +539,14 @@ class OSG_EXPORT Node : public Object
         NodeMask _nodeMask;
 
         ref_ptr<StateSet> _stateset;
+
+        //VRV_PATCH# placed at the end of the class to minimize binary compatibility issues.
+    public:
+       /** Get the mutex used to ensure thread safety of getParent()/getParents(). */
+       NodeMutexType& getParentListMutex() const { return _parentsMutex; }
+
+    protected:
+       mutable NodeMutexType _parentsMutex;
 
 };
 

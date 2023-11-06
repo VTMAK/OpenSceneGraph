@@ -530,8 +530,15 @@ void AnimationCleanerVisitor::removeAnimatedGeometries() {
 }
 
 
-void AnimationCleanerVisitor::removeFromParents(osg::Node* node) {
-    osg::Node::ParentList parents = node->getParents();
+void AnimationCleanerVisitor::removeFromParents(osg::Node* node)
+{
+    osg::Node::ParentList parents;
+    {
+       //VRV_PATCH#
+       osg::NodeScopedLock lock(node->getParentListMutex());
+       parents = node->getParents();
+    }
+
     for(osg::Node::ParentList::iterator parent = parents.begin() ; parent != parents.end() ; ++ parent) {
         if(*parent) {
             (*parent)->removeChild(node);

@@ -82,7 +82,12 @@ void PrimaryRecord::read(RecordInputStream& in, Document& document)
 void flt::insertMatrixTransform(osg::Node& node, const osg::Matrix& matrix, int numberOfReplications)
 {
     osg::ref_ptr<osg::Node> ref = &node;
-    osg::Node::ParentList parents = node.getParents();
+    osg::Node::ParentList parents;
+    {
+       //VRV_PATCH#
+       osg::NodeScopedLock lock(node.getParentListMutex());
+       parents = node.getParents();
+    }
 
     // Start without transformation if replication.
     osg::Matrix accumulatedMatrix = (numberOfReplications > 0)? osg::Matrix::identity() : matrix;

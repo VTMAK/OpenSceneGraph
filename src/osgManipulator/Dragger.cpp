@@ -417,7 +417,7 @@ bool Dragger::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& 
                                     ++ritr)
                                 {
                                     osg::Camera* camera = (*ritr)->asCamera();
-                                    if (camera && (camera->getReferenceFrame()!=osg::Transform::RELATIVE_RF || camera->getParents().empty()))
+                                    if (camera && (camera->getReferenceFrame()!=osg::Transform::RELATIVE_RF || camera->getNumParents() == 0))
                                     {
                                          rootCamera = camera;
                                          break;
