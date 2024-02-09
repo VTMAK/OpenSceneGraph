@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright(c) 2018 MAK Technologies, Inc.
+** Copyright(c) 2024 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -36,7 +36,7 @@ bool fbxUtil::getCullingOffCommentProperty(FbxNode* pNode)
    {
       std::string pComment = lComment.Get<FbxString>().Buffer();
       pComment = removeReturn(pComment);
-      if (pComment == "CullingOff")
+      if (pComment == "CullingOff" || pComment == "@dis Culling_Off")
       {
          return true;
       }
