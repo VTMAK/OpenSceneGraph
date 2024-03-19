@@ -39,10 +39,13 @@ Texture2DArray::Texture2DArray(const Texture2DArray& text,const CopyOp& copyop):
 {
     setTextureDepth(text._textureDepth);
 
-    for(unsigned int i = 0; i<static_cast<unsigned int>(_images.size()); ++i)
+    // VRV_PATCH: start
+    // Bug fix: osg was using: _images.size() instead of text._images.size()
+    for(unsigned int i = 0; i<static_cast<unsigned int>(text._images.size()); ++i)
     {
         setImage(i, copyop(text._images[i].get()));
     }
+    // VRV_PATCH: end
 }
 
 Texture2DArray::~Texture2DArray()
