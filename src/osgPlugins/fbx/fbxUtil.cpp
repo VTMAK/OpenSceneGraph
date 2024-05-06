@@ -297,7 +297,7 @@ std::string fbxUtil::removeReturn(const std::string& pComment)
 }
 
 // Change | for \\ from the string since Maya strip \\ and / in the comment
-std::string fbxUtil::changePipeChar(const std::string& pComment)
+std::string fbxUtil::replacePipeWithBackspace(const std::string& pComment)
 {
    std::string temp = pComment;
    std::replace(temp.begin(), temp.end(), '|', '\\');

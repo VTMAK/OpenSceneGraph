@@ -1527,7 +1527,7 @@ osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, 
    size_t offset = disExternalRef.length() + 1;
    // remove return in string
    std::string filename = fbxUtil::removeReturn(pComment);
-   filename = fbxUtil::changePipeChar(filename);
+   filename = fbxUtil::replacePipeWithBackspace(filename);
    filename = filename.substr(offset, filename.length() - offset);
    // remove quote around filename
    fbxUtil::removeQuote(filename);

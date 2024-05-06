@@ -61,7 +61,7 @@ public:
    static std::string replaceReturnWithSpaces(const FbxString& pComment);
 
    // Change | for \\ from the string since Maya strip \\ and / in the comment
-   static std::string changePipeChar(const std::string& pComment);
+   static std::string replacePipeWithBackspace(const std::string& pComment);
 
    //! Remove \" 
    static void removeQuote(std::string& pComment);
