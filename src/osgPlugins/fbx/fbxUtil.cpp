@@ -296,6 +296,15 @@ std::string fbxUtil::removeReturn(const std::string& pComment)
    return temp;
 }
 
+// Change | for \\ from the string since Maya strip \\ and / in the comment
+std::string fbxUtil::changePipeChar(const std::string& pComment)
+{
+   std::string temp = pComment;
+   std::replace(temp.begin(), temp.end(), '|', '\\');
+   return temp;
+}
+
+
 // Replace \n and \r from the string with spaces
 std::string fbxUtil::replaceReturnWithSpaces(const FbxString& pComment)
 {

@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright(c) 2018 MAK Technologies, Inc.
+** Copyright(c) 2024 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -59,6 +59,9 @@ public:
    static std::string removeReturn(const FbxString& pComment);
    static std::string removeReturn(const std::string& pComment);
    static std::string replaceReturnWithSpaces(const FbxString& pComment);
+
+   // Change | for \\ from the string since Maya strip \\ and / in the comment
+   static std::string fbxUtil::changePipeChar(const std::string& pComment);
 
    //! Remove \" 
    static void removeQuote(std::string& pComment);
