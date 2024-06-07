@@ -841,6 +841,24 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     }
 }
 
+// Will update the description of a node that contain "@dis external_reference"
+// and contain | symbol in the path (from Maya)
+void updateExternalReferenceNodeDescription(osg::Node* node)
+{
+   if (node && node->getNumDescriptions() > 0)
+   {
+      // This code will update the node description if there is a | in the filename (Maya)
+      osg::Node::DescriptionList dl = node->getDescriptions();
+      std::string description = dl[0];
+      if (description.find(disExternalRef.c_str()) != std::string::npos)
+      {
+         description = fbxUtil::replacePipeWithBackspace(description);
+         dl[0] = description;
+         node->setDescriptions(dl);
+      }
+   }
+}
+
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     FbxNode* pNode,
     bool& bIsBone, int& nLightCount,
@@ -934,6 +952,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
             {
                if (addDamageSwitch(osgChild, children) == false)
                {
+                  updateExternalReferenceNodeDescription(osgChild);
                   children.push_back(osgChild);
                }
             }
