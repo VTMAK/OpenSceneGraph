@@ -384,6 +384,14 @@ namespace flt {
          in.forward(2);
          int shaderIndex = in.readInt16(-1);
 
+         // BEGIN VRV_PATCH
+         // VRV-5860 - Prevent the use of Gouraud modes and force to Lit
+         if (_lightMode == VERTEX_COLOR_LIGHTING || _lightMode == VERTEX_COLOR)
+         {
+            _lightMode = FACE_COLOR_LIGHTING;
+         }
+         // END VRV_PATCH
+
          // Create Geode or Billboard.
          switch (_template)
          {
