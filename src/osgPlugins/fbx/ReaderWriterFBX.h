@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright(c) 2019 MAK Technologies, Inc.
+** Copyright(c) 2024 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -32,6 +32,7 @@ public:
         supportsOption("LightmapTextures", "(Read option) Interpret texture maps as overriding the lighting. 3D Studio Max may export files that should be interpreted in this way.");
         supportsOption("TessellatePolygons", "(Read option) Tessellate mesh polygons. If the model contains concave polygons this may be necessary, however tessellating can be very slow and may erroneously produce triangle shards.");
         supportsOption("DiscardColor", "(Read option) Discard vertex and alpha color when riding the FBX model.");
+        supportsOption("keepExternalReferences", "Import option");
     }
 
     const char* className() const { return "FBX reader/writer"; }

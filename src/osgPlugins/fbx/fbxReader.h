@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright(c) 2019 MAK Technologies, Inc.
+** Copyright(c) 2024 MAK Technologies, Inc.
 ** All rights reserved.
 ******************************************************************************/
 
@@ -65,14 +65,15 @@ public:
         tessellatePolygons(tessellatePolygons1),
         authoringTool(authoringTool1),
         currentFilePath(currentFilePath1),
-       _dicardColor(false)
+       _dicardColor(false),
+       _keepExternalReferences(false)
     {
        readNodeMapCSVfile();
     }
 
     osgDB::ReaderWriter::ReadResult readFbxNode(
-        FbxNode*, bool& bIsBone, int& nLightCount,
-       textureUnitMap& textureMap, const FbxString& appName);
+        FbxNode*, bool& bIsBone, int& nLightCount, bool& foundProxyNode,
+        textureUnitMap& textureMap, const FbxString& appName);
 
     std::string readFbxAnimation(
         FbxNode*, const char* targetName, osgAnimation::Animation*& animation);
@@ -97,6 +98,9 @@ public:
 
     void setDiscardColor(bool value) { _dicardColor = value; }
     bool discardColor() const { return _dicardColor; }
+
+    void setKeepExternalReferences(bool value) { _keepExternalReferences = value; }
+    bool keepExternalReferences() const { return _keepExternalReferences; }
 
 protected:
 
@@ -170,6 +174,7 @@ protected:
     NodeNameToCommentMap _nodeNameStateMap;
     //! Discard polygon color if the option is passed to the plugin
     bool _dicardColor;
+    bool _keepExternalReferences;
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
@@ -197,10 +202,10 @@ osg::Group* addGroup(FbxNode* pNode, const FbxString& pComment);
 
 //! Add Transform
 osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment,
-   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated);
+   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated, bool foundProxyNode);
 
 //! Add an external reference (read another FBX model an add it to current one)
 osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, const osg::Matrix& localMatrix, 
-   const osgDB::Options& options, const std::string& currentModelPath);
+   const osgDB::Options& options, const std::string& currentModelPath, bool useProxyNode );
 
 #endif

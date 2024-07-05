@@ -16,6 +16,7 @@
 #include <osg/Sequence>
 #include <osg/Geometry>
 #include <osg/CullFace>
+#include <osg/ProxyNode>
 
 #include <osgDB/FileNameUtils>
 #include <osgDB/ReadFile>
@@ -803,7 +804,7 @@ bool containStateName(FbxNode* pNode, const std::map<std::string, std::string>& 
 osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     const std::string& animName, osgAnimation::Animation* animation, const osg::Matrix& localMatrix, bool bNeedSkeleton,
     std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene, osg::NodeList& children, bool& hasDof,
-    const std::map<std::string, std::string>& stateNodeMap)
+    const std::map<std::string, std::string>& stateNodeMap, const bool childrenHaveProxyNodes )
 {
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
@@ -832,12 +833,13 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     }
     else
     {
-        bool bAnimated = !animName.empty();
-        if (!bAnimated && localMatrix.isIdentity())
-        {
-           return addGroup(pNode, pComment);
-        }
-        return addTransform(pNode, pComment, localMatrix, fbxScene, animName, animation, bAnimated);
+       bool bAnimated = !animName.empty();
+       if (!bAnimated && localMatrix.isIdentity())
+       {
+          return addGroup(pNode, pComment);
+       }
+
+       return addTransform(pNode, pComment, localMatrix, fbxScene, animName, animation, bAnimated, childrenHaveProxyNodes);
     }
 }
 
@@ -861,9 +863,9 @@ void updateExternalReferenceNodeDescription(osg::Node* node)
 
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     FbxNode* pNode,
-    bool& bIsBone, int& nLightCount,
+    bool& bIsBone, int& nLightCount, bool& foundProxyNode,
     textureUnitMap& textureMap,
-    const FbxString& appName)
+    const FbxString& appName )
 {
 
    // Add comment from Node Name if needed
@@ -922,6 +924,8 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
         assert(fbxMaterial);
         stateSetList.push_back(fbxMaterialToOsgStateSet.convert(fbxMaterial));
     }
+ 
+    bool childrenHaveProxyNodes = false;
 
     osg::NodeList skeletal, children;
     int nChildCount = pNode->GetChildCount();
@@ -935,8 +939,12 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
         }
 
         bool bChildIsBone = false;
+        bool bChildHasProxyNode = false;
         osgDB::ReaderWriter::ReadResult childResult = readFbxNode(
-            pChildNode, bChildIsBone, nLightCount, textureMap, appName);
+            pChildNode, bChildIsBone, nLightCount, bChildHasProxyNode, textureMap, appName );
+
+        childrenHaveProxyNodes |= bChildHasProxyNode;
+
         if (childResult.error())
         {
             return childResult;
@@ -958,6 +966,9 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
             }
         }
     }
+
+    // report if any of my children have a ProxyNode.
+    foundProxyNode = childrenHaveProxyNodes;
 
     // IMPORTANT NOTE : for now we are disabling reading the animation key frame
     // This cause a problem in VRF (defect 67974 "Placement of entities near another FBX entity"
@@ -994,10 +1005,22 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
              // If we find an external reference command load the other FBX model
              if (pComment.Find(disExternalRef.c_str()) != -1)
              {
+                // This is a ProxyNode we are trying to detect when keepExternalReferences() is true.
+                const bool useProxyNode = keepExternalReferences();
+                foundProxyNode = useProxyNode;
+
                 bool bAnimated = !animName.empty();
-                osg::ref_ptr<osg::MatrixTransform> mt = addTransform(pNode, pComment, localMatrix, fbxScene, animName, animation, bAnimated);
-                osgDB::ReaderWriter::ReadResult Xref = addExternalReference(pComment, localMatrix, options, currentFilePath);
-                mt->addChild(Xref.getNode());
+
+                // The comment will get added to the child group below.
+                FbxString emptyComment;
+                osg::ref_ptr<osg::MatrixTransform> mt = addTransform(pNode, emptyComment, localMatrix, fbxScene, animName, animation, bAnimated, foundProxyNode);
+                osg::ref_ptr<osg::Group> group = addGroup(pNode, pComment);
+
+                osgDB::ReaderWriter::ReadResult Xref = addExternalReference(pComment, localMatrix, options, currentFilePath, useProxyNode);
+
+                group->addChild(Xref.getNode());
+                mt->addChild(group);
+
                 return osgDB::ReaderWriter::ReadResult(mt.get());
              }
           }
@@ -1075,7 +1098,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     if (!osgGroup)
     {
        osgGroup = createGroupNode(pSdkManager, pNode, animName, animation, localMatrix, 
-          bIsBone, nodeMap, fbxScene, children, hasDof, _nodeNameStateMap);
+          bIsBone, nodeMap, fbxScene, children, hasDof, _nodeNameStateMap, childrenHaveProxyNodes);
     }
     osg::Group* pAddChildrenTo = osgGroup.get();
     if (hasDof)
@@ -1541,7 +1564,7 @@ osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComme
 }
 
 osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, const osg::Matrix& localMatrix,
-   const osgDB::Options& options, const std::string& currentModelPath)
+   const osgDB::Options& options, const std::string& currentModelPath, bool useProxyNode)
 {
    size_t offset = disExternalRef.length() + 1;
    // remove return in string
@@ -1550,6 +1573,12 @@ osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, 
    filename = filename.substr(offset, filename.length() - offset);
    // remove quote around filename
    fbxUtil::removeQuote(filename);
+
+   if (filename.empty())
+   {
+      return osgDB::ReaderWriter::ReadResult::ERROR_IN_READING_FILE;
+   }
+
    // check for existing path
    std::string filepath = osgDB::getFilePath(filename);
    if (filepath.empty())
@@ -1558,8 +1587,26 @@ osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, 
       filename = currentModelPath + osgDB::getNativePathSeparator() + filename;
    }
 
-   ReaderWriterFBX FbxReader;
-   return FbxReader.readNode(filename, &options);
+   if (useProxyNode)
+   {
+      osg::ProxyNode* externalReference = new osg::ProxyNode;
+      externalReference->setCenterMode(osg::ProxyNode::USE_BOUNDING_SPHERE_CENTER);
+      externalReference->setFileName(0, filename);
+      return externalReference;
+   }
+   else
+   {
+      // try to do a more general read of the external. It supports more formats.
+      osg::ref_ptr<osg::Node> external = osgDB::readNodeFile(filename, &options);
+      if (external.valid())
+      {
+         return external;
+      }
+
+      // fallback on direct load using ReaderWriterFBX.
+      ReaderWriterFBX FbxReader;
+      return FbxReader.readNode(filename, &options);
+   }
 }
 
 osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children)
@@ -1642,7 +1689,7 @@ osg::Group* addGroup(FbxNode* pNode, const FbxString& pComment)
 }
 
 osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment, 
-   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated)
+   const osg::Matrix& localMatrix, FbxScene& fbxScene, const std::string& animName, osgAnimation::Animation* animation, bool bAnimated, bool foundProxyNode)
 {
    if (bAnimated)
    {
@@ -1664,7 +1711,10 @@ osg::MatrixTransform* addTransform(FbxNode* pNode, const FbxString& pComment,
    {
       osg::MatrixTransform* pTransform = new osg::MatrixTransform(localMatrix);
       pTransform->setName(pNode->GetName());
-      pTransform->setDataVariance(osg::Object::STATIC);
+
+      //Flagging as DYNAMIC prevents the transform from being optimized when optimized using FlattenStaticTransformsDuplicatingSharedSubgraphsVisitor.
+      pTransform->setDataVariance(foundProxyNode ? osg::Object::DYNAMIC : osg::Object::STATIC);
+
       // if we have a dis frame or annotation comment add it to the matrix transform and not the geode
       if (!pComment.IsEmpty())
       {
