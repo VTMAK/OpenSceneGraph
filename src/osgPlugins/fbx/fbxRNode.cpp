@@ -63,6 +63,9 @@ static const std::string disArticulatedPartScaleMax = "scale_max";
 static const std::string disArticulatedPartScaleStep = "scale_step";
 // End ArticulatedPart
 
+// End of Barrel
+static const std::string disAnnotationEndOfBarrel = "@dis annotation end_of_barrel";
+
 // Flipbook Animation
 static const std::string disFlipbookAnimation = "@dis flipbook_animation";
 static const std::string dislastFrameTime = "lastframetime";
@@ -823,7 +826,7 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     {
        return addState(pNode, pComment, foundStateName, stateNodeMap);
     }    
-    else if (pComment.Find(disArticulatedPart.c_str()) != -1 )
+    else if (pComment.Find(disArticulatedPart.c_str()) != -1 || (pComment.Find(disAnnotationEndOfBarrel.c_str()) != -1))
     {
        return addArticulatedPart(pNode, pComment, localMatrix, hasDof, fbxScene);
     }
