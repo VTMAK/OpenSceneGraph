@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <osg/Light>
 #include <osg/Texture2D>
+#include <osg/Texture2DArray>
 #include <osg/TexEnv>
 #include <osg/BlendFunc>
 #include <osgSim/LightPointNode>
@@ -695,151 +696,269 @@ namespace flt {
       {
          osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(filename, document.getOptions());
          if (!image) return NULL;
+
+         if (isCdbRasterMaterialTexture(filename))
+         {
+            // Reading the source image above should trigger the genereation of the emats we want to load as the actual data to use.
+
+            // inserting _EMAT* into the image name so that effect texture mappings will work.
+            std::string tmpFile = filename.substr(0, filename.size() - 4);
+            std::string tmpExt = filename.substr(filename.size() - 4, 4);
+
+            std::deque<osg::ref_ptr<osg::Image>> imageLayers;
+
+            const int numLayers = 2;
+            for (unsigned int layer = 0; layer < numLayers; ++layer)
+            {
+               std::string ematFilename = tmpFile + "_EMAT" + std::to_string(layer + 2) + tmpExt;
+
+               osg::ref_ptr<osg::Image> ematImage = osgDB::readRefImageFile(ematFilename, document.getOptions());
+               if (ematImage)
+               {
+                  imageLayers.push_back(ematImage);
+               }
+            }
+
+            osg::StateSet* stateSet = readTextureArray(imageLayers, filename, document);
+            if (stateSet)
+            {
+               return stateSet;
+            }
+         }
+
          return readTexture(image, filename, document);
+      }
+
+      osg::Texture* GenerateTextureArray(std::deque<osg::ref_ptr<osg::Image>> images) const
+      {
+         if (images.empty()) return NULL;
+
+         osg::ref_ptr<osg::Image> firstImage = images[0];
+
+         if (!firstImage.valid()) return NULL;
+
+         osg::Texture2DArray* textureArray = new osg::Texture2DArray;
+         textureArray->setTextureDepth(images.size());
+         textureArray->setInternalFormat(firstImage->getInternalTextureFormat());
+         textureArray->setSourceFormat(firstImage->getPixelFormat());
+
+         for (int layer = 0; layer < images.size(); ++layer)
+         {
+            textureArray->setImage(layer, images[layer]);
+         }
+
+         textureArray->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
+         textureArray->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
+         textureArray->setResizeNonPowerOfTwoHint(true);
+         return textureArray;
+      }
+
+      osg::Texture* GenerateTexture(osg::ref_ptr<osg::Image> image) const
+      {
+         if (!image) return NULL;
+
+         osg::Texture* texture = nullptr;
+         if (image->r() > 1)
+         {
+            osg::Texture2DArray* textureArray = new osg::Texture2DArray;
+            textureArray->setTextureDepth(image->r());
+            textureArray->setInternalFormat(image->getInternalTextureFormat());
+            textureArray->setSourceFormat(image->getPixelFormat());
+
+            for (int r = 0; r < image->r(); ++r)
+            {
+               osg::Image* layer = new osg::Image();
+               layer->allocateImage(image->s(), image->t(), 1, image->getPixelFormat(), image->getDataType(), image->getPacking());
+               layer->setPixelAspectRatio(image->getPixelAspectRatio());
+
+               layer->setRowLength(image->getRowLength());
+               layer->setOrigin(image->getOrigin());
+               layer->setFileName(image->getFileName());
+               layer->setWriteHint(image->getWriteHint());
+               layer->setInternalTextureFormat(image->getInternalTextureFormat());
+               ::memcpy(layer->data(), image->data(0, 0, r), layer->getTotalSizeInBytes());
+
+               textureArray->setImage(r, layer);
+            }
+
+            texture = textureArray;
+         }
+         else
+         {
+            osg::Texture2D* texture2D = new osg::Texture2D;
+            texture2D->setImage(image.get());
+            texture = texture2D;
+         }
+
+         texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
+         texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
+         texture->setResizeNonPowerOfTwoHint(true);
+         return texture;
+      }
+
+      // use this readTextureArray call to read a texture directly from a collection of images in memory instead of a filename
+      // this can happen when reading texture from CDB databases where the texture are in a zip file or are generated content.
+      osg::StateSet* readTextureArray(std::deque<osg::ref_ptr<osg::Image>> images, const std::string& filename, const Document& document, unsigned int unit = 0) const
+      {
+         if (images.empty()) return NULL;
+
+         osg::Texture* texture = GenerateTextureArray(images);
+
+         if (!texture) return NULL;
+
+         return BuildStateSetAndReadTextureAttributes(texture, filename, document, unit);
       }
 
       // use this readTexture call to read a texture directly from an image in memory instead of a filename
       // this can happen when reading texture from CDB databases where the texture are in a zip file
-      osg::StateSet* readTexture(osg::ref_ptr<osg::Image> image, const std::string& filename, const Document& document) const
+      osg::StateSet* readTexture(osg::ref_ptr<osg::Image> image, const std::string& filename, const Document& document, unsigned int unit = 0) const
       {
          if (!image) return NULL;
 
+         osg::Texture* texture = GenerateTexture(image);
+
+         if (!texture) return NULL;
+
+         return BuildStateSetAndReadTextureAttributes(texture, filename, document, unit);
+      }
+
+
+      osg::StateSet* BuildStateSetAndReadTextureAttributes(osg::Texture* texture, const std::string& filename, const Document& document, unsigned int unit = 0) const
+      {
+         if (!texture) return NULL;
+
          // Create stateset to hold texture and attributes.
          osg::StateSet* stateset = new osg::StateSet;
-
-         osg::Texture2D* texture = new osg::Texture2D;
-         texture->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
-         texture->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
-         texture->setResizeNonPowerOfTwoHint(true);
-         texture->setImage(image.get());
-         stateset->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+         stateset->setTextureAttributeAndModes(unit, texture, osg::StateAttribute::ON);
 
          // Read attribute file
          std::string attrname = filename + ".attr";
-         osg::ref_ptr<AttrData> attr = dynamic_cast<AttrData*>(osgDB::readObjectFile(attrname, document.getOptions()));
-         if (attr.valid())
+         if (osgDB::fileExists(attrname))
          {
-            // Wrap mode
-            osg::Texture2D::WrapMode wrap_s = convertWrapMode(attr->wrapMode_u, document);
-            texture->setWrap(osg::Texture2D::WRAP_S, wrap_s);
-
-            osg::Texture2D::WrapMode wrap_t = convertWrapMode(attr->wrapMode_v, document);
-            texture->setWrap(osg::Texture2D::WRAP_T, wrap_t);
-
-            // Min filter
-            switch (attr->minFilterMode)
+            osg::ref_ptr<AttrData> attr = dynamic_cast<AttrData*>(osgDB::readObjectFile(attrname, document.getOptions()));
+            if (attr.valid())
             {
-            case AttrData::MIN_FILTER_POINT:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
-               break;
-            case AttrData::MIN_FILTER_BILINEAR:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR);
-               break;
-            case AttrData::MIN_FILTER_MIPMAP_POINT:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_NEAREST);
-               break;
-            case AttrData::MIN_FILTER_MIPMAP_LINEAR:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_LINEAR);
-               break;
-            case AttrData::MIN_FILTER_MIPMAP_BILINEAR:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
-               break;
-            case AttrData::MIN_FILTER_MIPMAP_TRILINEAR:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
-               break;
-            case AttrData::MIN_FILTER_BICUBIC:
-            case AttrData::MIN_FILTER_BILINEAR_GEQUAL:
-            case AttrData::MIN_FILTER_BILINEAR_LEQUAL:
-            case AttrData::MIN_FILTER_BICUBIC_GEQUAL:
-            case AttrData::MIN_FILTER_BICUBIC_LEQUAL:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
-               break;
-            default:
-               texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
-               break;
-            }
+               // Wrap mode
+               osg::Texture2D::WrapMode wrap_s = convertWrapMode(attr->wrapMode_u, document);
+               texture->setWrap(osg::Texture2D::WRAP_S, wrap_s);
 
-            // Mag filter
-            switch (attr->magFilterMode)
-            {
-            case AttrData::MAG_FILTER_POINT:
-               texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
-               break;
-            case AttrData::MAG_FILTER_BILINEAR:
-            case AttrData::MAG_FILTER_BILINEAR_GEQUAL:
-            case AttrData::MAG_FILTER_BILINEAR_LEQUAL:
-            case AttrData::MAG_FILTER_SHARPEN:
-            case AttrData::MAG_FILTER_BICUBIC:
-            case AttrData::MAG_FILTER_BICUBIC_GEQUAL:
-            case AttrData::MAG_FILTER_BICUBIC_LEQUAL:
-            case AttrData::MAG_FILTER_ADD_DETAIL:
-            case AttrData::MAG_FILTER_MODULATE_DETAIL:
-               texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
-               break;
-            }
+               osg::Texture2D::WrapMode wrap_t = convertWrapMode(attr->wrapMode_v, document);
+               texture->setWrap(osg::Texture2D::WRAP_T, wrap_t);
 
-            // Internal mode
-            switch (attr->intFormat)
-            {
-            case AttrData::INTERNAL_FORMAT_TX_I_12A_4:
-               texture->setInternalFormat(GL_LUMINANCE12_ALPHA4);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_IA_8:
-               texture->setInternalFormat(GL_LUMINANCE_ALPHA);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_RGB_5:
-               texture->setInternalFormat(GL_RGB5);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_RGBA_4:
-               texture->setInternalFormat(GL_RGBA4);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_IA_12:
-               texture->setInternalFormat(GL_LUMINANCE12_ALPHA12);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_RGBA_8:
-               texture->setInternalFormat(GL_RGBA8);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_RGBA_12:
-               texture->setInternalFormat(GL_RGBA12);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_I_16:
-               texture->setInternalFormat(GL_INTENSITY16);
-               break;
-            case AttrData::INTERNAL_FORMAT_TX_RGB_12:
-               texture->setInternalFormat(GL_RGB12);
-               break;
-            case AttrData::INTERNAL_FORMAT_DEFAULT:
-            default:
-               // Do nothing, just use the image data format
-               break;
-            }
+               // Min filter
+               switch (attr->minFilterMode)
+               {
+               case AttrData::MIN_FILTER_POINT:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
+                  break;
+               case AttrData::MIN_FILTER_BILINEAR:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR);
+                  break;
+               case AttrData::MIN_FILTER_MIPMAP_POINT:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_NEAREST);
+                  break;
+               case AttrData::MIN_FILTER_MIPMAP_LINEAR:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST_MIPMAP_LINEAR);
+                  break;
+               case AttrData::MIN_FILTER_MIPMAP_BILINEAR:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
+                  break;
+               case AttrData::MIN_FILTER_MIPMAP_TRILINEAR:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
+                  break;
+               case AttrData::MIN_FILTER_BICUBIC:
+               case AttrData::MIN_FILTER_BILINEAR_GEQUAL:
+               case AttrData::MIN_FILTER_BILINEAR_LEQUAL:
+               case AttrData::MIN_FILTER_BICUBIC_GEQUAL:
+               case AttrData::MIN_FILTER_BICUBIC_LEQUAL:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_NEAREST);
+                  break;
+               default:
+                  texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR_MIPMAP_LINEAR);
+                  break;
+               }
 
-            osg::TexEnv* texenv = new osg::TexEnv;
-            switch (attr->texEnvMode)
-            {
-            case AttrData::TEXENV_MODULATE:
-               texenv->setMode(osg::TexEnv::MODULATE);
-               break;
-            case AttrData::TEXENV_BLEND:
-               texenv->setMode(osg::TexEnv::BLEND);
-               break;
-            case AttrData::TEXENV_DECAL:
-               texenv->setMode(osg::TexEnv::DECAL);
-               break;
-            case AttrData::TEXENV_COLOR:
-               texenv->setMode(osg::TexEnv::REPLACE);
-               break;
-            case AttrData::TEXENV_ADD:
-               texenv->setMode(osg::TexEnv::ADD);
-               break;
+               // Mag filter
+               switch (attr->magFilterMode)
+               {
+               case AttrData::MAG_FILTER_POINT:
+                  texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
+                  break;
+               case AttrData::MAG_FILTER_BILINEAR:
+               case AttrData::MAG_FILTER_BILINEAR_GEQUAL:
+               case AttrData::MAG_FILTER_BILINEAR_LEQUAL:
+               case AttrData::MAG_FILTER_SHARPEN:
+               case AttrData::MAG_FILTER_BICUBIC:
+               case AttrData::MAG_FILTER_BICUBIC_GEQUAL:
+               case AttrData::MAG_FILTER_BICUBIC_LEQUAL:
+               case AttrData::MAG_FILTER_ADD_DETAIL:
+               case AttrData::MAG_FILTER_MODULATE_DETAIL:
+                  texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
+                  break;
+               }
+
+               // Internal mode
+               switch (attr->intFormat)
+               {
+               case AttrData::INTERNAL_FORMAT_TX_I_12A_4:
+                  texture->setInternalFormat(GL_LUMINANCE12_ALPHA4);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_IA_8:
+                  texture->setInternalFormat(GL_LUMINANCE_ALPHA);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_RGB_5:
+                  texture->setInternalFormat(GL_RGB5);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_RGBA_4:
+                  texture->setInternalFormat(GL_RGBA4);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_IA_12:
+                  texture->setInternalFormat(GL_LUMINANCE12_ALPHA12);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_RGBA_8:
+                  texture->setInternalFormat(GL_RGBA8);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_RGBA_12:
+                  texture->setInternalFormat(GL_RGBA12);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_I_16:
+                  texture->setInternalFormat(GL_INTENSITY16);
+                  break;
+               case AttrData::INTERNAL_FORMAT_TX_RGB_12:
+                  texture->setInternalFormat(GL_RGB12);
+                  break;
+               case AttrData::INTERNAL_FORMAT_DEFAULT:
+               default:
+                  // Do nothing, just use the image data format
+                  break;
+               }
+
+               osg::TexEnv* texenv = new osg::TexEnv;
+               switch (attr->texEnvMode)
+               {
+               case AttrData::TEXENV_MODULATE:
+                  texenv->setMode(osg::TexEnv::MODULATE);
+                  break;
+               case AttrData::TEXENV_BLEND:
+                  texenv->setMode(osg::TexEnv::BLEND);
+                  break;
+               case AttrData::TEXENV_DECAL:
+                  texenv->setMode(osg::TexEnv::DECAL);
+                  break;
+               case AttrData::TEXENV_COLOR:
+                  texenv->setMode(osg::TexEnv::REPLACE);
+                  break;
+               case AttrData::TEXENV_ADD:
+                  texenv->setMode(osg::TexEnv::ADD);
+                  break;
+               }
+               stateset->setTextureAttribute(0, texenv);
             }
-            stateset->setTextureAttribute(0, texenv);
          }
-
          return stateset;
       }
 
-      virtual bool isCdbBaseTexture(std::string& TextureFilename)
+      virtual bool isCdbBaseTexture(const std::string& TextureFilename) const
       {
          // search for CDB component selector 1 with S001 = year around texture
          std::size_t pos = TextureFilename.find("_S001_");
@@ -849,9 +968,11 @@ namespace flt {
             return false;
       }
 
-      //skip CDB Raster Material for now
-      virtual bool isCdbRasterMaterialTexture(std::string& TextureFilename)
+      // CDB Model Raster Material for now
+      virtual bool isCdbRasterMaterialTexture(const std::string& TextureFilename) const
       {
+         // Todo test when we have a CDB with GS model material texture
+         //std::size_t pos = TextureFilename.find("D304_"); 
          std::size_t pos = TextureFilename.find("D504_");
          if (pos != std::string::npos)
             return true;
@@ -859,7 +980,7 @@ namespace flt {
             return false;
       }
 
-      virtual bool isCdbGSTexture(Document& document, std::string& pathname)
+      virtual bool isCdbGSTexture(const Document& document, const std::string& pathname) const 
       {
          // check if its a CDB GS texture
          if (document.getCdb() && pathname.empty() && isCdbGTTexture(pathname) == false)
@@ -873,7 +994,7 @@ namespace flt {
       }
 
       // Check if it's a CDB GT texture
-      virtual bool isCdbGTTexture(std::string& TextureFilename)
+      virtual bool isCdbGTTexture(const std::string& TextureFilename) const
       {
          // check if the CDB texture is a GT texture (to avoid trying to build a zip filename if we have a missing GT texture)
          if (TextureFilename.find("GTModel") != std::string::npos)
@@ -1045,10 +1166,10 @@ namespace flt {
             }
 
             //skip CDB Raster Material for now
-            if (isCdbRasterMaterialTexture(pathname))
+            /*if (isCdbRasterMaterialTexture(pathname))
             {
                return;
-            }
+            }*/
 
             // Do we want a lower CDB texture resolution?
             CdbLowerResolutionTexture(pathname, document);
