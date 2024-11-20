@@ -1297,46 +1297,46 @@ void CompositeViewer::eventTraversal()
             }
         }
 
-    }
-
-    for(ViewEventsMap::iterator veitr = viewEventsMap.begin();
-        veitr != viewEventsMap.end();
-        ++veitr)
-    {
-        View* view = veitr->first;
-        _eventVisitor->setActionAdapter(view);
-
-        for(osgGA::EventQueue::Events::iterator itr = veitr->second.begin();
-            itr != veitr->second.end();
-            ++itr)
+        for (ViewEventsMap::iterator veitr = viewEventsMap.begin();
+           veitr != viewEventsMap.end();
+           ++veitr)
         {
-            osgGA::Event* event = itr->get();
-            for(View::EventHandlers::iterator hitr = view->getEventHandlers().begin();
-                hitr != view->getEventHandlers().end();
-                ++hitr)
-            {
-                (*hitr)->handle( event, view, _eventVisitor.get());
-            }
+           View* view = veitr->first;
+           _eventVisitor->setActionAdapter(view);
+
+           for (osgGA::EventQueue::Events::iterator itr = veitr->second.begin();
+              itr != veitr->second.end();
+              ++itr)
+           {
+              osgGA::Event* event = itr->get();
+              for (View::EventHandlers::iterator hitr = view->getEventHandlers().begin();
+                 hitr != view->getEventHandlers().end();
+                 ++hitr)
+              {
+                 (*hitr)->handle(event, view, _eventVisitor.get());
+              }
+           }
         }
-    }
 
-    for(ViewEventsMap::iterator veitr = viewEventsMap.begin();
-        veitr != viewEventsMap.end();
-        ++veitr)
-    {
-        View* view = veitr->first;
-        _eventVisitor->setActionAdapter(view);
-
-        for(osgGA::EventQueue::Events::iterator itr = veitr->second.begin();
-            itr != veitr->second.end();
-            ++itr)
+        for (ViewEventsMap::iterator veitr = viewEventsMap.begin();
+           veitr != viewEventsMap.end();
+           ++veitr)
         {
-            osgGA::Event* event = itr->get();
-            if (view->getCameraManipulator())
-            {
-                view->getCameraManipulator()->handle( event, view, _eventVisitor.get());
-            }
+           View* view = veitr->first;
+           _eventVisitor->setActionAdapter(view);
+
+           for (osgGA::EventQueue::Events::iterator itr = veitr->second.begin();
+              itr != veitr->second.end();
+              ++itr)
+           {
+              osgGA::Event* event = itr->get();
+              if (view->getCameraManipulator())
+              {
+                 view->getCameraManipulator()->handle(event, view, _eventVisitor.get());
+              }
+           }
         }
+
     }
 
     if (getViewerStats() && getViewerStats()->collectStats("event"))
