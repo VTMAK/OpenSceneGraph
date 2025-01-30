@@ -17,8 +17,9 @@ namespace osg
    class OSG_EXPORT ProfileManager
    {
       public:
-         ProfileManager() : _CollectTracyStats(false) { ; }
+         ProfileManager() : _CollectTracyStats(false), _TracyCallstackDepth(0) { ; }
          bool  _CollectTracyStats;
+         int  _TracyCallstackDepth;
 
          static ProfileManager theProfileManager;
    };
@@ -60,23 +61,20 @@ namespace osg
 /////////////////////////////////////// 
 //tracy
 #ifdef TRACY_ENABLE
-#define TRACY_ON_DEMAND
-#define TRACY_DELAYED_INIT 
+
+// Include MAK's Tracy defines so everything is consistent between all 3rdParty Libs
+#include <tracy/MAKTracyDefines.h>
 
 // TO DO include tracy on linux just to get it's macros for throwing things out
-#include <TracyClient/Tracy.hpp>
-
-//#pragma comment(lib, "TracyClient.lib") 
-#define ZoneScopedNA( name, active ) ZoneNamedN( ___tracy_scoped_zone, name, active )
-#define ZoneScopedNCA( name, color, active ) ZoneNamedNC( ___tracy_scoped_zone, name, color, active )
+#include <tracy/Tracy.hpp>
 
 // win32 creates macros that work with our stats and tracy
-#define OsgProfileZone ZoneNamed(___tracy_scoped_zone, osg::ProfileManager::theProfileManager._CollectTracyStats);
-#define OsgProfile(name) ZoneScopedNA(name, osg::ProfileManager::theProfileManager._CollectTracyStats); 
+#define OsgProfileZone ZoneNamedS(___tracy_scoped_zone, osg::ProfileManager::theProfileManager._TracyCallstackDepth, osg::ProfileManager::theProfileManager._CollectTracyStats);
+#define OsgProfile(name) ZoneNamedNS( ___tracy_scoped_zone, name, osg::ProfileManager::theProfileManager._TracyCallstackDepth, osg::ProfileManager::theProfileManager._CollectTracyStats); 
 // extra per zone info
 #define OsgProfileText(text, len) if(osg::ProfileManager::theProfileManager._CollectTracyStats){ZoneText( text, len );}
-#define OsgProfileC(name, color) ZoneScopedNCA(name, color, osg::ProfileManager::theProfileManager._CollectTracyStats); 
-//#define OsgProfile_SECTION(name) {ZoneScopedNA(name, globalCollectTracyStats);  
+#define OsgProfileC(name, color) ZoneNamedNCS( ___tracy_scoped_zone, name, color, osg::ProfileManager::theProfileManager._TracyCallstackDepth, osg::ProfileManager::theProfileManager._CollectTracyStats); 
+
 #define OsgProfilerFrameMark FrameMark
 #define OsgProfilerPlot(x,y) TracyPlot(x,y)
 #define OsgProfilerThread(name)

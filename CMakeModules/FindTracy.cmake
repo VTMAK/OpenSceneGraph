@@ -9,7 +9,9 @@ endif()
 
 SET(TRACY_FOUND "NO")
 if (WIN32) # Only supported on Windows
-  FIND_PATH(TRACY_INCLUDE_DIR TracyClient/Tracy.hpp
+  FIND_PATH(TRACY_INCLUDE_DIR 
+      NAMES TracyClient/Tracy.hpp tracy/Tracy.hpp
+      PATHS TracyClient tracy
       ~/Library/Frameworks
       /Library/Frameworks
       /usr/local/include
@@ -22,7 +24,7 @@ if (WIN32) # Only supported on Windows
   )
 
   FIND_LIBRARY(TRACY_LIBRARY 
-      NAMES TracyProfiler
+      NAMES TracyProfiler TracyClient
       PATHS
       ~/Library/Frameworks
       /Library/Frameworks
@@ -35,6 +37,7 @@ if (WIN32) # Only supported on Windows
       /usr/freeware/lib64
       PATH_SUFFIXES
       lib64
+      lib
   )
 
   IF(TRACY_LIBRARY AND TRACY_INCLUDE_DIR)

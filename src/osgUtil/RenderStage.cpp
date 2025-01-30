@@ -1483,7 +1483,8 @@ struct DrawInnerOperation : public osg::Operation
 void RenderStage::draw(osg::RenderInfo& renderInfo,RenderLeaf*& previous)
 {
     // VRV_PATCH
-    OsgProfile(getName().length() > 0 ? getName().c_str() : "RenderStage::draw");
+    OsgProfile("RenderStage::draw");
+    OsgProfileText(getName().length() > 0 ? getName().c_str() : "", getName().length());
 
     if (_stageDrawnThisFrame) return;
 
