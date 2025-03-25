@@ -811,6 +811,7 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
 {
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
+
     // Search for "maingroup_xxx" in the name to see if we need to add the state (normal/destroy)
     bool foundStateName = containStateName(pNode, stateNodeMap);
 
@@ -862,6 +863,36 @@ void updateExternalReferenceNodeDescription(osg::Node* node)
          node->setDescriptions(dl);
       }
    }
+}
+
+unsigned int getStateCommentPosition(const std::string& nodeComment)
+{
+   unsigned int position;
+   if ((nodeComment.find("@dis state 0") != std::string::npos) ||
+      (nodeComment.find("@dis state none") != std::string::npos))
+   {
+      position = 0;
+   }
+   else if ((nodeComment.find("@dis state 1") != std::string::npos) ||
+      (nodeComment.find("@dis state slight") != std::string::npos))
+   {
+      position = 1;
+   }
+   else if ((nodeComment.find("@dis state 2") != std::string::npos) ||
+      (nodeComment.find("@dis state moderate") != std::string::npos))
+   {
+      position = 2;
+   }
+   else if ((nodeComment.find("@dis state 3") != std::string::npos) ||
+      (nodeComment.find("@dis state destroyed") != std::string::npos))
+   {
+      position = 3;
+   }
+   else
+   {
+      position = 4;
+   }
+   return position;
 }
 
 osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
@@ -1161,23 +1192,57 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
        }
        else
        {
-          //std::string name = childNode->getName();
-          //std::cout << name << ":" << localMatrix(3, 0) << "," << localMatrix(3, 1) << "," << localMatrix(3, 2) << std::endl;
-          pAddChildrenTo->addChild(childNode);
           // Check if pAddChildrenTo is a switch and if the children is @state 0 and set the active switch
           osgSim::MultiSwitch* pSwitch = dynamic_cast<osgSim::MultiSwitch*>(pAddChildrenTo);
           if (pSwitch)
           {
+             // insert the state node in the right order (important for VRV)
+             // 0,1,2,3 or
+             // none, slight, moderate, destroyed
+             unsigned int nbChild = pAddChildrenTo->getNumChildren();
+             unsigned int position = getStateCommentPosition(nodeComment);
+             bool added = false;
+             // loop on all state children nodes already inserted
+             for (unsigned int i = 0; i < nbChild; i++)
+             {
+                const osg::Node* stateChild = pAddChildrenTo->getChild(i);
+                std::string childNodeComment;
+                if (stateChild && stateChild->getNumDescriptions() > 0)
+                {
+                   childNodeComment = stateChild->getDescription(0);
+                   unsigned int childNodePosition = getStateCommentPosition(childNodeComment);
+                   if (position < childNodePosition)
+                   {
+                      pAddChildrenTo->insertChild(i, childNode);
+                      added = true;
+                      break;
+                   }
+                }
+             }
+             if (!added)
+             {
+                pAddChildrenTo->addChild(childNode);
+             }
+
              unsigned int index = pAddChildrenTo->getChildIndex(childNode);
              // we want to set the active node to the one containing state 0
-             if (nodeComment.find("@dis state 0") != std::string::npos)
+             //if ((nodeComment.find("@dis state 0") != std::string::npos) ||
+             //   (nodeComment.find("@dis state none") != std::string::npos))
+             if (position == 0)
              {
-                pSwitch->setValue(0, index, true);
+                pSwitch->setValue(0, index, true); 
+                
              }
              else
              {
                 pSwitch->setValue(0, index, false);
              }
+          }
+          else
+          {
+             //std::string name = childNode->getName();
+             //std::cout << name << ":" << localMatrix(3, 0) << "," << localMatrix(3, 1) << "," << localMatrix(3, 2) << std::endl;
+             pAddChildrenTo->addChild(childNode);
           }
        }
     }
