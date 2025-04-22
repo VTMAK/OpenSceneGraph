@@ -589,7 +589,7 @@ protected:
         _lod->setName(id);
         _lod->setCenter(center*document.unitScale());
 
-        // VRV_PATCH BEGIN
+        
         // ST airport tiles have bad bounding spheres
         // They are reporting the center as the 'frozen' center
         // in the flt file which is most likely in model coordinates (not geocentric)
@@ -598,8 +598,7 @@ protected:
             // have OSG calculate the center of the bounding sphere
             _lod->setCenterMode(osg::LOD::USE_BOUNDING_SPHERE_CENTER);
         }
-        // VRV_PATCH END
-
+        
         _impChild0 = new osg::Group;
         _impChild0->setName("LOD child0");
 
@@ -609,6 +608,11 @@ protected:
         // getSwitchInDistance() even if some values exist in the FLT file
         if (gotSigSize)
         {
+           // save sig size in the comment in case we need it to prevent switch in/out collision
+           const std::string kCdbSigSize = "cdbSigSize=";
+           std::string sigSize = kCdbSigSize + std::to_string(significantSize);
+           _lod->addDescription(sigSize);
+
            // Customizable Significant Size to Switch distance via XML file (../appData/cdb/SignificantSize_SwitchDistance.xml) 
            // or eventually modify OSG to support SIG size directly (see CDB spec 3.2)
            switchOutDistance = 0.0f;           
@@ -629,35 +633,104 @@ protected:
            {
               // get previous LOD
               osg::LOD* previousLod = dynamic_cast<osg::LOD*>(_parent->getChild(nbChild - 1));
-              
+              // get previous sigSize if exist
+              float64 previousSignificantSize = 0.0f;
+
               if(previousLod)
               {
-                  //inline float getMinRange(unsigned int childNo) const { return _rangeList[childNo].first; }
-                  //inline float getMaxRange(unsigned int childNo) const { return _rangeList[childNo].second; }
                  float previous_maxRange = previousLod->getMaxRange(0);
-                 if (switchInDistance < previous_maxRange)
+                 // Set the new switch out to the previous switch in
+                 switchOutDistance = previous_maxRange; 
+                 
+                 if ((switchInDistance * document.unitScale()) < previous_maxRange)
                  {
-                     // set the previous lod switchOutDistance to the new switchInDistance 
-                     // (This assume coarse LOD are before fine LOD (coarsest -> coarse -> fine))
-                     previousLod->setRange(0, switchInDistance * document.unitScale(), previous_maxRange);
+                    // set the previous lod switchOutDistance to the new switchInDistance 
+                    // This assume coarse LOD are before fine LOD (coarsest -> coarse -> fine)
+                    // This is the order of LOD we expect and support for CDB
+                    float newSwitchInDistance = 0.0f;
+                    if (sigSizeTable && sigSizeTable->isValid())
+                    {
+                       float nextSwitchInDistance = sigSizeTable->getNextSwitchInDistance(significantSize);
+                       // calculate a different switching distance.
+                       newSwitchInDistance = ((nextSwitchInDistance - switchInDistance) / (nbChild + 1)) + (previous_maxRange * document.unitScale());
+                    }
+                    else
+                    {
+                       newSwitchInDistance = (switchInDistance / 10.0) + (previous_maxRange * document.unitScale());
+                    }
+                    switchInDistance = newSwitchInDistance;
+                 }
+                 else if ((switchInDistance * document.unitScale()) == previous_maxRange)
+                 {
+                    // This is a special case when the SIG size of more than one LOD
+                    // will end up with the same switch in/switch out base on our table SignificantSize_SwitchDistance.xml
+                    // For example:
+                    //  L1 - Sig size = 4.0    switch in 8000m/switch out 0m
+                    //  L2 - Sig size = 7.0    switch in 12000m/switch out 8000m
+                    //  L3 - Sig size = 10.0   switch in 12000m/switch out 8000m  
+                    //  (So we need to find a way to adjust the L3 switch in/out)
+                    // Get sig size in case of overlap in switch in/out distance
+                    unsigned int numDesriptions = previousLod->getNumDescriptions();
+                    for (unsigned int i = 0; i < numDesriptions; i++)
+                    {
+                       std::string desc = previousLod->getDescription(i);
+                       if (desc.find(kCdbSigSize) != std::string::npos)
+                       {
+                          // we found the previous sig size, read it in case we need it
+                          std::string temp = desc.substr(11, desc.length() - 11);
+                          previousSignificantSize = std::stod(temp);
+                          break;
+                       }
+                    }
+
+                     //case when more than one LOD with SIG use the same Switch in/out range
+                    if (significantSize >= previousSignificantSize)
+                    {
+                       // SIG size (fine->coarse->coarsest))
+                       // Get the switch distance of the next sig size
+                       float newSwitchInDistance = 0.0f;
+
+                       // TODO put in a function
+                       if (sigSizeTable && sigSizeTable->isValid())
+                       {
+                          float nextSwitchInDistance = sigSizeTable->getNextSwitchInDistance(significantSize);
+                          // calculate a different switching distance.
+                          newSwitchInDistance = ((nextSwitchInDistance - switchInDistance) / (nbChild+1)) + switchInDistance;
+                       }
+                       else
+                       {
+                          newSwitchInDistance = (switchInDistance / 10.0 ) + switchInDistance;
+                       }
+
+                       switchInDistance = newSwitchInDistance;
+                    }
+                    else
+                    {
+                       // SIG size (fine->coarse->coarser) This should not happen according to the CDB
+                       // SPEC ... lets output a message and ignore it
+                       // but it will create a lod problem
+                       OSG_NOTICE << "Sig size of the model: " << significantSize << " are not in the correct order. "<< std::endl;
+                       switchOutDistance = previous_maxRange / document.unitScale();
+                    }
                  }
                  else
                  {
                      // set the current lod switchinDistance to the previous switchOutDistance 
-                     // (This assume fine LOD are before coarse LOD (fine -> coarse -> coarsest))
-                     switchOutDistance = previous_maxRange;
+                     // This assume fine LOD are before coarse LOD (fine -> coarse -> coarsest)
+                     // Chance are this will create LOD problems 
+                     switchOutDistance = previous_maxRange / document.unitScale();
                  }
               }
            }
         }
-
-        _lod->addChild(_impChild0.get(),
+         // This seem to overwrite the range set above
+         _lod->addChild(_impChild0.get(),
             (float)switchOutDistance * document.unitScale(),
             (float)switchInDistance * document.unitScale());
-        
+
         // Add this implementation to parent implementation.
         if (_parent.valid())
-            _parent->addChild(*_lod);                
+            _parent->addChild(*_lod);
     }
 
 };

@@ -40,6 +40,27 @@ float CDBSigSizeTable::getSwitchInDistance(float sigSize) const
    return 0.1f;
 }
 
+float CDBSigSizeTable::getNextSwitchInDistance(float sigSize) const
+{
+   //for (std::vector<CDBSigSize>::const_iterator it = mySigSizeTable.begin(); it != mySigSizeTable.end(); ++it)
+   for (size_t i=0; i< mySigSizeTable.size(); i++)
+   {
+      if (sigSize > mySigSizeTable[i].getMinSigSize())
+      {
+         if (i == 0)
+         {
+            // add a value on top of the last switch in distance
+            return mySigSizeTable[0].getSwitchInDistance() + 1000.0;
+         }
+         else
+         {
+            return mySigSizeTable[i-1].getSwitchInDistance();
+         }
+      }
+   }
+   return 0.1f;
+}
+
 float CDBSigSizeTable::getSwitchInDistanceFromLod(int cdblod)  const
 {
    const CDBSigSize& sigSizeInfo = mySigSizeTable[cdblod + 10]; // pass the cdb position in the vector

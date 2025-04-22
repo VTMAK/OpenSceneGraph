@@ -32,6 +32,9 @@ namespace makVrv {
             //! \brief Return the switch in distance for a Significant size
             float getSwitchInDistance(float sigSize) const;
 
+            //! \brief Return the switch in distance for the next Significant size (coarser)
+            float getNextSwitchInDistance(float sigSize) const;
+
             //! \brief Return the switch in distance for a CDB LOD
             float getSwitchInDistanceFromLod(int cdblod) const;
 
