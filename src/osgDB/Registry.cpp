@@ -1247,7 +1247,7 @@ ReaderWriter::ReadResult Registry::read(const ReadFunctor& readFunctor)
 
             options->setDatabasePath(archiveName);
 
-            std::auto_ptr<ReadFunctor> rf(readFunctor.cloneType(fileName, options.get()));
+            std::unique_ptr<ReadFunctor> rf(readFunctor.cloneType(fileName, options.get()));
 
             result = rf->doRead(*archive);
 

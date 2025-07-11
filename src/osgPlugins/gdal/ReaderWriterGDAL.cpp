@@ -116,7 +116,7 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
 
             initGDAL();
 
-            std::auto_ptr<GDALDataset> dataset((GDALDataset*)GDALOpen(fileName.c_str(),GA_ReadOnly));
+            std::unique_ptr<GDALDataset> dataset((GDALDataset*)GDALOpen(fileName.c_str(),GA_ReadOnly));
             if (!dataset.get()) return ReadResult::FILE_NOT_HANDLED;
 
             int dataWidth = dataset->GetRasterXSize();
@@ -566,7 +566,7 @@ class ReaderWriterGDAL : public osgDB::ReaderWriter
         {
             initGDAL();
 
-            std::auto_ptr<GDALDataset> dataset((GDALDataset*)GDALOpen(fileName.c_str(),GA_ReadOnly));
+            std::unique_ptr<GDALDataset> dataset((GDALDataset*)GDALOpen(fileName.c_str(),GA_ReadOnly));
             if (!dataset.get()) return ReadResult::FILE_NOT_HANDLED;
 
             int dataWidth = dataset->GetRasterXSize();

@@ -38,7 +38,7 @@ namespace DX {
      */
 
     // Vector
-    typedef struct {
+    typedef struct Vector {
         float x,y,z;
 
         inline void normalize() {
@@ -50,22 +50,22 @@ namespace DX {
     } Vector;
 
     // Coords2d
-    typedef struct {
+    typedef struct Coords2d {
         float u,v;
     } Coords2d;
 
     // ColorRGBA
-    typedef struct {
+    typedef struct ColorRGBA {
         float red,green,blue,alpha;
     } ColorRGBA;
 
     // ColorRGB
-    typedef struct {
+    typedef struct ColorRGB {
         float red,green,blue;
     } ColorRGB;
 
     // IndexedColor
-    typedef struct {
+    typedef struct IndexedColor {
         unsigned int index;
         ColorRGBA indexColor;
     } IndexedColor;
@@ -74,7 +74,7 @@ namespace DX {
     typedef std::string TextureFilename;
 
     // Material (potentially with multiple textures)
-    typedef struct {
+    typedef struct Material {
         // dgm - materials can have names for later reference
         std::string name;
         ColorRGBA faceColor;
@@ -91,7 +91,7 @@ namespace DX {
     typedef std::vector<Coords2d> MeshTextureCoords;
 
     // MeshNormals
-    typedef struct {
+    typedef struct MeshNormals {
         std::vector<Vector> normals;
         std::vector<MeshFace> faceNormals;
     } MeshNormals;
@@ -100,7 +100,7 @@ namespace DX {
     typedef std::vector<IndexedColor> MeshVertexColors;
 
     // MeshMaterialList
-    typedef struct {
+    typedef struct MeshMaterialList {
         std::vector<unsigned int> faceIndices;
         std::vector<Material> material;
     } MeshMaterialList;

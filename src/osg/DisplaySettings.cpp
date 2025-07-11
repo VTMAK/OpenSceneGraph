@@ -23,7 +23,6 @@
 #include <string.h>
 
 using namespace osg;
-using namespace std;
 
 #if defined(WIN32) && !defined(__CYGWIN__)
 #include<windows.h>
