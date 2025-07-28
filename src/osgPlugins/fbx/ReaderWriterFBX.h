@@ -32,7 +32,8 @@ public:
         supportsOption("LightmapTextures", "(Read option) Interpret texture maps as overriding the lighting. 3D Studio Max may export files that should be interpreted in this way.");
         supportsOption("TessellatePolygons", "(Read option) Tessellate mesh polygons. If the model contains concave polygons this may be necessary, however tessellating can be very slow and may erroneously produce triangle shards.");
         supportsOption("DiscardColor", "(Read option) Discard vertex and alpha color when riding the FBX model.");
-        supportsOption("keepExternalReferences", "Import option");
+        supportsOption("keepExternalReferences", "(Read option)");
+        supportsOption("vrvEnableSequenceSynchronization", "(Read option) Configure continuous sequence nodes to sync");
     }
 
     const char* className() const { return "FBX reader/writer"; }

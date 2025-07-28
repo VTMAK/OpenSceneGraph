@@ -58,8 +58,10 @@
 #define VERSION_0046 46 
 // added for FBX animation
 #define VERSION_0047 47
+// added for Sequence Synchronization Timepoint extension
+#define VERSION_0048 48
 
-#define VERSION VERSION_0047
+#define VERSION VERSION_0048
 //End VRV Patch
 
 /* The BYTE_SEX tag is used to check the endian

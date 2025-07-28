@@ -39,7 +39,9 @@ Sequence::Sequence() :
     _saveRealLastFrameValue(0),
     _mode(STOP),
     _sync(false),
-    _clearOnStop(false)
+    _clearOnStop(false),
+   _useCommonSyncPoint(false),
+   _syncTimePoint(0.0)
 
 {
    setNumChildrenRequiringUpdateTraversal(1);
@@ -66,7 +68,9 @@ Sequence::Sequence(const Sequence& seq, const CopyOp& copyop) :
    _saveRealLastFrameValue(seq._saveRealLastFrameValue),
    _mode(seq._mode),
    _sync(seq._sync),
-   _clearOnStop(seq._clearOnStop)
+   _clearOnStop(seq._clearOnStop),
+   _useCommonSyncPoint(seq._useCommonSyncPoint),
+   _syncTimePoint(seq._syncTimePoint)
 {
    setNumChildrenRequiringUpdateTraversal(getNumChildrenRequiringUpdateTraversal() + 1);
 }
@@ -339,7 +343,6 @@ void Sequence::traverse(NodeVisitor& nv)
                // how many laps?
                int loops = (int)(deltaT / adjTotalTime);
 
-
                // adjust reps & quick check to see if done because reps used up
 
                if (_nreps>0)
@@ -466,7 +469,10 @@ void Sequence::_update()
    // if _start<0, new or restarted
    if (_start<0)
    {
-      _start = _now;
+      _start = _useCommonSyncPoint
+         ? _syncTimePoint
+         : _now;
+
       _resetTotalTime = true;
    }
 

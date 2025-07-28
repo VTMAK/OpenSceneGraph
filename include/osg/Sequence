@@ -181,6 +181,18 @@ class OSG_EXPORT Sequence : public Group
         /** Get whether to show no child nodes after stopping */
         bool getClearOnStop() const { return _clearOnStop; }
 
+        /** Sets whether to use a common synchronization point. If true, enables the use of a common synchronization point; otherwise, disables it. */
+        void setUseCommonSyncPoint(bool sync) { _useCommonSyncPoint = sync; }
+
+        /** Returns whether a common synchronization point is used */
+        bool getUseCommonSyncPoint() const { return _useCommonSyncPoint; }
+
+        /** Set sync time point */
+        void setSyncTimePoint(double time) { _syncTimePoint = time; }
+
+        /** Get sync time point */
+        double getSyncTimePoint() const { return _syncTimePoint; }
+
     protected :
 
         virtual ~Sequence() {}
@@ -253,6 +265,11 @@ class OSG_EXPORT Sequence : public Group
         // the current clearOnStop value
         bool _clearOnStop ;
 
+        // Indicates whether a common synchronization point should be used.
+        bool _useCommonSyncPoint;
+
+        // the current synchronization time point.
+        double _syncTimePoint;
 };
 
 }

@@ -313,9 +313,21 @@ protected:
 
                 // Set number of repetitions.
                 if (_loopCount > 0)
-                    sequence->setDuration(1.0f, _loopCount);
+                {
+                   sequence->setDuration(1.0f, _loopCount);
+                }
                 else
-                    sequence->setDuration(1.0f);        // Run continuously
+                {
+                   // Run continuously
+                   sequence->setDuration(1.0f);
+
+                   if (document.getEnableSequenceSynchronization())
+                   {
+                      sequence->setSync(true);
+                      sequence->setUseCommonSyncPoint(true);
+                      sequence->setSyncTimePoint(0.0f);
+                   }
+                }
             }
             else // No timing available.
             {
@@ -326,6 +338,13 @@ protected:
 
                 // Run continuously
                 sequence->setDuration(1.0f);
+
+                if (document.getEnableSequenceSynchronization())
+                {
+                   sequence->setSync(true);
+                   sequence->setUseCommonSyncPoint(true);
+                   sequence->setSyncTimePoint(0.0f);
+                }
             }
 
             sequence->setMode(osg::Sequence::START);

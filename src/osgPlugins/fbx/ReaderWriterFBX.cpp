@@ -175,6 +175,7 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             bool zUp = true;
             bool discardColor = false;
             bool keepExternalReferences = false;
+            bool enableSequenceSynchronization = false;
 
             if (options)
             {
@@ -205,6 +206,10 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
                     if (opt == "keepExternalReferences")
                     {
                        keepExternalReferences = true;
+                    }
+                    if (opt == "vrvEnableSequenceSynchronization")
+                    {
+                        enableSequenceSynchronization = true;
                     }
                 }
             }
@@ -280,6 +285,12 @@ ReaderWriterFBX::readNode(const std::string& filenameInit,
             {
                // if the parameter is set, pass to the plugin to keep external references
                reader.setKeepExternalReferences(keepExternalReferences);
+            }
+
+            if(enableSequenceSynchronization)
+            {
+               // if the parameter is set, pass to the plugin to enable sequence synchronization
+               reader.setEnableSequenceSynchronization(enableSequenceSynchronization);
             }
 
             // Empty texture unit map that will be pass down

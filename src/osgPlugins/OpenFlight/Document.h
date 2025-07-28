@@ -228,6 +228,9 @@ class Document
         void setKeepExternalReferences( bool flag) { _keepExternalReferences=flag; }
         bool getKeepExternalReferences() const { return _keepExternalReferences; }
 
+        void setEnableSequenceSynchronization( bool flag) { _enableSequenceSynchronization =flag; }
+        bool getEnableSequenceSynchronization() const { return _enableSequenceSynchronization; }
+
         void setReadObjectRecordData(bool flag) { _readObjectRecordData = flag; }
         bool getReadObjectRecordData() const { return _readObjectRecordData; }
 
@@ -259,6 +262,7 @@ class Document
         makVrv::oe::CDB::CDBSigSizeTable* _sigSizeTable;
         
         bool                        _keepExternalReferences;
+        bool                        _enableSequenceSynchronization;
 
         friend class Header;
         bool _done;
