@@ -66,7 +66,8 @@ public:
         authoringTool(authoringTool1),
         currentFilePath(currentFilePath1),
        _dicardColor(false),
-       _keepExternalReferences(false)
+       _keepExternalReferences(false),
+       _enableSequenceSynchronization(false)
     {
        readNodeMapCSVfile();
     }
@@ -101,6 +102,9 @@ public:
 
     void setKeepExternalReferences(bool value) { _keepExternalReferences = value; }
     bool keepExternalReferences() const { return _keepExternalReferences; }
+
+    void setEnableSequenceSynchronization(bool value) { _enableSequenceSynchronization = value; }
+    bool enableSequenceSynchronization() const { return _enableSequenceSynchronization; }
 
 protected:
 
@@ -175,6 +179,7 @@ protected:
     //! Discard polygon color if the option is passed to the plugin
     bool _dicardColor;
     bool _keepExternalReferences;
+    bool _enableSequenceSynchronization;
 };
 
 osgAnimation::Skeleton* getSkeleton(FbxNode*,
@@ -192,7 +197,7 @@ osg::MatrixTransform* addArticulatedPart(FbxNode* pNode, const FbxString& pComme
    FbxScene& fbxScene);
 
 //! Add FlipBook animation 
-osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children);
+osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children, const bool enableSequenceSynchronization);
 
 //! Add Bone 
 osgAnimation::Bone* addBone(FbxNode* pNode, const std::string& animName, FbxScene& fbxScene, std::map<FbxNode*, osg::Node*>& nodeMap);

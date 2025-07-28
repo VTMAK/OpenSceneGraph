@@ -251,6 +251,7 @@ class FLTReaderWriter : public ReaderWriter
             supportsOption("convertToMeters","Import option");
             supportsOption("convertToKilometers","Import option");
             supportsOption("convertToNauticalMiles","Import option");
+            supportsOption("vrvEnableSequenceSynchronization", "Import option: Configure continuous sequence nodes to sync");
 
             supportsOption( "version=<ver>", "Export option: Specifies the version of the output OpenFlight file. Supported values include 15.7, 15.8, and 16.1. Default is 16.1. Example: \"version=15.8\"." );
             supportsOption( "units=<units>", "Export option: Specifies the contents of the Units field of the OpenFlight header record. Valid values include INCHES, FEET, METERS, KILOMETERS, and NAUTICAL_MILES. Default is METERS. Example: \"units=METERS\"." );
@@ -393,6 +394,9 @@ class FLTReaderWriter : public ReaderWriter
 
                 document.setKeepExternalReferences((options->getOptionString().find("keepExternalReferences")!=std::string::npos));
                 OSG_DEBUG << readerMsg << "keepExternalReferences=" << document.getKeepExternalReferences() << std::endl;
+
+                document.setEnableSequenceSynchronization((options->getOptionString().find("vrvEnableSequenceSynchronization") != std::string::npos));
+                OSG_DEBUG << readerMsg << "vrvEnableSequenceSynchronization=" << document.getEnableSequenceSynchronization() << std::endl;
 
                 document.setPreserveFace((options->getOptionString().find("preserveFace")!=std::string::npos));
                 OSG_DEBUG << readerMsg << "preserveFace=" << document.getPreserveFace() << std::endl;

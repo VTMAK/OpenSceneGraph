@@ -31,4 +31,7 @@ REGISTER_OBJECT_WRAPPER( Sequence,
 
     ADD_BOOL_SERIALIZER( Sync, false );  // _sync
     ADD_BOOL_SERIALIZER( ClearOnStop, false );  // _clearOnStop
+    ADD_BOOL_SERIALIZER( UseCommonSyncPoint, false );  // _useCommonSyncPoint
+    ADD_DOUBLE_SERIALIZER( SyncTimePoint, 0.0 );  // _syncTimePoint
+
 }

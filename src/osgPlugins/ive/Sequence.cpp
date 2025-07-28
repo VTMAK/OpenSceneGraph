@@ -82,6 +82,13 @@ void Sequence::write(DataOutputStream* out)
         out->writeInt((int)getClearOnStop()) ;
     }
 
+    if (out->getVersion() >= VERSION_0048)
+    {
+       // Write UseCommonSyncPoint as an integer
+       out->writeInt((int)getUseCommonSyncPoint());
+
+       out->writeDouble(getSyncTimePoint());
+    }
 }
 
 void Sequence::read(DataInputStream* in)
@@ -145,6 +152,14 @@ void Sequence::read(DataInputStream* in)
 
             // Read clearOnStop from an integer
             setClearOnStop((in->readInt())!=0) ;
+        }
+
+        if (in->getVersion() >= VERSION_0048)
+        {
+           // Read UseCommonSyncPoint as an integer
+           setUseCommonSyncPoint((in->readInt()) != 0);
+
+           setSyncTimePoint(in->readDouble());
         }
     }
     else

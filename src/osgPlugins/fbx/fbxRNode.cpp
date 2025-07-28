@@ -807,7 +807,7 @@ bool containStateName(FbxNode* pNode, const std::map<std::string, std::string>& 
 osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     const std::string& animName, osgAnimation::Animation* animation, const osg::Matrix& localMatrix, bool bNeedSkeleton,
     std::map<FbxNode*, osg::Node*>& nodeMap, FbxScene& fbxScene, osg::NodeList& children, bool& hasDof,
-    const std::map<std::string, std::string>& stateNodeMap, const bool childrenHaveProxyNodes )
+    const std::map<std::string, std::string>& stateNodeMap, const bool childrenHaveProxyNodes, const bool enableSequenceSynchronization)
 {
     FbxString pComment;
     fbxUtil::getCommentProperty(pNode, pComment);
@@ -833,7 +833,7 @@ osg::Group* createGroupNode(FbxManager& pSdkManager, FbxNode* pNode,
     }
     else if (pComment.Find(disFlipbookAnimation.c_str()) != -1)
     {
-       return addFlipBookAnimation(pNode, pComment, children);
+       return addFlipBookAnimation(pNode, pComment, children, enableSequenceSynchronization);
     }
     else
     {
@@ -1132,7 +1132,7 @@ osgDB::ReaderWriter::ReadResult OsgFbxReader::readFbxNode(
     if (!osgGroup)
     {
        osgGroup = createGroupNode(pSdkManager, pNode, animName, animation, localMatrix, 
-          bIsBone, nodeMap, fbxScene, children, hasDof, _nodeNameStateMap, childrenHaveProxyNodes);
+          bIsBone, nodeMap, fbxScene, children, hasDof, _nodeNameStateMap, childrenHaveProxyNodes, enableSequenceSynchronization() );
     }
     osg::Group* pAddChildrenTo = osgGroup.get();
     if (hasDof)
@@ -1677,7 +1677,7 @@ osgDB::ReaderWriter::ReadResult addExternalReference(const FbxString& pComment, 
    }
 }
 
-osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children)
+osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, osg::NodeList& children, const bool enableSequenceSynchronization)
 {
    // flip book animation
    int nbFrame = 0;
@@ -1723,9 +1723,21 @@ osg::Sequence* addFlipBookAnimation(FbxNode* pNode, const FbxString& pComment, o
 
    //// Set number of repetitions.
    if (loopCount > 0)
+   {
       pSequence->setDuration(1.0f, loopCount);
+   }
    else
-      pSequence->setDuration(1.0f);        // Run continuously
+   {
+      // Run continuously
+      pSequence->setDuration(1.0f);
+
+      if (enableSequenceSynchronization)
+      {
+         pSequence->setSync(true);
+         pSequence->setUseCommonSyncPoint(true);
+         pSequence->setSyncTimePoint(0.0f);
+      }
+   }
 
    pSequence->setMode(osg::Sequence::START);
    return pSequence;
