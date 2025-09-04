@@ -34,7 +34,9 @@ DOFTransform::DOFTransform():
     _increasingFlags(0xffff),
     _multOrder(PRH),
     // BEGIN VRV_PATCH - just using a new DOFTransform hides the object because scale (0,0,0)
-    _currentScale(1.0, 1.0, 1.0)
+    _currentScale(1.0, 1.0, 1.0),
+    _velocityHPR(0.0, 0.0, 0.0),
+    _velocityTranslate(0.0, 0.0, 0.0)
     // END VRV_PATCH
 {
 }
@@ -60,7 +62,11 @@ DOFTransform::DOFTransform(const DOFTransform& dof, const osg::CopyOp& copyop):
     _limitationFlags(dof._limitationFlags),
     _animationOn(dof._animationOn),
     _increasingFlags(dof._increasingFlags),
-    _multOrder(dof._multOrder)
+    _multOrder(dof._multOrder),
+   // BEGIN VRV_PATCH
+   _velocityHPR( dof._velocityHPR ),
+   _velocityTranslate( dof._velocityTranslate )
+   // END VRV_PATCH
 {
     if (_animationOn) setNumChildrenRequiringUpdateTraversal(getNumChildrenRequiringUpdateTraversal()+1);
 }

@@ -112,6 +112,15 @@ class OSGSIM_EXPORT DOFTransform : public osg::Transform
 
         virtual bool computeWorldToLocalMatrix(osg::Matrix& matrix,osg::NodeVisitor* nv) const;
 
+        //VRV PATCH
+        virtual void setVelocityHPR(const osg::Vec3& hprVel) { _velocityHPR=hprVel; };
+        virtual osg::Vec3& getVelocityHPR() { return _velocityHPR; };
+        virtual void setVelocityTranslate(const osg::Vec3& translateVel) { _velocityTranslate=translateVel; };
+        virtual osg::Vec3& getVelocityTranslate() { return _velocityTranslate; };
+    protected:
+        osg::Vec3 _velocityHPR;
+        osg::Vec3 _velocityTranslate;
+        //END VRV PATCH
     protected:
 
         virtual ~DOFTransform() {}
