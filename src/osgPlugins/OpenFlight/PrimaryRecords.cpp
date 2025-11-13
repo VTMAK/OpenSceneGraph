@@ -41,6 +41,11 @@
 #include "DtCDBSigSize.h"
 #include "DtCDBSigSizeTable.h"
 
+// VRV_PATCH BEGIN
+#include <osgDB/ReaderWriter>
+#include "Utils.h"
+// VRV_PATCH END
+
 namespace flt {
 
 /** Header
@@ -157,6 +162,12 @@ protected:
 
 REGISTER_FLTRECORD(Header, HEADER_OP)
 
+// VRV_PATCH BEGIN
+#define debug_cdbDmaageStates 0
+#if debug_cdbDmaageStates
+static bool printOnce = false;
+#endif
+// VRV_PATCH END
 
 /** Group
 */
@@ -198,7 +209,12 @@ public:
     META_getChild(_group)
 
     bool hasAnimation() const { return _forwardAnim || _backwardAnim; }
-
+// VRV_PATCH BEGIN
+    virtual osg::Node* getNode() override
+    {
+        return _group;
+    }
+// VRV_PATCH END
 protected:
 
     void readRecord(RecordInputStream& in, Document& document)
@@ -254,22 +270,28 @@ protected:
            _group->getOrCreateStateSet()->setRenderBinDetails(layer, "RenderBin");
         }
 
-        // VRV_PATCH BEGIN - For correctly rendering ST CDB airport
-        // 
-        // Only pay attention to the relative priority flag if you are in a CDB terrain
-        // the relative priority flag is for a 'fixed list' render order defined by Creator
-        // 
-        if (document.getCdb() && relativePriority > 0)
+        // VRV_PATCH BEGIN
+        if (document.getCdb())
         {
-           // higher numbers are rendered on top. In polygon offset this needs to be more negative as the layers have to be
-         // rendered lesser in depth (closer to you). That's why we flip it:
-           _group->getOrCreateStateSet()->setAttributeAndModes(new osg::PolygonOffset(-1, -1), osg::StateAttribute::ON);
+            // For correctly rendering ST CDB airport
+            // Only pay attention to the relative priority flag if you are in a CDB terrain
+            // the relative priority flag is for a 'fixed list' render order defined by Creator
+            if( relativePriority > 0 )
+            {
+                // higher numbers are rendered on top. In polygon offset this needs to be more negative as the layers have to be
+                // rendered lesser in depth (closer to you). That's why we flip it:
+                _group->getOrCreateStateSet()->setAttributeAndModes( new osg::PolygonOffset( -1, -1 ), osg::StateAttribute::ON );
+            }
+
+            processCdbDamageStates( document );
         }
         // VRV_PATCH END
-
+        
         // Add this implementation to parent implementation.
-        if (_parent.valid())
-            _parent->addChild(*_group);
+        if( _parent.valid() )
+        {
+            _parent->addChild( *_group );
+        }
     }
 
     virtual void dispose(Document& document)
@@ -350,6 +372,194 @@ protected:
             sequence->setMode(osg::Sequence::START);
         }
     }
+
+// VRV_PATCH BEGIN
+    virtual void processCdbDamageStates( Document& document )
+    {
+        // For damage states, is this group node below a multiswitch that is a damage switch?
+        // This has to be done here because when the multiswitch comment is parsed the children
+        // have not been added yet.     
+        osgSim::MultiSwitch* multiSwitch = dynamic_cast<osgSim::MultiSwitch*>(_parent->getNode());
+        if( !multiSwitch )
+        {
+            return;
+        }
+
+        bool parentIsDamageSwitch = false;
+        std::string parentDescription;
+        for( auto& des : multiSwitch->getDescriptions() )
+        {
+            if( des.find( "@dis switch damage" ) != std::string::npos )
+            {
+                parentDescription = des;
+                parentIsDamageSwitch = true;
+                break;
+            }
+        }
+
+        if( !parentIsDamageSwitch || !document.getOptions() )
+        {
+            return;
+        }
+
+        // see VRVs appData/importConfig/damage_state_mappings.csv
+        DtDamageStateMappings* damageMappings = loadDamageMappings( document.getOptions()) ; // defined in Utils.h
+        damageMappings = (DtDamageStateMappings*) (document.getOptions()->getPluginData( "DtDamageStateMappings" ));
+        if( !damageMappings )
+        {
+            return;
+        }
+
+        unsigned int vrvDamageStateCount = 4;
+
+        unsigned int* tempCount = (unsigned int*) (document.getOptions()->getPluginData( "DtApplicationDamageStateCount" ));
+        if( tempCount )
+        {
+            vrvDamageStateCount = *tempCount;
+        }
+
+        std::string userDataModelSwitchDamageStateIds;
+        if( !multiSwitch->getUserValue( "SwitchDamageStates", userDataModelSwitchDamageStateIds ) )
+        {
+            return;
+        }
+
+        std::istringstream valueStream( userDataModelSwitchDamageStateIds );
+        std::vector<std::string> switchDamageStateIds;
+        std::string level;
+
+        while( valueStream >> level )
+        {
+            switchDamageStateIds.push_back( level );
+        }
+
+        unsigned int switchNumDamageStates = (unsigned int) switchDamageStateIds.size();
+
+        unsigned int curChildCount = multiSwitch->getNumChildren();
+
+        if( switchDamageStateIds.size() < curChildCount )
+        {
+            return;
+        }
+
+        // build a tuple to find the mapping
+        std::string::size_type pos = parentDescription.find( "@dis switch " );
+        if( pos == std::string::npos )
+        {
+            return;
+        }
+
+        const std::string settingsFileDamageComment( parentDescription, pos + std::string( "@dis switch " ).size() );
+
+        std::tuple<unsigned int, std::string, std::string> damageKey( switchNumDamageStates, settingsFileDamageComment, switchDamageStateIds[curChildCount] );
+
+        std::string dynamicDamageComment = "";
+        if( !findDynamicDamageCommentFromMappings( damageMappings, damageKey, dynamicDamageComment ) )
+        {
+            return;
+        }
+
+        if( shouldAddDisDamageComment(vrvDamageStateCount, switchNumDamageStates,curChildCount ))
+        {
+            std::string damageComment = "@dis state " + dynamicDamageComment;
+            _group->addDescription( damageComment );
+
+#if debug_cdbDmaageStates
+            std::cout << "openFlt Loader - addComment " << damageComment << " to switch child " << curChildCount << std::endl;
+#endif
+        }
+    }
+
+
+
+    virtual DtDamageStateMappings* loadDamageMappings( const osgDB::ReaderWriter::Options* options )
+    {
+        DtDamageStateMappings* damageMappings = (DtDamageStateMappings*) (options->getPluginData( "DtDamageStateMappings" ));
+        if( damageMappings )
+        {
+#if debug_cdbDmaageStates
+            if( !printOnce )
+            {
+                std::cout << "openFlt Loader - Found DtDamageStateMappings on plugin data" << std::endl;
+                for( auto& entry : *damageMappings )
+                {
+                    std::cout << " Entry: " << std::get<0>( entry.first ) << "," << std::get<1>( entry.first ) << "," << std::get<2>( entry.first ) << " for match with group name: " << entry.second << std::endl;
+                }
+                printOnce = true;
+            }
+#endif
+        }
+        else
+        {
+            OSG_WARN << "OpenFlight Loader could not find DtDamageStateMappings in Document options plugin data!" << std::endl;
+        }
+        return damageMappings;
+    }
+
+    virtual bool findDynamicDamageCommentFromMappings( const DtDamageStateMappings* damageMappings, const std::tuple<unsigned int, std::string, const std::string>& damageKey, std::string& dynamicDamageComment )
+    {
+#if debug_cdbDmaageStates
+        std::cout << "openFlt Loader - Building damageKey < " << std::get<0>( damageKey ) << ", " << std::get<1>( damageKey ) << ", " << std::get<2>( damageKey ) << " >" << std::endl;
+#endif
+        auto foundIter = damageMappings->find( damageKey );
+        if( foundIter != damageMappings->end() )
+        {
+#if debug_cdbDmaageStates
+            std::cout << " Found mapping. damageKey < " << std::get<0>( damageKey ) << ", " << std::get<1>( damageKey ) << ", " << std::get<2>( damageKey ) << " > Mapped to : " << foundIter->second << std::endl;
+#endif
+            dynamicDamageComment = foundIter->second;
+            return true;
+        }
+        else
+        {
+            OSG_WARN << "OpenFlight Loader could not find damage mapping for : " << std::get<0>( damageKey ) << " " << std::get<1>( damageKey ) << " " << std::get<2>( damageKey ) << std::endl;
+        }
+        return false;
+    }
+
+    virtual bool shouldAddDisDamageComment( const unsigned int& vrvDamageStateCount, const unsigned int& switchNumDamageStatesFromModel, const unsigned int& curChildCount )
+    {
+        if( switchNumDamageStatesFromModel == 0 || curChildCount >= switchNumDamageStatesFromModel )
+        {
+            return false;
+        }
+
+        if( switchNumDamageStatesFromModel <= vrvDamageStateCount )
+        {
+            return true;
+        }
+
+        // See Section 6.9.2.2 Damage States of the CDB standard
+        // 
+        // For when there are more than 4 states, CDB supports 99...
+        // We include the healthy state in the count, for 6 damage states
+        // of, and a healthy state of 0.
+        // E.g. 7 states
+        // 6 / 3 = 2
+        // 0 * 2 = child index 0
+        // 1 * 2 = child index 2
+        // 2 * 2 = child index 4
+        // 3 * 2 = child index 6
+        double interval = static_cast<double>(switchNumDamageStatesFromModel - 1) / static_cast<double>(vrvDamageStateCount - 1);
+
+        for( unsigned int vrvState = 0; vrvState < vrvDamageStateCount; ++vrvState )
+        {
+            unsigned int modelIndex = static_cast<unsigned int>( std::round( vrvState * interval ) );
+
+            if( modelIndex >= switchNumDamageStatesFromModel )
+            {
+                modelIndex = switchNumDamageStatesFromModel - 1;
+            }
+
+            if( curChildCount == modelIndex )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+// VRV_PATCH END
 };
 
 REGISTER_FLTRECORD(Group, GROUP_OP)
@@ -837,6 +1047,22 @@ public:
     META_setComment(_multiSwitch)
     META_setMultitexture(_multiSwitch)
     META_dispose(_multiSwitch)
+
+    // VRV_PATCH START
+    virtual unsigned int getNumChildren() const
+    {
+        if( _multiSwitch.valid() )
+        {
+            return _multiSwitch->getNumChildren();
+        }
+        return 0;
+    }
+
+    virtual osg::Node* getNode() override
+    {
+        return _multiSwitch;
+    }
+    // VRV_PATCH END
 
     virtual void addChild(osg::Node& child)
     {

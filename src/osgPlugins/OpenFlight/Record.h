@@ -91,7 +91,9 @@ public:
    virtual void setMultiSwitchValueName(unsigned int /*switchSet*/, const std::string& /*name*/) {}   
    virtual unsigned int getNumChildren() const { return 0; }
    virtual osg::Node* getChild(unsigned  int i) { return NULL; }
-
+// VRV_PATCH BEGIN
+   virtual osg::Node* getNode() { return NULL; }
+// VRV_PATCH END
     void setNumberOfReplications(int num) { _numberOfReplications = num; }
     void setMatrix(const osg::Matrix& matrix) { _matrix = new osg::RefMatrix(matrix); }
 

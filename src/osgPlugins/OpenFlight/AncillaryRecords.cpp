@@ -23,6 +23,10 @@
 #include <osg/TexEnv>
 #include <osg/ValueObject>
 
+// VRV_PATCH BEGIN
+#include <osgDB/XmlParser>
+// VRV_PATCH END
+
 #include "Registry.h"
 #include "Document.h"
 #include "RecordInputStream.h"
@@ -43,7 +47,7 @@ class Comment : public Record
 
         virtual ~Comment() {}
 
-        virtual void readRecord(RecordInputStream& in, Document& /*document*/)
+        virtual void readRecord(RecordInputStream& in, Document& document)
         {
             std::streamsize size = in.getRecordSize();
             std::string commentfield = in.readString(size-4);
@@ -53,37 +57,132 @@ class Comment : public Record
 #if 0            
                 _parent->setComment(commentfield);
 #else
+                // VRV_PATCH BEGIN
+                if( document.getCdb() )
+                {
+                    processDamageComment( commentfield );                    
+                }
+                // VRV_PATCH END
+
                 unsigned int front_of_line = 0;
                 unsigned int end_of_line = 0;
-                while (end_of_line<commentfield.size())
+                while( end_of_line < commentfield.size() )
                 {
-                    if (commentfield[end_of_line]=='\r')
+                    if( commentfield[end_of_line] == '\r' )
                     {
-                        _parent->setComment( std::string( commentfield, front_of_line, end_of_line-front_of_line) );
+                        _parent->setComment( std::string( commentfield, front_of_line, end_of_line - front_of_line ) );
 
-                        if (end_of_line+1<commentfield.size() &&
-                            commentfield[end_of_line+1]=='\n') ++end_of_line;
+                        if( end_of_line + 1 < commentfield.size() &&
+                            commentfield[end_of_line + 1] == '\n' ) ++end_of_line;
 
                         ++end_of_line;
                         front_of_line = end_of_line;
                     }
-                    else if (commentfield[end_of_line]=='\n')
+                    else if( commentfield[end_of_line] == '\n' )
                     {
-                        _parent->setComment( std::string( commentfield, front_of_line, end_of_line-front_of_line) );
+                        _parent->setComment( std::string( commentfield, front_of_line, end_of_line - front_of_line ) );
                         ++end_of_line;
                         front_of_line = end_of_line;
                     }
                     else ++end_of_line;
                 }
-                if (front_of_line<end_of_line)
+                if( front_of_line < end_of_line )
                 {
-                    _parent->setComment( std::string( commentfield, front_of_line, end_of_line-front_of_line) );
+                    _parent->setComment( std::string( commentfield, front_of_line, end_of_line - front_of_line ) );
                 }
 
             }
 #endif
 
         }
+        // VRV_PATCH BEGIN
+        virtual void processDamageComment( std::string& commentfield )
+        {
+            // check if this is a CDB damage comment
+            // damage comments are in xml format
+            // <CDB:Switch name="Damage_State">
+            //   <Damage_Level>
+            //       25 50 75
+            //   </Damage_Level>
+            // </CDB:Switch>
+
+            size_t switchTagStartLocation = commentfield.find( "<CDB:Switch" );
+            if( switchTagStartLocation == std::string::npos )
+            {
+                return;
+            }
+
+            try
+            {
+                // Parse XML using osgDB::XmlParser
+                std::istringstream xmlStream( commentfield );
+                osg::ref_ptr<osgDB::XmlNode> xmlRoot = osgDB::readXmlStream( xmlStream );
+
+                if( !xmlRoot.valid() || xmlRoot->children.size() == 0 )
+                {
+                    return;
+                }
+
+                bool removeXmlComment = false;
+
+                // Find the CDB:Switch node
+                for( auto& child : xmlRoot->children )
+                {
+                    auto nameAttr = child->properties.find( "name" );
+                    if( nameAttr == child->properties.end() || nameAttr->second != "Damage_State" )
+                    {
+                        continue;
+                    }
+                    // Found the Damage_State switch, add our dis switch
+                    const std::string disSwitch( "@dis switch damage" );
+                    // calls setDescription under the hood, does nto override
+                    _parent->setComment( disSwitch );
+
+                    // Find Damage_Level child node, this is the xml tag <Damage_Level>, should only really be one
+                    for( auto& damageChild : child->children )
+                    {
+                        if( damageChild->name != "Damage_Level" || damageChild->contents.empty() )
+                        {
+                            continue;
+                        }
+
+                        std::string damageValues = damageChild->getTrimmedContents();
+
+                        // Parse the damage level values (e.g., "25 50 75")
+                        // Per the standard (Section 6.9.2.2 Damage States):
+                        // The XML element <Damage_Level> is a list of percentages representing the
+                        //    transitions between child nodes of the switch.The list counts ‘n - 1’ entries where ‘n’
+                        //    is the number of states
+                        damageValues = "0 " + damageValues; // add undamaged level
+
+                        if( _parent->getNode() )
+                        {
+                            _parent->getNode()->setUserValue( "SwitchDamageStates", damageValues );
+                            removeXmlComment = true;
+                        }
+
+                        // There should only be one damage level entry
+                        break;
+                    }
+                }// for end
+
+                if( removeXmlComment )
+                {
+                    size_t switchTagEndLocation = commentfield.find( "</CDB:Switch>" );
+                    if( switchTagEndLocation != std::string::npos )
+                    {
+                        std::string sub1 = commentfield.substr( 0, switchTagStartLocation );
+                        std::string sub2 = commentfield.substr( switchTagEndLocation+std::string( "</CDB:Switch>" ).size() );
+                        commentfield = sub1 + sub2;
+                    }
+                }
+            }
+            catch( const std::exception& e )
+            {
+                OSG_WARN << "Error parsing CDB damage comment XML: " << e.what() << std::endl;
+            }
+        }
+    // VRV_PATCH END
 };
 
 REGISTER_FLTRECORD(Comment, COMMENT_OP)
