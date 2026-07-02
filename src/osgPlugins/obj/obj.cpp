@@ -17,6 +17,7 @@
 #include <string>
 #include <stdio.h>
 #include <functional>
+#include <cctype>
 
 #include "obj.h"
 

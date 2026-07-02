@@ -60,10 +60,22 @@ endif(${MAK_PLATFORM} STREQUAL "linux-rhentws7")
 SET(TARGET_LIBRARIES_VARS FBX_LIBRARY)
 
 IF(WIN32)
-    SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim libxml2_a_64)
-ELSE()
-    SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim)
+    get_filename_component(FBX_LIBRARY_DIR_RELEASE "${FBX_LIBRARY}" DIRECTORY)
+    get_filename_component(FBX_LIBRARY_DIR_DEBUG "${FBX_LIBRARY_DEBUG}" DIRECTORY)
+
+    SET(FBX_XML_LIBRARY_RELEASE "${FBX_LIBRARY_DIR_RELEASE}/libxml2-md.lib")
+    SET(FBX_XML_LIBRARY_DEBUG "${FBX_LIBRARY_DIR_DEBUG}/libxml2-md.lib")
+
+    IF(NOT EXISTS "${FBX_XML_LIBRARY_RELEASE}" OR NOT EXISTS "${FBX_XML_LIBRARY_DEBUG}")
+        MESSAGE(FATAL_ERROR
+            "The FBX plugin must link against the FBX SDK's bundled libxml2-md libraries. "
+            "Expected ${FBX_XML_LIBRARY_RELEASE} and ${FBX_XML_LIBRARY_DEBUG}.")
+    ENDIF()
+
+    LIST(APPEND TARGET_LIBRARIES_VARS FBX_XML_LIBRARY)
 ENDIF(WIN32)
+
+SET(TARGET_ADDED_LIBRARIES osgAnimation osgSim)
 
 #### end var setup  ###
 SETUP_PLUGIN(fbx)
